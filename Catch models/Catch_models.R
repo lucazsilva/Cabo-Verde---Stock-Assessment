@@ -10,4 +10,22 @@
 # Codificacao criada por Silva, MLS ; 09/09/2026, Instituto do Mar- IMar, Mindelo           #
 #-------------------------------------------------------------------------------------------#
 
+# limpando ambiente de trabalho...
+rm(list = ls())
+
+#@pacotes..
+#install.packages("readxl")
+library(readxl)
+
+# definindo diretorio de trabalho..
+setwd("C:/Users/mathe/OneDrive/Documents/Cabo-Verde---Stock-Assessment/Catch models")
+
+### lendo os dados de capturas... ###
+ct<- read.csv("Catch_Luz and Vieira.csv",sep = ",",dec = ".")
+# lendo dados de história de vida... ##
+lh<- read_xlsx("Parâmetros_História de vida.xlsx")
+
+
+# Analise exploratoria das capturas
+
 
