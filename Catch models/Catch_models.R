@@ -88,7 +88,7 @@ ggsave(
 
 
 # ==============================================================================
-# Hipoteses de depleção para Decapterus macarellus
+# Hipoteses de depleção (B/k) final da série para Decapterus macarellus
 # ==============================================================================
 ## Objetivo:
 # Construir hipóteses de depleção B/K para Decapterus macarellus
@@ -99,33 +99,20 @@ ggsave(
 #   3. Hipótese independente de mudança de alvo (target switching)
 #   4. Hipótese não informativa
 #
-# As hipóteses são estimadas para:
-#   - 2015
-#   - 2025
-#
 # IMPORTANTE:
 # Para cada ano-alvo, somente os dados até aquele ano são utilizados.
 # Isso evita usar informação futura para estimar a depleção histórica.
 #
 # ==============================================================================
-
-
-# ------------------------------------------------------------------------------
 # 1. PACOTES
-# ------------------------------------------------------------------------------
-
 library(dplyr)
 library(tidyr)
 library(neuralnet)
 library(datalimited2)
-
-
-# ------------------------------------------------------------------------------
+# ------------------------------------------------
 # 2. CARREGAR MODELO DA NEURAL NETWORK DO CMSY++
-# ------------------------------------------------------------------------------
-
+# ------------------------------------------------
 # ffnn.bin deve estar no working directory
-#
 # Esse arquivo contém:
 #   - nn.endbio
 #   - slope.first.min
@@ -133,40 +120,20 @@ library(datalimited2)
 #   - slope.last.min
 #   - slope.last.max
 #   - e possivelmente outros objetos utilizados pelo CMSY++
-
 load("ffnn.bin")
-
-
-
-# ------------------------------------------------------------------------------
+# --------------------------------
 # 4. PADRONIZAR NOMES DAS COLUNAS
-# ------------------------------------------------------------------------------
-
-# O restante do script trabalha com:
-#
-#   year
-#   ct
-#
-# Mas seu arquivo pode estar com:
-#
-#   Year
-#   Catch
-#
-# Portanto, fazemos a conversão automaticamente.
-
+# --------------------------------
+# O restante do script trabalha com:  year  e  ct
 if ("Year" %in% names(ct)) {
   names(ct)[names(ct) == "Year"] <- "year"
 }
-
 if ("Catch" %in% names(ct)) {
   names(ct)[names(ct) == "Catch"] <- "ct"
 }
-
-
-# ------------------------------------------------------------------------------
+# -----------------------
 # 5. CHECAGEM DOS DADOS
-# ------------------------------------------------------------------------------
-
+# -----------------------
 if (!all(c("year", "ct") %in% names(ct))) {
   
   stop(
@@ -178,12 +145,9 @@ if (!all(c("year", "ct") %in% names(ct))) {
     )
   )
 }
-
-
-# ------------------------------------------------------------------------------
+# ------------------------------
 # 6. PREPARAR SÉRIE DE CAPTURA
-# ------------------------------------------------------------------------------
-
+# ------------------------------
 ct <- ct %>%
   select(year, ct) %>%
   mutate(
@@ -195,12 +159,9 @@ ct <- ct %>%
     !is.na(ct)
   ) %>%
   arrange(year)
-
-
-# ------------------------------------------------------------------------------
+# ------------------------------
 # 7. VERIFICAR ANOS DUPLICADOS
-# ------------------------------------------------------------------------------
-
+# ------------------------------
 if (anyDuplicated(ct$year) > 0) {
   
   warning(
@@ -216,12 +177,9 @@ if (anyDuplicated(ct$year) > 0) {
     ) %>%
     arrange(year)
 }
-
-
-# ------------------------------------------------------------------------------
+# --------------------------------
 # 8. VERIFICAR CAPTURAS NEGATIVAS
-# ------------------------------------------------------------------------------
-
+# --------------------------------
 if (any(ct$ct < 0, na.rm = TRUE)) {
   
   stop(
@@ -229,35 +187,26 @@ if (any(ct$ct < 0, na.rm = TRUE)) {
     "Verifique os dados antes de continuar."
   )
 }
-
-
-# ------------------------------------------------------------------------------
+# -----------------
 # 9. MOSTRAR SÉRIE
-# ------------------------------------------------------------------------------
-
+# -----------------
 print(ct)
 
-
-# ==============================================================================
+# ========================================
 # 10. FUNÇÃO — NEURAL NETWORK DO CMSY++
-# ==============================================================================
+# ========================================
 
 estimate_endbio <- function(ct_raw, yr) {
-  
-  
-  # --------------------------------------------------------------------------
+  # ----------------
   # 10.1. CHECAGENS
-  # --------------------------------------------------------------------------
-  
+  # ----------------
   if (!exists("nn.endbio")) {
-    
     stop(
       "`nn.endbio` não encontrado. ",
       "Certifique-se de carregar o arquivo ffnn.bin."
     )
   }
-  
-  
+
   need_vars <- c(
     "slope.first.min",
     "slope.first.max",
@@ -265,68 +214,47 @@ estimate_endbio <- function(ct_raw, yr) {
     "slope.last.max"
   )
   
-  
   missing_vars <- setdiff(
     need_vars,
     ls(envir = .GlobalEnv)
   )
   
-  
   if (length(missing_vars) > 0) {
-    
     stop(
       "Objetos necessários não encontrados: ",
       paste(missing_vars, collapse = ", ")
     )
   }
   
-  
-  # --------------------------------------------------------------------------
+  # ------------------------
   # 10.2. ORGANIZAR SÉRIE
-  # --------------------------------------------------------------------------
-  
+  # ------------------------
   ord <- order(yr)
   
   yr      <- yr[ord]
   ct_raw  <- ct_raw[ord]
   
-  
   # Remover NA
-  
   keep <- !is.na(ct_raw) & !is.na(yr)
-  
   ct_raw <- ct_raw[keep]
   yr     <- yr[keep]
-  
-  
   nyr <- length(yr)
-  
-  
   if (nyr < 5) {
-    
-    stop(
+  stop(
       "Série muito curta (<5 anos). ",
       "Não é possível formar os preditores da neural network."
     )
   }
-  
-  
-  # --------------------------------------------------------------------------
+  # -------------------------------
   # 10.3. ESTIMATIVA DO MSY PRIOR
-  # --------------------------------------------------------------------------
-  
+  # -------------------------------
   ct.sort <- sort(ct_raw)
-  
   sd.ct   <- sd(ct_raw)
   mean.ct <- mean(ct_raw)
   min.ct  <- min(ct_raw)
   max.ct  <- max(ct_raw)
-  
   min_max <- min.ct / max.ct
-  
   max.yr.i <- which.max(ct_raw)
-  
-  
   if (
     max.yr.i > (nyr - 4) ||
     (
@@ -334,31 +262,22 @@ estimate_endbio <- function(ct_raw, yr) {
       min_max > 0.66
     )
   ) {
-    
-    MSY.pr <- mean(
+      MSY.pr <- mean(
       ct.sort[(nyr - 2):nyr]
     )
-    
   } else {
-    
     MSY.pr <- 0.75 * mean(
       ct.sort[(nyr - 4):nyr]
     )
   }
-  
-  
-  # --------------------------------------------------------------------------
+  # ------------------------
   # 10.4. ANO INTERMEDIÁRIO
-  # --------------------------------------------------------------------------
-  
+  # ------------------------
   if (min_max > 0.7) {
-    
     int.yr <- as.integer(
       mean(c(min(yr), max(yr)))
     )
-    
   } else {
-    
     yrs.int <- yr[
       yr > (yr[nyr] - 30) &
         yr > yr[min(4, nyr)] &
@@ -399,7 +318,6 @@ estimate_endbio <- function(ct_raw, yr) {
           ]
         )
         
-        
         if (
           (min.ct.after.max / max.ct.int) < 0.75
         ) {
@@ -417,14 +335,10 @@ estimate_endbio <- function(ct_raw, yr) {
     }
   }
   
-  
-  # --------------------------------------------------------------------------
+  # -----------------------------------------
   # 10.5. CAPTURA / MSY NO ANO INTERMEDIÁRIO
-  # --------------------------------------------------------------------------
-  
+  # -----------------------------------------
   idx.int <- which(yr == int.yr)
-  
-  
   if (length(idx.int) == 0) {
     
     idx.int <- which.min(
@@ -432,24 +346,19 @@ estimate_endbio <- function(ct_raw, yr) {
     )
   }
   
-  
   ct_MSY.int <- ct_raw[idx.int[1]] / MSY.pr
   
-  
-  # --------------------------------------------------------------------------
+  # -----------------------------
   # 10.6. POSIÇÕES NORMALIZADAS
-  # --------------------------------------------------------------------------
-  
+  # -----------------------------
   min.ct.i <- which.min(ct_raw) / nyr
   max.ct.i <- which.max(ct_raw) / nyr
   
   int.ct.i <- idx.int[1] / nyr
   
-  
-  # --------------------------------------------------------------------------
+  # --------------------------------------
   # 10.7. NORMALIZAÇÃO DO NÚMERO DE ANOS
-  # --------------------------------------------------------------------------
-  
+  # --------------------------------------
   if (
     all(
       c(
@@ -458,7 +367,6 @@ estimate_endbio <- function(ct_raw, yr) {
       ) %in% ls(envir = .GlobalEnv)
     )
   ) {
-    
     yr.norm <- (
       nyr - get("yr.norm.min")
     ) /
@@ -477,19 +385,15 @@ estimate_endbio <- function(ct_raw, yr) {
       )
   }
   
-  
-  # --------------------------------------------------------------------------
+  # -------------------------------------------
   # 10.8. MÉDIAS DE CAPTURA NO INÍCIO E FINAL
-  # --------------------------------------------------------------------------
-  
+  # -------------------------------------------
   k_start <- min(5, nyr)
   k_end   <- min(5, nyr)
-  
   
   mean.ct_MSY.start <-
     mean(ct_raw[1:k_start]) /
     MSY.pr
-  
   
   mean.ct_MSY.end <-
     mean(
@@ -498,15 +402,11 @@ estimate_endbio <- function(ct_raw, yr) {
       ]
     ) /
     MSY.pr
-  
-  
-  # --------------------------------------------------------------------------
+  # -------------
   # 10.9. SLOPES
-  # --------------------------------------------------------------------------
-  
+  # -------------
   m_first <- min(10, nyr)
   m_last  <- min(10, nyr)
-  
   
   slope.first <- coef(
     lm(
@@ -529,11 +429,9 @@ estimate_endbio <- function(ct_raw, yr) {
     )
   )[2]
   
-  
-  # --------------------------------------------------------------------------
+  # -------------------------
   # 10.10. NORMALIZAR SLOPES
-  # --------------------------------------------------------------------------
-  
+  # -------------------------
   slope.first.nrm <-
     (
       slope.first -
@@ -543,7 +441,6 @@ estimate_endbio <- function(ct_raw, yr) {
       get("slope.first.max") -
         get("slope.first.min")
     )
-  
   
   slope.last.nrm <-
     (
@@ -555,58 +452,35 @@ estimate_endbio <- function(ct_raw, yr) {
         get("slope.last.min")
     )
   
-  
-  # --------------------------------------------------------------------------
+  # -----------------------------------
   # 10.11. PADRÕES DA SÉRIE DE CAPTURA
-  # --------------------------------------------------------------------------
-  
+  # -----------------------------------
   min_max <- min(ct_raw) /
     max(ct_raw)
-  
-  
   start.rel <- ct_raw[1] /
     max(ct_raw)
-  
-  
   end.rel <- ct_raw[nyr] /
     max(ct_raw)
-  
-  
   Flat <- as.numeric(
     min_max >= 0.45 &
       start.rel >= 0.45 &
-      end.rel >= 0.45
-  )
-  
-  
+      end.rel >= 0.45 )
   LH <- as.numeric(
     min_max < 0.25 &
       start.rel < 0.45 &
-      end.rel > 0.45
-  )
-  
-  
+      end.rel > 0.45)
   LHL <- as.numeric(
     min_max < 0.25 &
       start.rel < 0.45 &
-      end.rel < 0.25
-  )
-  
-  
+      end.rel < 0.25)
   HL <- as.numeric(
     min_max < 0.25 &
       start.rel > 0.50 &
-      end.rel < 0.25
-  )
-  
-  
+      end.rel < 0.25)
   HLH <- as.numeric(
     min_max < 0.25 &
       start.rel >= 0.45 &
-      end.rel >= 0.45
-  )
-  
-  
+      end.rel >= 0.45 )
   OTH <- as.numeric(
     sum(
       c(
@@ -619,11 +493,9 @@ estimate_endbio <- function(ct_raw, yr) {
     ) < 1
   )
   
-  
-  # --------------------------------------------------------------------------
+  # ---------------------------------
   # 10.12. DATA FRAME DOS PREDITORES
-  # --------------------------------------------------------------------------
-  
+  # ---------------------------------
   preds <- data.frame(
     Flat,
     LH,
@@ -642,93 +514,64 @@ estimate_endbio <- function(ct_raw, yr) {
     mean.ct_MSY.end,
     slope.last.nrm
   )
-  
-  
-  # --------------------------------------------------------------------------
+  # ----------------------
   # 10.13. NEURAL NETWORK
-  # --------------------------------------------------------------------------
-  
+  # ----------------------
   pr.nn <- neuralnet::compute(
     nn.endbio,
     preds
   )
-  
-  
   idx <- max.col(
     pr.nn$net.result
   )
-  
-  
-  # --------------------------------------------------------------------------
+  # ------------------------------------
   # 10.14. RAZÃO CAPTURA / MSY NO FINAL
-  # --------------------------------------------------------------------------
-  
+  # ------------------------------------
   ct_MSY.end <-
     ct_raw[nyr] /
     MSY.pr
-  
   
   ct_MSY.use <-
     min(
       ct_MSY.end,
       mean.ct_MSY.end
     )
-  
-  
-  # --------------------------------------------------------------------------
+  # ----------------------------------
   # 10.15. MAPEAMENTO CMSY++ PARA B/K
-  # --------------------------------------------------------------------------
-  
+  # ----------------------------------
   bk.MSY <- c(
     0.256,
     0.721
   )
-  
-  
   CL.1 <- c(
     0.01,
     0.203
   )
-  
-  
   CL.2 <- c(
     0.20,
     0.431
   )
-  
-  
   CL.3 <- c(
     0.80,
     -0.45
   )
-  
-  
   CL.4 <- c(
     1.02,
     -0.247
   )
-  
-  
   ct_MSY.lim <- 1.0
-  
-  
-  # --------------------------------------------------------------------------
+  # -----------------
   # 10.16. RESULTADO
-  # --------------------------------------------------------------------------
-  
+  # -----------------
   if (
     mean.ct_MSY.end >= ct_MSY.lim
   ) {
-    
     bk <- bk.MSY
-    
   } else if (
     idx == 1
   ) {
-    
     # Classe 1:
     # B/K provavelmente < 0.5
-    
     bk <- c(
       CL.1[1] +
         CL.1[2] *
@@ -738,12 +581,9 @@ estimate_endbio <- function(ct_raw, yr) {
         CL.2[2] *
         ct_MSY.use
     )
-    
   } else {
-    
     # Classe 2:
     # B/K provavelmente >= 0.5
-    
     bk <- c(
       CL.3[1] +
         CL.3[2] *
@@ -754,55 +594,39 @@ estimate_endbio <- function(ct_raw, yr) {
         ct_MSY.use
     )
   }
-  
-  
-  # --------------------------------------------------------------------------
+  # ---------------------------------
   # 10.17. GARANTIR LIMITES FÍSICOS
-  # --------------------------------------------------------------------------
-  
+  # ---------------------------------
   bk[1] <- max(
     0,
     min(1, bk[1])
   )
   
-  
   bk[2] <- max(
     0,
     min(1, bk[2])
   )
-  
-  
   # Se por algum motivo o limite inferior ficar
   # maior que o superior, ordenar.
-  
   bk <- sort(bk)
-  
-  
   return(bk)
-  
 }
-
-
-# ==============================================================================
+# ==================
 # 11. FUNÇÃO — zBRT
-# ==============================================================================
-
+# ==================
 estimate_zbrt <- function(
     ct_data,
     target_year
 ) {
   
-  
-  # --------------------------------------------------------------------------
+  # -------------------------------------------------------
   # Selecionar apenas informação disponível até o ano-alvo
-  # --------------------------------------------------------------------------
-  
+  # -------------------------------------------------------
   sub <- ct_data %>%
     filter(
       year <= target_year
     ) %>%
     arrange(year)
-  
   
   if (nrow(sub) < 5) {
     
@@ -814,23 +638,17 @@ estimate_zbrt <- function(
       )
     )
   }
-  
-  
-  # --------------------------------------------------------------------------
+  # -----------
   # Rodar zBRT
-  # --------------------------------------------------------------------------
-  
+  # -----------
   output <- tryCatch(
-    
     {
       zbrt(
         sub$year,
         sub$ct
       )
     },
-    
     error = function(e) {
-      
       warning(
         paste0(
           "zBRT falhou para ",
@@ -839,15 +657,11 @@ estimate_zbrt <- function(
           e$message
         )
       )
-      
       NULL
     }
   )
-  
-  
   if (is.null(output)) {
-    
-    return(
+      return(
       data.frame(
         bk_lo = NA_real_,
         bk_hi = NA_real_,
@@ -855,12 +669,9 @@ estimate_zbrt <- function(
       )
     )
   }
-  
-  
-  # --------------------------------------------------------------------------
+  # -----------------------------------------
   # Verificar se o ano-alvo existe no output
-  # --------------------------------------------------------------------------
-  
+  # -----------------------------------------
   if (
     !"year" %in%
     names(output$ts)
@@ -874,7 +685,6 @@ estimate_zbrt <- function(
       )
     )
   }
-  
   
   if (
     !target_year %in%
@@ -890,40 +700,29 @@ estimate_zbrt <- function(
     )
   }
   
-  
   idx <- which(
     output$ts$year == target_year
   )[1]
   
-  
-  # --------------------------------------------------------------------------
+  # -------------
   # Extrair B/K
-  # --------------------------------------------------------------------------
-  
+  # -------------
   bk_lo <- output$ts$s_lo[idx]
   bk_hi <- output$ts$s_hi[idx]
   bk    <- output$ts$s[idx]
   
-  
   # Garantir limites
   bk_lo <- max(
     0,
-    min(1, bk_lo)
-  )
-  
-  
+    min(1, bk_lo) )
   bk_hi <- max(
     0,
     min(1, bk_hi)
   )
-  
-  
   bk <- max(
     0,
     min(1, bk)
   )
-  
-  
   return(
     data.frame(
       bk_lo = bk_lo,
@@ -931,45 +730,34 @@ estimate_zbrt <- function(
       bk = bk
     )
   )
-  
 }
 
-
-# ==============================================================================
+# ==========================================
 # 12. FUNÇÃO PRINCIPAL — TODAS AS HIPÓTESES
-# ==============================================================================
-
+# ==========================================
 run_depletion_hypotheses <- function(
     data,
     target_years = c(2015, 2025)
 ) {
-  
-  
+
   results <- list()
   
-  
-  # ==========================================================================
+  # ====================
   # LOOP SOBRE OS ANOS
-  # ==========================================================================
-  
+  # ====================
   for (
     yr_target in target_years
   ) {
-    
-    
-    # ------------------------------------------------------------------------
+    # ---------------------------------
     # Dados disponíveis até o ano-alvo
-    # ------------------------------------------------------------------------
-    
+    # ---------------------------------
     sub <- data %>%
       filter(
         year <= yr_target
       ) %>%
       arrange(year)
     
-    
     if (nrow(sub) < 5) {
-      
       warning(
         paste0(
           "Menos de 5 anos de dados até ",
@@ -977,26 +765,19 @@ run_depletion_hypotheses <- function(
           "."
         )
       )
-      
       next
     }
-    
-    
-    # =========================================================================
+    # ========================
     # HIPÓTESE 1 — NN CMSY++
-    # =========================================================================
-    
+    # ========================
     bk_nn <- tryCatch(
-      
       {
         estimate_endbio(
           ct_raw = sub$ct,
           yr = sub$year
         )
       },
-      
       error = function(e) {
-        
         warning(
           paste0(
             "NN-CMSY++ falhou para ",
@@ -1012,7 +793,6 @@ run_depletion_hypotheses <- function(
         )
       }
     )
-    
     
     results[[length(results) + 1]] <- data.frame(
       
@@ -1036,17 +816,14 @@ run_depletion_hypotheses <- function(
         na.rm = TRUE
       )
     )
-    
-    
-    # =========================================================================
+  
+    # ===================
     # HIPÓTESE 2 — zBRT
-    # =========================================================================
-    
+    # ===================
     bk_brt <- estimate_zbrt(
       ct_data = data,
       target_year = yr_target
     )
-    
     
     results[[length(results) + 1]] <- data.frame(
       
@@ -1068,11 +845,9 @@ run_depletion_hypotheses <- function(
       bk = bk_brt$bk
     )
     
-    
-    # =========================================================================
+    # ==============================
     # HIPÓTESE 3 — TARGET SWITCHING
-    # =========================================================================
-    
+    # ==============================
     results[[length(results) + 1]] <- data.frame(
       
       year = yr_target,
@@ -1098,11 +873,9 @@ run_depletion_hypotheses <- function(
       bk = 0.45
     )
     
-    
-    # =========================================================================
+    # ==============================
     # HIPÓTESE 4 — NÃO INFORMATIVA
-    # =========================================================================
-    
+    # ==============================
     results[[length(results) + 1]] <- data.frame(
       
       year = yr_target,
@@ -1130,20 +903,15 @@ run_depletion_hypotheses <- function(
     
   }
   
-  
-  # ===========================================================================
+  # ===================
   # JUNTAR RESULTADOS
-  # ===========================================================================
-  
+  # ===================
   results <- bind_rows(
     results
   )
-  
-  
-  # ===========================================================================
+  # =========
   # ORDENAR
-  # ===========================================================================
-  
+  # =========
   results <- results %>%
     mutate(
       
@@ -1161,45 +929,32 @@ run_depletion_hypotheses <- function(
       year,
       hypothesis
     )
-  
-  
   return(results)
-  
 }
-
 
 # ==============================================================================
 # 13. RODAR TODAS AS HIPÓTESES PARA D. macarellus
 # ==============================================================================
-
 bk_macarellus <- run_depletion_hypotheses(
-  
   data = ct,
-  
   target_years = c(
     2015
   )
 )
-
-
-# ==============================================================================
+# ===========================
 # 14. VISUALIZAR RESULTADOS
-# ==============================================================================
-
+# ===========================
 bk_macarellus <- bk_macarellus %>%
   mutate(bk_lo= round(bk_lo,2),
          bk_hi= round(bk_hi,2),
          bk= round(bk,2))
 
-
 print(
   bk_macarellus
 )
-
-# ==============================================================================
+# ======================
 # 16. SALVAR RESULTADOS
-# ==============================================================================
-
+# ======================
 write.csv(
   bk_macarellus,
   "Depletion_hypotheses_Decapterus_macarellus.csv",
@@ -1207,46 +962,12 @@ write.csv(
 )
 
 
-# ==============================================================================
-# 17. EXPORTAR APENAS OS INTERVALOS B/K
-# ==============================================================================
-
-bk_intervals <- bk_macarellus %>%
-  
-  select(
-    year,
-    hypothesis,
-    bk_lo,
-    bk_hi
-  )
+#----------------------------------------------------
+# Hipoteses para a taxa intrinseca de crescimento (r)
+# assumindo historia de vida para o macarellus
 
 
-write.csv(
-  bk_intervals,
-  "Depletion_BK_intervals_Decapterus_macarellus.csv",
-  row.names = FALSE
-)
 
-
-# ==============================================================================
-# 18. RESUMO DAS HIPÓTESES
-# ==============================================================================
-
-cat("\n")
-cat("============================================================\n")
-cat("HIPÓTESES DE DEPLEÇÃO — Decapterus macarellus\n")
-cat("============================================================\n")
-cat("\n")
-
-print(
-  bk_macarellus_table
-)
-
-cat("\n")
-cat("Arquivos salvos:\n")
-cat(" - Depletion_hypotheses_Decapterus_macarellus.csv\n")
-cat(" - Depletion_BK_intervals_Decapterus_macarellus.csv\n")
-cat("\n")
 
 
 
