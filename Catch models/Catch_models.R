@@ -18,6 +18,21 @@ rm(list = ls())
 library(readxl)
 #installed.packages("ggplot2")
 library(ggplot2)
+#install.packages("dplyr")
+library(dplyr)
+#installed.packages("tidyr")
+library(tidyr)
+#install.packages("neuralnet")
+library(neuralnet)
+#------------------------------------
+#instalando o datalimited2
+#install.packages("devtools") #pra baixar o datalimited2
+#devtools::install_github("cfree14/datalimited2",force = TRUE) #to run zBRT Zhou method 
+#other option to instal datalimited2
+#install.packages("pak")
+#pak::pak("cfree14/datalimited2")
+library(datalimited2)
+#-----------------------------------
 
 # definindo diretorio de trabalho..
 setwd("C:/Users/mathe/OneDrive/Documents/Cabo-Verde---Stock-Assessment/Catch models")
@@ -26,6 +41,8 @@ setwd("C:/Users/mathe/OneDrive/Documents/Cabo-Verde---Stock-Assessment/Catch mod
 ct<- read.csv("Catch_Luz and Vieira.csv",sep = ",",dec = ".")
 # lendo dados de história de vida... ##
 lh<- read_xlsx("Parâmetros_História de vida.xlsx")
+#carregar ffnn.bin (parametros da rede neural do CMSY)
+load("ffnn.bin")
 
 
 #---------------------------------------#
@@ -71,7 +88,7 @@ ggsave(
 
 
 # ==============================================================================
-# DEPLETION HYPOTHESES FOR Decapterus macarellus
+# Hipoteses de depleção para Decapterus macarellus
 # ==============================================================================
 ## Objetivo:
 # Construir hipóteses de depleção B/K para Decapterus macarellus
