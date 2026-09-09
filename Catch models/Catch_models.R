@@ -24,6 +24,8 @@ library(dplyr)
 library(tidyr)
 #install.packages("neuralnet")
 library(neuralnet)
+#install.packages("purrr")
+library(purrr)
 #------------------------------------
 #instalando o datalimited2
 #install.packages("devtools") #pra baixar o datalimited2
@@ -962,13 +964,13 @@ write.csv(
 )
 
 
+
 # ============================================================================
 # PRIOR DE r PARA Decapterus macarellus
 # Baseado em história de vida e variabilidade observada na literatura
 #
 # Adaptado por Matheus Silva
-#
-# Objetivos:
+## Objetivos:
 #   1. Extrair parâmetros de história de vida de D. macarellus
 #   2. Padronizar unidades
 #   3. Estimar CV empírico a partir da literatura
@@ -984,55 +986,38 @@ library(dplyr)
 library(tidyr)
 library(purrr)
 library(ggplot2)
-
-
-# ----------------------------------------------------------------------------
+# -----------------------------
 # 2. DADOS DE HISTÓRIA DE VIDA
-# ----------------------------------------------------------------------------
-
+# -----------------------------
 # A tabela lh já deve estar carregada, por exemplo:
-#
 # lh <- read_xlsx("Parâmetros_História de vida.xlsx")
-
 # Selecionar somente Decapterus macarellus
-
 lh_mac <- lh %>%
   filter(especie == "Decapterus macarellus")
 
-
-# ----------------------------------------------------------------------------
+# -------------------------------
 # 3. VERIFICAR DADOS DISPONÍVEIS
-# ----------------------------------------------------------------------------
-
+# -------------------------------
 cat("\n")
 cat("============================================================\n")
 cat("HISTÓRIA DE VIDA — Decapterus macarellus\n")
 cat("============================================================\n")
 cat("\n")
-
 cat("Número de registros:", nrow(lh_mac), "\n")
 cat("Número de fontes:",
     length(unique(lh_mac$fonte[!is.na(lh_mac$fonte)])), "\n\n")
 
-
-# ----------------------------------------------------------------------------
+# -------------------------
 # 4. CONVERSÃO DE UNIDADES
-# ----------------------------------------------------------------------------
-#
-# Sua tabela apresenta:
-#
-#   linf_fl  -> comprimento assintótico em FL
-#   unidade_crescimento -> FL
-#
-# Os valores parecem estar em mm (ex.: 301, 406).
-#
+# -------------------------
+## a tabela apresenta:
+#  linf_fl  -> comprimento assintótico em FL
+#  unidade_crescimento -> FL
+## Os valores parecem estar em mm (ex.: 301, 406).
 # Para o cálculo usamos cm.
-#
 # L50 também aparece como valores como 218 e 203,
 # portanto convertemos mm -> cm.
-#
-# ----------------------------------------------------------------------------
-
+## -----------------------------
 lh_mac <- lh_mac %>%
   mutate(
     Linf_cm = ifelse(
@@ -1046,12 +1031,9 @@ lh_mac <- lh_mac %>%
       NA_real_
     )
   )
-
-
-# ----------------------------------------------------------------------------
+# ------------------------------------
 # 5. FUNÇÃO PARA CALCULAR CV EMPÍRICO
-# ----------------------------------------------------------------------------
-
+# ------------------------------------
 calc_cv <- function(x) {
   
   x <- x[
