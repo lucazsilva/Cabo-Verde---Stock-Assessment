@@ -1,4 +1,4 @@
-# Cabo-Verde---Stock-Assessment
+# Cabo-Verde Stock-Assessment
 Stock assessment of Cabo Verde fisheries using multiple models and alternative data configurations based on length, catch, and fishing-effort data.
 
 This repository contains the code, data-processing workflows, and outputs for stock assessments of Cabo Verde fisheries using multiple assessment models and alternative data configurations. The analyses evaluate model performance and stock status estimates under four levels of data availability: 
