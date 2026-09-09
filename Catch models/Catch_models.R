@@ -53,7 +53,7 @@ load("ffnn.bin")
 
 p_ct <- ggplot(ct, aes(x = Year, y = Catch)) +
   # Captura observada
-  geom_line(linewidth = 2) +
+  geom_line(linewidth = 1.5) +
   # Tendência suavizada
   geom_smooth(
     method = "loess",
@@ -136,17 +136,6 @@ library(datalimited2)
 
 load("ffnn.bin")
 
-
-# ------------------------------------------------------------------------------
-# 3. CARREGAR DADOS DE CAPTURA
-# ------------------------------------------------------------------------------
-
-# Seu arquivo atual
-ct <- read.csv(
-  "Catch_Luz and Vieira.csv",
-  sep = ",",
-  dec = "."
-)
 
 
 # ------------------------------------------------------------------------------
@@ -1025,9 +1014,7 @@ run_depletion_hypotheses <- function(
     )
     
     
-    results[
-      [length(results) + 1]
-    ] <- data.frame(
+    results[[length(results) + 1]] <- data.frame(
       
       year = yr_target,
       
@@ -1061,9 +1048,7 @@ run_depletion_hypotheses <- function(
     )
     
     
-    results[
-      [length(results) + 1]
-    ] <- data.frame(
+    results[[length(results) + 1]] <- data.frame(
       
       year = yr_target,
       
@@ -1088,9 +1073,7 @@ run_depletion_hypotheses <- function(
     # HIPÓTESE 3 — TARGET SWITCHING
     # =========================================================================
     
-    results[
-      [length(results) + 1]
-    ] <- data.frame(
+    results[[length(results) + 1]] <- data.frame(
       
       year = yr_target,
       
@@ -1120,9 +1103,7 @@ run_depletion_hypotheses <- function(
     # HIPÓTESE 4 — NÃO INFORMATIVA
     # =========================================================================
     
-    results[
-      [length(results) + 1]
-    ] <- data.frame(
+    results[[length(results) + 1]] <- data.frame(
       
       year = yr_target,
       
@@ -1196,8 +1177,7 @@ bk_macarellus <- run_depletion_hypotheses(
   data = ct,
   
   target_years = c(
-    2015,
-    2025
+    2015
   )
 )
 
@@ -1206,32 +1186,15 @@ bk_macarellus <- run_depletion_hypotheses(
 # 14. VISUALIZAR RESULTADOS
 # ==============================================================================
 
+bk_macarellus <- bk_macarellus %>%
+  mutate(bk_lo= round(bk_lo,2),
+         bk_hi= round(bk_hi,2),
+         bk= round(bk,2))
+
+
 print(
   bk_macarellus
 )
-
-
-# ==============================================================================
-# 15. TABELA MAIS LIMPA
-# ==============================================================================
-
-bk_macarellus_table <- bk_macarellus %>%
-  
-  select(
-    year,
-    hypothesis,
-    method,
-    source,
-    bk_lo,
-    bk_hi,
-    bk
-  )
-
-
-print(
-  bk_macarellus_table
-)
-
 
 # ==============================================================================
 # 16. SALVAR RESULTADOS
