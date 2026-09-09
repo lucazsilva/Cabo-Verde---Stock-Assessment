@@ -14,6 +14,7 @@
 # Codificacao criada por Silva, LVS ; 09/09/2026, Instituto do Mar - IMar, Mindelo          #
 #-------------------------------------------------------------------------------------------#
 # 0. PACOTES ------------------------------------------------------
+
 pacotes <- c(
   "tidyverse", "lubridate", "janitor", "skimr", "ggridges",
   "patchwork", "broom", "mgcv", "scales"
