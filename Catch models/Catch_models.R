@@ -16,6 +16,8 @@ rm(list = ls())
 #@pacotes..
 #install.packages("readxl")
 library(readxl)
+#installed.packages("ggplot2")
+library(ggplot2)
 
 # definindo diretorio de trabalho..
 setwd("C:/Users/mathe/OneDrive/Documents/Cabo-Verde---Stock-Assessment/Catch models")
