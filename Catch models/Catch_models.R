@@ -73,8 +73,7 @@ ggsave(
 # ==============================================================================
 # DEPLETION HYPOTHESES FOR Decapterus macarellus
 # ==============================================================================
-#
-# Objetivo:
+## Objetivo:
 # Construir hipóteses de depleção B/K para Decapterus macarellus
 # utilizando:
 #
