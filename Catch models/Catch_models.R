@@ -26,6 +26,55 @@ ct<- read.csv("Catch_Luz and Vieira.csv",sep = ",",dec = ".")
 lh<- read_xlsx("Parâmetros_História de vida.xlsx")
 
 
+#---------------------------------------#
 # Analise exploratoria das capturas
 
+# Gráfico da série temporal de capturas
+#---------------------------------------#
 
+p_ct <- ggplot(ct, aes(x = Year, y = Catch)) +
+  
+  # Captura observada
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2.5) +
+  
+  # Tendência suavizada
+  geom_smooth(
+    method = "loess",
+    formula = y ~ x,
+    se = TRUE,
+    linewidth = 0.9
+  ) +
+  
+  # Possível mudança estrutural
+  geom_vline(
+    xintercept = 2014,
+    linetype = "dashed",
+    linewidth = 0.7
+  ) +
+  
+  labs(
+    x = "Ano",
+    y = "Captura (t)"
+  ) +
+  
+  theme_classic(base_size = 14) +
+  
+  theme(
+    plot.margin = unit(
+      c(0.05, 0.05, 0.05, 0.05),
+      "cm"
+    )
+  )
+
+p_ct
+
+ggsave(
+  filename = "capturas_Decapterus_macarellus.png",
+  plot = p_ct,
+  device = "png",
+  units = "cm",
+  width = 34,
+  height = 20,
+  dpi = 300
+)
