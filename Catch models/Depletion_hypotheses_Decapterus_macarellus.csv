@@ -1,5 +1,0 @@
-"year","hypothesis","method","source","rationale","bk_lo","bk_hi","bk"
-2015,"NN_CMSY","Neural Network CMSY++","Catch-informed","Depleção inferida pela forma e magnitude da série de capturas através da ANN do CMSY++.",0.07,0.33,0.2
-2015,"zBRT","zBRT","Catch-informed","Depleção inferida pela dinâmica temporal da série de capturas através do zBRT.",0.05,0.69,0.43
-2015,"Target_switch","Target switching","Independent","Hipótese de mudança no direcionamento da pescaria: a redução da captura de D. macarellus pode refletir mudança de alvo/catchability, e não necessariamente redução proporcional da biomassa. Intervalo amplo de B/K.",0.2,0.7,0.45
-2015,"Uninformative","Non-informative depletion prior","Independent","Ausência de informação prévia sobre a depleção final. Toda a faixa biologicamente possível de B/K entre 0 e 1 é permitida para avaliar quanto os dados de captura e a produtividade conseguem restringir a solução.",0,1,0.5
