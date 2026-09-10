@@ -802,15 +802,17 @@ run_depletion_hypotheses <- function(
     
     results[[length(results) + 1]] <- data.frame(
       
-      year = yr_target,
+      especie = 'Decapterus macarellus',
       
-      hypothesis = "NN_CMSY",
+      ano = yr_target,
       
-      method = "Neural Network CMSY++",
+      hipotese = "NN_CMSY",
       
-      source = "Catch-informed",
+      metodo = "Rede Neural CMSY++",
       
-      rationale =
+      fonte = "Informado pela Captura",
+      
+      racional =
         "Depleção inferida pela forma e magnitude da série de capturas através da ANN do CMSY++.",
       
       bk_lo = bk_nn[1],
@@ -833,15 +835,17 @@ run_depletion_hypotheses <- function(
     
     results[[length(results) + 1]] <- data.frame(
       
-      year = yr_target,
+      especie = 'Decapterus macarellus',
       
-      hypothesis = "zBRT",
+      ano = yr_target,
       
-      method = "zBRT",
+      hipotese = "zBRT",
       
-      source = "Catch-informed",
+      metodo = "zBRT",
       
-      rationale =
+      fonte = "Informado pela Captura",
+      
+      racional =
         "Depleção inferida pela dinâmica temporal da série de capturas através do zBRT.",
       
       bk_lo = bk_brt$bk_lo,
@@ -856,15 +860,17 @@ run_depletion_hypotheses <- function(
     # ==============================
     results[[length(results) + 1]] <- data.frame(
       
-      year = yr_target,
+      especie = 'Decapterus macarellus',
       
-      hypothesis = "Target_switch",
+      ano = yr_target,
       
-      method = "Target switching",
+      hipotese = "Target_switch",
       
-      source = "Independent",
+      metodo = "Mudança de alvo",
       
-      rationale =
+      fonte = "Independente",
+      
+      racional =
         paste0(
           "Hipótese de mudança no direcionamento da pescaria: ",
           "a redução da captura de D. macarellus pode refletir ",
@@ -884,15 +890,17 @@ run_depletion_hypotheses <- function(
     # ==============================
     results[[length(results) + 1]] <- data.frame(
       
-      year = yr_target,
+      especie = 'Decapterus macarellus',
       
-      hypothesis = "Uninformative",
+      ano = yr_target,
       
-      method = "Non-informative depletion prior",
+      hipotese = "Uninformative",
       
-      source = "Independent",
+      metodo = "Priori de depleção não informativa",
       
-      rationale =
+      fonte = "Independente",
+      
+      racional =
         paste0(
           "Ausência de informação prévia sobre a depleção final. ",
           "Toda a faixa biologicamente possível de B/K entre 0 e 1 ",
@@ -921,8 +929,8 @@ run_depletion_hypotheses <- function(
   results <- results %>%
     mutate(
       
-      hypothesis = factor(
-        hypothesis,
+      hipotese = factor(
+        hipotese,
         levels = c(
           "NN_CMSY",
           "zBRT",
@@ -932,8 +940,8 @@ run_depletion_hypotheses <- function(
       )
     ) %>%
     arrange(
-      year,
-      hypothesis
+      ano,
+      hipotese
     )
   return(results)
 }
@@ -963,7 +971,7 @@ print(
 # ======================
 write.csv(
   bk_macarellus,
-  "Depletion_hypotheses_Decapterus_macarellus.csv",
+  "bk_macarellus.csv",
   row.names = FALSE
 )
 
@@ -975,8 +983,7 @@ library(tidyverse)
 #------------------------------------------------------------------
 # Funções auxiliares (INALTERADAS)
 #------------------------------------------------------------------
-{
-  safe_uniroot <- function(fn, lower = 0, upper = 5, tol = 1e-8,
+safe_uniroot <- function(fn, lower = 0, upper = 5, tol = 1e-8,
                          max_expand = 10, by = 0.5) {
   safe_eval <- function(x) tryCatch(fn(x), error = function(e) NA_real_)
   f_low  <- safe_eval(lower)
@@ -1129,17 +1136,97 @@ res_list <- map(species_list, function(sp) {
 r_sims <- map_dfr(res_list, "sims")
 write.csv(r_sims, "r_sims.csv", row.names = FALSE)
 
-r_summary <- map_dfr(res_list, "summary") %>%
+#------------------------------------------------------------------
+# 1) Sumários por espécie × método (inalterado)
+#------------------------------------------------------------------
+r_methods <- map_dfr(res_list, "summary")
+
+#------------------------------------------------------------------
+# 2) Agregação baseline (mesma lógica de antes)
+#------------------------------------------------------------------
+r_base <- r_methods %>%
   dplyr::group_by(specie) %>%
   dplyr::summarise(
     r_median = median(r_median, na.rm = TRUE),
     r_min    = pmax(median(r_q025, na.rm = TRUE), 0.1),
     r_max    = pmin(median(r_q975, na.rm = TRUE), 1.5),
     .groups  = "drop"
-  ) %>%
-  dplyr::mutate(across(where(is.numeric), \(x) round(x, 2)))
+  )
 
-write.csv(r_summary, "r_summary.csv", row.names = FALSE)
+#------------------------------------------------------------------
+# 3) r_summary expandido com as hipóteses (formato bk_macarellus)
+#------------------------------------------------------------------
+r_macarellus <- bind_rows(
+  # (a) Baseline – modelos demográficos de história de vida
+  r_base %>%
+    transmute(
+      specie,
+      ano       = "1989-2015",
+      hipotese = "Life-history Euler-lotka derived methods (baseline)",
+      metodo     = "Euler / Myers / Smith rebound / Demographic inv",
+      fonte     = "Baseado em modelo",
+      racional  = paste("Bootstrap paramétrico sobre os quatro métodos",
+                         "demográficos clássicos baseados em história de vida",
+                         "(Euler-Lotka, Myers, Smith rebound e demographic invariant).",
+                         "Mediana agregada como valor central."),
+      r_lo = r_min,
+      r_hi = r_max,
+      r    = r_median
+    ),
+  
+  # (b) Baixa resiliência (depleção mais baixa): subtrai 0.2
+  r_base %>%
+    transmute(
+      specie,
+      ano       = "1989-2015",
+      hipotese = "lower resilience",
+      metodo     = "Metodos Euler-Lotka - 0.2",
+      fonte     = "Sensibilidade",
+      racional  = paste("Cenário de produtividade pessimista: subtrai 0.2 dos limites inferior,",
+                         "superior e da mediana estimados pelos métodos Euler-Lotka.",
+                         "Representa uma população menos resiliente"),
+      r_lo = pmax(r_min - 0.2, 0.05),
+      r_hi = pmax(r_max - 0.2, 0.05),
+      r    = pmax(r_median - 0.2, 0.05)
+    ),
+  
+  # (c) Alta resiliência: adiciona 0.2
+  r_base %>%
+    transmute(
+      specie,
+      ano       = "1989-2015",
+      hipotese = "Higher resilience",
+      metodo     = "Metodos Euler-Lotka + 0.2",
+      fonte     = "Sensibilidade",
+      racional  = paste("Cenário de produtividade otimista: adiciona 0.2 aos limites inferior,",
+                         "superior e à mediana estimados pelos métodos Euler-Lotka.",
+                         "Representa uma população mais produtiva"),
+      r_lo = r_min + 0.2,
+      r_hi = pmin(r_max + 0.2, 1.5),
+      r    = r_median + 0.2
+    ),
+  
+  # (d) Não informativo (uniforme 0–1.5)
+  r_base %>%
+    transmute(
+      specie,
+      ano       = "1989-2015",
+      hipotese = "Non-informative",
+      metodo     = "Priori não informativa",
+      fonte     = "Independente",
+      racional  = paste("Sem informação prévia: toda a faixa biologicamente",
+                         "plausível de r entre 0 e 1.5 é considerada."),
+      r_lo = 0,
+      r_hi = 1.5,
+      r    = NA_real_
+    )
+) %>%
+  dplyr::mutate(across(c(r, r_lo, r_hi), \(x) round(x, 2))) %>%
+  rename(especie = specie)
+
+
+# Salvar
+write.csv(r_macarellus, "r_macarellus.csv", row.names = FALSE)
 
 #------------------------------------------------------------------
 # Plot (igual)
@@ -1165,24 +1252,23 @@ p_r <- ggplot(all_sims_long, aes(x = specie, y = r, col = method, fill = method)
   scale_y_continuous(limits = c(0, 1.5), breaks = seq(0, 1.5, 0.1)) +
   scale_color_viridis_d() +
   scale_fill_viridis_d() +
-  theme_classic(base_size = 15) %+replace%
+  theme_classic(base_size = 13) %+replace%
   theme(
     strip.background = element_blank(),
     plot.margin = unit(c(0.05, 0.05, 0.05, 0.05), "mm"),
-    strip.text.x = element_text(margin = margin(b = 1), size = 15),
-    axis.text.y = element_text(size = 15),
-    axis.text.x = element_text(size = 15, face = "italic"),
-    legend.text = element_text(size = 15),
+    strip.text.x = element_text(margin = margin(b = 1), size = 13),
+    axis.text.y = element_text(size = 13),
+    axis.text.x = element_text(size = 13, face = "italic"),
+    legend.text = element_text(size = 13),
     legend.box.margin = margin(t = -10),
     legend.spacing.y = unit(0.1, "cm"),
     legend.position = "bottom"
   )
 p_r
 
-ggsave("r_priors.png", plot = p4, device = "png", units = "cm",
+ggsave("r_priors.png", plot = p_r, device = "png", units = "cm",
        width = 32, height = 17)
 
-}
 
 
 
