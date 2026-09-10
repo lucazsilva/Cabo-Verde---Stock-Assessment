@@ -30,6 +30,8 @@ library(tibble)
 library(neuralnet)
 #install.packages("purrr")
 library(purrr)
+#install.packages("fishmethods")
+library(fishmethods)
 #------------------------------------
 #instalando o datalimited2
 #install.packages("devtools") #pra baixar o datalimited2
@@ -1284,9 +1286,10 @@ ggsave("r_priors.png", plot = p_r, device = "png", units = "cm",
 # Modelo utilizado : DB-SRA (Dick & MacCall, 2011)
 # Objetivo estimar viabilidade de trajetórias de biomasa compatíveis
 # com a serie de captura e biologia assumida
-# Estimativas de 
-
-
+# Estimativas de MSY, Bmsy, Fmsy, Cmsy (OFL), K para o D. macarellus
+# avaliações para cada cenario considerado de depleção (btk)
+# e a diferença de produtividade que entra pelo M no DB-SRA
+#=================================================================
 
 library(fishmethods)
 
