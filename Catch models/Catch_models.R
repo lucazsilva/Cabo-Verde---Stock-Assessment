@@ -1393,14 +1393,14 @@ resultados$Parameters  # quantis dos parâmetros aceitos (M, Fmsy/M, Bmsy/k, Bt/
 res<-dbsra(
   year = ct$year, catch =ct$ct,
   agemat = 2,
-  k     = list(low = ..., up = ..., tol = 0.01, permax = 1000),   # busca aberta
-  b1k   = list(dist = "none", low = 0.01, up = 0.99, mean = 1, sd = 0.1),  # busca aberta (fixo em 1)
-  btk   = list(dist = "unif", low = cen$bk_lo, up = cen$bk_hi, refyr = 2015),
+  k     = list(low = 100, up = 120000, tol = 0.01, permax = 1000),   # busca aberta
+  b1k   = list(dist = "unif", low = 0.8, up = 0.99, mean = 1, sd = 0.1),  # busca aberta (fixo em 1)
+  btk   = list(dist = "unif", low = 0.1, up = 0.4, refyr = 2015),
   fmsym = list(dist = "lnorm", low = 0.1, up = 2, mean = -0.223, sd = 0.2), # busca aberta (default do pacote)
   bmsyk = list(dist = "beta", low = 0.05, up = 0.95, mean = 0.4, sd = 0.05), # busca aberta (default do pacote)
-  M     = list(dist = "lnorm", low = cen$M * 0.7, up = cen$M * 1.3,
-               mean = log(cen$M), sd = 0.10),
-  nsims = 10000, grout = 1
+  M     = list(dist = "lnorm", low = 0.4 * 0.7, up = 0.4 * 1.3,
+               mean = 0.4, sd = 0.10),
+  nsims = 1000, grout = 1
 )
 
 
