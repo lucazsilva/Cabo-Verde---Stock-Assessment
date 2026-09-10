@@ -1292,8 +1292,8 @@ ggsave("r_priors.png", plot = p_r, device = "png", units = "cm",
 # Cenários de Bt/k (já definidos) x Cenários de M (revisão de história
 # de vida) para D. macarellus -- para alimentar loops de fishmethods::dbsra()
 # =====================================================================
-
-print(bk_macarellus)
+library(fishmethods)
+print(bk_macarellus) #deplecoes já calculadas
 
 # ---- cenários de M, com autor/fonte (da tabela Confiabilidade_Fontes) ----
 m_macarellus <- data.frame(
@@ -1310,51 +1310,66 @@ m_macarellus <- data.frame(
 idx <- expand.grid(bk_i = seq_len(nrow(bk_macarellus)),
                    m_i  = seq_len(nrow(m_macarellus)))
 
-cenarios_macarellus <- cbind(
+cenarios_macarellus_dbsra <- cbind(
   bk_macarellus[idx$bk_i, c("especie", "hipotese", "bk_lo", "bk_hi", "bk")],
   m_macarellus[idx$m_i, ]
 )
-rownames(cenarios_macarellus) <- NULL
+rownames(cenarios_macarellus_dbsra) <- NULL
 
-cenarios_macarellus$cenario_id <- paste(cenarios_macarellus$hipotese,
-                                        cenarios_macarellus$m_hipotese, sep = "_x_")
+cenarios_macarellus_dbsra$cenario_id <- paste(cenarios_macarellus_dbsra$hipotese,
+                                        cenarios_macarellus_dbsra$m_hipotese, sep = "_x_")
 
 # reordena pra ficar fácil de ler (hipótese de bk como bloco externo)
-cenarios_macarellus <- cenarios_macarellus[order(cenarios_macarellus$hipotese,
-                                                 cenarios_macarellus$m_hipotese), ]
-rownames(cenarios_macarellus) <- NULL
+cenarios_macarellus_dbsra <- cenarios_macarellus_dbsra[order(cenarios_macarellus_dbsra$hipotese,
+                                                 cenarios_macarellus_dbsra$m_hipotese), ]
+rownames(cenarios_macarellus_dbsra) <- NULL
+print(cenarios_macarellus_dbsra)
+cat("\nDimensões:", nrow(cenarios_macarellus_dbsra), "linhas x", ncol(cenarios_macarellus_dbsra), "colunas\n")
 
-print(cenarios_macarellus)
-cat("\nDimensões:", nrow(cenarios_macarellus), "linhas x", ncol(cenarios_macarellus), "colunas\n")
-cat("Esperado: 4 hipóteses bk x 2 hipóteses M = 8 linhas ->",
-    nrow(cenarios_macarellus) == 8, "\n")
+#=====================
+#rodando o modelo
+#=====================
+resultados <- lapply(seq_len(nrow(cenarios_macarellus_dbsra)), function(i) {
+  cen <- cenarios_macarellus[i, ]
+  dbsra(
+    year = ..., catch = ...,
+    agemat = ...,
+    k     = list(low = ..., up = ..., tol = 0.01, permax = 1000),   # busca aberta
+    b1k   = list(dist = "none", low = 0.01, up = 0.99, mean = 1, sd = 0.1),  # busca aberta (fixo em 1)
+    btk   = list(dist = "unif", low = cen$bk_lo, up = cen$bk_hi, refyr = 2015),
+    fmsym = list(dist = "lnorm", low = 0.1, up = 2, mean = -0.223, sd = 0.2), # busca aberta (default do pacote)
+    bmsyk = list(dist = "beta", low = 0.05, up = 0.95, mean = 0.4, sd = 0.05), # busca aberta (default do pacote)
+    M     = list(dist = "lnorm", low = cen$M * 0.7, up = cen$M * 1.3,
+                 mean = log(cen$M), sd = 0.10),
+    nsims = 10000, grout = 1
+  )
+})
+names(resultados) <- cenarios_macarellus_dbsra$cenario_id
 
-# ---- alternativa equivalente em uma linha, usando merge() ----
-# (by = character(0) força o cross join, independente de haver ou não
-#  nomes de coluna coincidentes entre as duas tabelas)
-alt <- merge(bk_macarellus[, c("especie", "hipotese", "bk_lo", "bk_hi", "bk")],
-             m_macarellus, by = character(0))
-cat("\nmerge() com by=character(0) dá o mesmo número de linhas:",
-    nrow(alt) == nrow(cenarios_macarellus), "\n")
+resultados$Estimates   # quantis de MSY, Bmsy, Fmsy, Cmsy (OFL), K
+resultados$Parameters  # quantis dos parâmetros aceitos (M, Fmsy/M, Bmsy/k, Bt/k)
 
-library(fishmethods)
 
-resultado <- dbsra(
-  year    = 1995:2023,                 # anos da série de captura
-  catch   = vetor_de_captura,          # captura anual, mesma unidade de K
-  agemat  = 3,                         # idade de maturação (defasagem "a")
-  k       = list(low = 1000, up = 100000, tol = 0.01, permax = 1000),
-  b1k     = list(dist = "unif", low = 0.9, up = 1, mean = 1, sd = 0),
-  btk     = list(dist = "beta", low = 0.05, up = 0.6,
-                 mean = 0.3, sd = 0.1, refyr = 2023),
-  fmsym   = list(dist = "lnorm", low = 0.4, up = 1.5, mean = 0.8, sd = 0.2),
-  bmsyk   = list(dist = "beta", low = 0.05, up = 0.95, mean = 0.4, sd = 0.05),
-  M       = list(dist = "lnorm", low = 0.05, up = 0.6, mean = 0.2, sd = 0.4),
-  nsims   = 10000
+
+res<-dbsra(
+  year = ct$year, catch =ct$ct,
+  agemat = ...,
+  k     = list(low = ..., up = ..., tol = 0.01, permax = 1000),   # busca aberta
+  b1k   = list(dist = "none", low = 0.01, up = 0.99, mean = 1, sd = 0.1),  # busca aberta (fixo em 1)
+  btk   = list(dist = "unif", low = cen$bk_lo, up = cen$bk_hi, refyr = 2015),
+  fmsym = list(dist = "lnorm", low = 0.1, up = 2, mean = -0.223, sd = 0.2), # busca aberta (default do pacote)
+  bmsyk = list(dist = "beta", low = 0.05, up = 0.95, mean = 0.4, sd = 0.05), # busca aberta (default do pacote)
+  M     = list(dist = "lnorm", low = cen$M * 0.7, up = cen$M * 1.3,
+               mean = log(cen$M), sd = 0.10),
+  nsims = 10000, grout = 1
 )
 
-resultado$Estimates   # quantis de MSY, Bmsy, Fmsy, Cmsy (OFL), K
-resultado$Parameters  # quantis dos parâmetros aceitos (M, Fmsy/M, Bmsy/k, Bt/k)
+
+
+
+
+
+
 
 
 
