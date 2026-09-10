@@ -1327,6 +1327,45 @@ print(cenarios_macarellus_dbsra)
 cat("\nDimensões:", nrow(cenarios_macarellus_dbsra), "linhas x", ncol(cenarios_macarellus_dbsra), "colunas\n")
 
 #=====================
+#idade de maturação
+#====================
+# ---- 1) Parâmetros de crescimento -----------------------------------
+# Fonte mais confiável COM TRIO COMPLETO (Linf, K, t0): Jardim (1996/1999)
+# -- nível "Alta" na Confiabilidade_Fontes (nota media 4,0), o único trio
+# completo entre as fontes Alta (Costa et al. 2020 não estima crescimento;
+# da Cruz Delgado et al. 2024, também Alta, não reporta t0).
+Linf <- 315.0   # mm FL
+K    <- 0.43    # /ano
+t0   <- -1.56   # anos
+
+vbgf <- function(t, Linf_ = Linf, K_ = K, t0_ = t0) Linf_ * (1 - exp(-K_ * (t - t0_)))
+idade_no_comprimento <- function(L, Linf_ = Linf, K_ = K, t0_ = t0) {
+  t0_ - (1 / K_) * log(1 - L / Linf_)
+}
+
+# ---- 2) L50 mais confiável -------------------------------------------
+# Fonte mais confiável para maturação: Costa et al. (2020) -- também nível
+# "Alta", e a única fonte Alta com nota máxima (5) em revisão por pares E em
+# consistência interna (sem nenhuma ressalva na verificação). Reporta L50
+# por sexo, sobre amostra de desembarques industriais 2012-2018.
+L50_F <- 241.0; n_F <- 284   # fêmeas
+L50_M <- 266.0; n_M <- 85    # machos
+L50_comb <- (L50_F * n_F + L50_M * n_M) / (n_F + n_M)   # média ponderada por n
+
+idade_maturacao <- data.frame(
+  grupo = c("Fêmeas", "Machos", "Combinado (média ponderada por n)"),
+  L50_mm_FL = c(L50_F, L50_M, round(L50_comb, 1)),
+  n = c(n_F, n_M, n_F + n_M)
+)
+idade_maturacao$idade_anos <- sapply(idade_maturacao$L50_mm_FL, idade_no_comprimento)
+idade_maturacao$idade_meses <- round(idade_maturacao$idade_anos * 12, 1)
+idade_maturacao$idade_anos <- round(idade_maturacao$idade_anos, 3)
+
+print(idade_maturacao)
+
+
+
+#=====================
 #rodando o modelo
 #=====================
 resultados <- lapply(seq_len(nrow(cenarios_macarellus_dbsra)), function(i) {
@@ -1353,7 +1392,7 @@ resultados$Parameters  # quantis dos parâmetros aceitos (M, Fmsy/M, Bmsy/k, Bt/
 
 res<-dbsra(
   year = ct$year, catch =ct$ct,
-  agemat = ...,
+  agemat = 2,
   k     = list(low = ..., up = ..., tol = 0.01, permax = 1000),   # busca aberta
   b1k   = list(dist = "none", low = 0.01, up = 0.99, mean = 1, sd = 0.1),  # busca aberta (fixo em 1)
   btk   = list(dist = "unif", low = cen$bk_lo, up = cen$bk_hi, refyr = 2015),
