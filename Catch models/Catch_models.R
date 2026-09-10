@@ -1288,6 +1288,24 @@ ggsave("r_priors.png", plot = p_r, device = "png", units = "cm",
 
 
 
+library(fishmethods)
+
+resultado <- dbsra(
+  year    = 1995:2023,                 # anos da série de captura
+  catch   = vetor_de_captura,          # captura anual, mesma unidade de K
+  agemat  = 3,                         # idade de maturação (defasagem "a")
+  k       = list(low = 1000, up = 100000, tol = 0.01, permax = 1000),
+  b1k     = list(dist = "unif", low = 0.9, up = 1, mean = 1, sd = 0),
+  btk     = list(dist = "beta", low = 0.05, up = 0.6,
+                 mean = 0.3, sd = 0.1, refyr = 2023),
+  fmsym   = list(dist = "lnorm", low = 0.4, up = 1.5, mean = 0.8, sd = 0.2),
+  bmsyk   = list(dist = "beta", low = 0.05, up = 0.95, mean = 0.4, sd = 0.05),
+  M       = list(dist = "lnorm", low = 0.05, up = 0.6, mean = 0.2, sd = 0.4),
+  nsims   = 10000
+)
+
+resultado$Estimates   # quantis de MSY, Bmsy, Fmsy, Cmsy (OFL), K
+resultado$Parameters  # quantis dos parâmetros aceitos (M, Fmsy/M, Bmsy/k, Bt/k)
 
 
 
