@@ -11,1049 +11,369 @@
 #   Codificacao criada por Silva, LVS ; 10/09/2026, Instituto do Mar - IMar, Mindelo       #
 #-------------------------------------------------------------------------------------------#
 
-#-------------------------------------------------------------------------------------------#
-# 0. PACOTES E CONFIGURACOES
-#-------------------------------------------------------------------------------------------#
+# ---- 1. Pacotes -------------------------------------------------------------
+required_pkgs <- c("LBSPR", "readxl", "dplyr", "tidyr", "ggplot2", "stringr", "purrr")
+new_pkgs <- required_pkgs[!(required_pkgs %in% installed.packages()[, "Package"])]
+if (length(new_pkgs) > 0) install.packages(new_pkgs)
+invisible(lapply(required_pkgs, library, character.only = TRUE))
 
-pacotes <- c(
-  "LBSPR", "dplyr", "tidyr", "readr", "ggplot2", "stringr", "purrr", "tibble"
+# ---- 2. Arquivos / pastas ----------------------------------------------------
+length_file <- "Base_Comprimentos_Combinada_1988_2024.xlsx"
+lh_file     <- "Parametros_Historia_de_vida.xlsx"
+output_dir  <- "LBSPR_output"
+dir.create(output_dir, showWarnings = FALSE)
+
+ANO_MIN <- 2004
+ANO_MAX <- 2024
+sex_filter    <- "F"   # foco do LBSPR: fracao desovante (femeas)
+BinWidth_base <- 1      # cm — largura de classe do cenario BASE
+sat_incluido  <- FALSE  # estadio "SAT" nao faz parte da escala I-VII; excluido do ajuste da ogiva
+
+# =============================================================================
+# ---- 3. DADOS DE COMPRIMENTO (2004-2024) -----------------------------------
+# =============================================================================
+raw_len <- read_excel(length_file)
+
+df_len <- raw_len %>%
+  filter(!is.na(`L(cm)`), `L(cm)` > 0, Ano >= ANO_MIN, Ano <= ANO_MAX)
+
+if (sex_filter != "ALL") df_len <- df_len %>% filter(Sexo == sex_filter)
+
+cat("Medicoes de comprimento utilizadas (", ANO_MIN, "-", ANO_MAX, ", sexo=", sex_filter, "): ",
+    nrow(df_len), "\n", sep = "")
+
+# =============================================================================
+# ---- 4. OGIVA DE MATURIDADE A PARTIR DOS DADOS ATUAIS (cenario BASE) -------
+# Estadio I = imatura (0); estadio II-VII = madura (1); "SAT" excluido por
+# nao pertencer a escala numerica I-VII usada nos dados.
+# =============================================================================
+mat_data <- df_len %>%
+  filter(!is.na(Maturidade)) %>%
+  mutate(estagio = as.character(Maturidade)) %>%
+  filter(estagio %in% c(as.character(1:7), if (sat_incluido) "SAT")) %>%
+  mutate(Madura = if_else(estagio == "1", 0, 1))  # SAT (se incluido) conta como madura
+
+cat("Registos usados na ogiva de maturidade:", nrow(mat_data),
+    "(imaturas:", sum(mat_data$Madura == 0), "| maduras:", sum(mat_data$Madura == 1), ")\n\n")
+
+mat_model <- glm(Madura ~ `L(cm)`, data = mat_data, family = binomial)
+a_mat <- unname(coef(mat_model)[1]); b_mat <- unname(coef(mat_model)[2])
+
+base_L50 <- -a_mat / b_mat
+base_L95 <- (log(0.95 / 0.05) - a_mat) / b_mat
+ratio_L95_L50 <- base_L95 / base_L50   # usado para projetar bounds de L50 da literatura em L95 equivalente
+
+cat("Ogiva de maturidade (dados atuais, femeas):\n")
+cat("  L50 =", round(base_L50, 2), "cm | L95 =", round(base_L95, 2), "cm\n\n")
+
+# =============================================================================
+# ---- 5. PARAMETROS DE CRESCIMENTO E M/K DO CENARIO BASE (Vieira, 2019) -----
+# =============================================================================
+hv <- read_excel(lh_file, sheet = "Historia_de_vida")
+pr <- read_excel(lh_file, sheet = "Parametros_relativos")
+mf <- read_excel(lh_file, sheet = "Medidas_FL")
+cf <- read_excel(lh_file, sheet = "Confiabilidade_Fontes") %>%
+  select(fonte, pontuacao_media, nivel_confiabilidade) %>%
+  filter(!is.na(pontuacao_media))
+
+vieira_row <- hv %>% filter(str_detect(fonte, "^Vieira"), !is.na(linf_fl), !is.na(k), !is.na(m))
+base_Linf <- vieira_row$linf_fl[1] / 10
+base_K    <- vieira_row$k[1]
+base_M    <- vieira_row$m[1]
+base_MK   <- base_M / base_K
+
+cat("Cenario BASE (crescimento/mortalidade — Vieira 2019):\n")
+cat("  Linf =", round(base_Linf, 2), "cm | K =", base_K, "| M =", base_M,
+    "| M/K =", round(base_MK, 3), "\n\n")
+
+## -- Filtro de confiabilidade para as SENSIBILIDADES (mesmo criterio da
+##    propria planilha: pontuacao_media >= 2,5) --------------------------------
+strip_year <- function(x) str_trim(str_replace(x, "\\s*\\(.*", ""))
+cf_keys <- cf %>% mutate(chave = strip_year(fonte)) %>%
+  filter(pontuacao_media >= 2.5) %>% pull(chave) %>% unique()
+is_reliable <- function(fonte_vec) strip_year(fonte_vec) %in% cf_keys
+
+cat("Fontes confiaveis (pontuacao >= 2,5) usadas nas sensibilidades:\n")
+cat(paste(" -", cf_keys), sep = "\n"); cat("\n\n")
+
+## -- Intervalo de Linf (crescimento) -----------------------------------------
+linf_cand <- hv %>%
+  filter(!is.na(linf_fl), sex == "A", is_reliable(fonte)) %>%
+  distinct(fonte, linf_fl) %>%
+  transmute(fonte, Linf_cm = linf_fl / 10)
+range_Linf <- range(linf_cand$Linf_cm)
+
+## -- Intervalo de M/K ---------------------------------------------------------
+mk_reportado <- pr %>% filter(parametro == "M/K", is_reliable(fonte)) %>%
+  transmute(fonte, MK = valor)
+mk_derivado <- hv %>% filter(!is.na(m), !is.na(k), sex == "A", is_reliable(fonte)) %>%
+  transmute(fonte, MK = m / k)
+mk_cand <- bind_rows(mk_reportado, mk_derivado) %>% distinct()
+range_MK <- range(mk_cand$MK)
+
+## -- Intervalo de L50 (para projetar o bound de maturidade) -------------------
+l50_cand <- mf %>% filter(medida == "l50_fl", is_reliable(fonte)) %>%
+  transmute(fonte, sex, L50_cm = valor_mm / 10)
+range_L50_lit <- range(l50_cand$L50_cm)
+# L95 equivalente projetado usando a razao L95/L50 da PROPRIA ogiva ajustada
+# aos dados atuais (Secao 4), para manter a mesma forma de ogiva ao testar
+# apenas um deslocamento de tamanho de maturacao.
+range_L95_lit <- range_L50_lit * ratio_L95_L50
+
+## -- Tabela-resumo para auditoria --------------------------------------------
+resumo_parametros <- tibble(
+  parametro = c("Linf_cm (base=Vieira)", "M_K (base=Vieira)",
+                "L50_cm (base=dados atuais)", "L95_cm (base=dados atuais)"),
+  base      = c(base_Linf, base_MK, base_L50, base_L95),
+  minimo    = c(range_Linf[1], range_MK[1], range_L50_lit[1], range_L95_lit[1]),
+  maximo    = c(range_Linf[2], range_MK[2], range_L50_lit[2], range_L95_lit[2]),
+  observacao = c("intervalo: fontes confiaveis (Historia_de_vida)",
+                 "intervalo: fontes confiaveis (Parametros_relativos + m/k derivado)",
+                 "intervalo: L50 de fontes confiaveis (Medidas_FL)",
+                 "estimado: L50 da literatura x razao L95/L50 da ogiva atual")
 )
+write.csv(resumo_parametros, file.path(output_dir, "parametros_base_sensibilidade.csv"), row.names = FALSE)
+print(resumo_parametros); cat("\n")
 
-instalar <- pacotes[!vapply(pacotes, requireNamespace, logical(1), quietly = TRUE)]
-if (length(instalar) > 0) install.packages(instalar)
+# =============================================================================
+# ---- 6. CLASSES DE COMPRIMENTO (largura base = 1 cm) ------------------------
+# Estende ate cobrir 1.25 x o maior Linf testado (bom-senso do LBSPR: o maior
+# bin de comprimento deve superar o comprimento assintotico).
+# =============================================================================
+maxL_mult <- 1.25
 
-library(LBSPR)
-library(dplyr)
-library(tidyr)
-library(readr)
-library(ggplot2)
-library(stringr)
-library(purrr)
-library(tibble)
-
-arquivo_length <- "Length_oficial.csv"
-out_dir <- "LBSPR_reduced_sensitivity_MK"
-cache_dir <- file.path(out_dir, "cache_models")
-
-dir.create(out_dir, showWarnings = FALSE)
-dir.create(cache_dir, showWarnings = FALSE)
-
-# Configuracao do modelo LBSPR
-MODTYPE <- "GTG"
-CV_LINF <- 0.10
-
-# Linhas de referencia apenas para visualizacao
-SPR_TARGET <- 0.40
-SPR_LIMIT  <- 0.20
-
-# Tamanho minimo legal de captura (cm FL), usado apenas em figuras quando necessario
-MLS <- 20
-
-# Temperatura usada para derivar M de Delgado 2003-2007 pela equacao de Pauly
-T_PAULY <- 24.7
-
-# TRUE = ignora modelos salvos em cache e recalcula tudo
-RECALCULATE_ALL <- FALSE
-
-#-------------------------------------------------------------------------------------------#
-# 1. LEITURA E LIMPEZA DOS DADOS
-#-------------------------------------------------------------------------------------------#
-
-dados_raw <- read_csv(
-  arquivo_length,
-  show_col_types = FALSE,
-  na = c("", "NA", "N/A", "-", ".")
-)
-
-dados <- dados_raw %>%
-  transmute(
-    ano  = as.integer(ANO),
-    mes  = as.integer(MES),
-    zona = str_squish(as.character(ZONA)),
-    l_cm = as.numeric(`L(cm)`),
-    sexo = str_to_upper(str_squish(as.character(SEXO))),
-    em   = as.numeric(EM)
-  ) %>%
-  filter(
-    !is.na(ano),
-    !is.na(l_cm),
-    l_cm > 0
-  )
-
-cat("\nNumero total de comprimentos:", nrow(dados), "\n")
-cat("Anos:", min(dados$ano), "a", max(dados$ano), "\n")
-cat("Amplitude:", min(dados$l_cm), "a", max(dados$l_cm), "cm FL\n")
-
-#-------------------------------------------------------------------------------------------#
-# 2. ESTIMACAO DE L50 E L95 COM OS DADOS ATUAIS
-#-------------------------------------------------------------------------------------------#
-
-# Classificacao maturacional fixa:
-# I       = imaturo/jovem
-# II-VII  = adulto/maduro
-#
-# Para o modelo principal, a ogiva e estimada utilizando somente femeas.
-
-estimar_maturidade <- function(dat, sexo_alvo = "F") {
+build_lengths <- function(df, bin_width) {
+  min_len <- floor(min(df$`L(cm)`) / bin_width) * bin_width
+  max_len <- ceiling(max(max(df$`L(cm)`), maxL_mult * range_Linf[2]) / bin_width) * bin_width
+  breaks  <- seq(min_len, max_len + bin_width, by = bin_width)
   
-  d <- dat %>%
-    filter(
-      sexo == sexo_alvo,
-      !is.na(em),
-      em >= 1,
-      em <= 7,
-      !is.na(l_cm)
-    ) %>%
-    mutate(
-      adulto = if_else(em >= 2, 1L, 0L)
+  d <- df %>%
+    mutate(LenBin = cut(`L(cm)`, breaks = breaks, include.lowest = TRUE,
+                        right = FALSE, labels = breaks[-length(breaks)]))
+  
+  freq_table <- d %>%
+    count(Ano, LenBin, .drop = FALSE) %>%
+    tidyr::complete(Ano, LenBin, fill = list(n = 0)) %>%
+    arrange(Ano, as.numeric(as.character(LenBin))) %>%
+    tidyr::pivot_wider(names_from = Ano, values_from = n) %>%
+    arrange(as.numeric(as.character(LenBin)))
+  
+  LMids    <- as.numeric(as.character(freq_table$LenBin))
+  Years    <- as.numeric(colnames(freq_table)[-1])
+  LFreqMat <- as.matrix(freq_table[, -1, drop = FALSE])
+  storage.mode(LFreqMat) <- "numeric"
+  
+  Lengths <- new("LB_lengths")
+  Lengths@LMids  <- LMids
+  Lengths@LData  <- LFreqMat
+  Lengths@Years  <- Years
+  Lengths@NYears <- length(Years)
+  Lengths
+}
+
+MyLengths_base <- build_lengths(df_len, BinWidth_base)
+
+# =============================================================================
+# ---- 7. FUNCAO AUXILIAR: roda o LBSPR para um cenario -----------------------
+# =============================================================================
+run_lbspr <- function(cenario, eixo_sensibilidade, valor_testado,
+                      Linf, MK, L50, L95, BinWidth, Lengths) {
+  Pars <- new("LB_pars")
+  Pars@Species  <- "Decapterus macarellus"
+  Pars@Linf     <- Linf
+  Pars@L50      <- L50
+  Pars@L95      <- L95
+  Pars@MK       <- MK
+  Pars@L_units  <- "cm"
+  Pars@BinWidth <- BinWidth
+  # NOTA: esta versao do LBSPR nao tem o slot @maxL em LB_pars. O comprimento
+  # maximo efetivo e definido pelo maior valor em Lengths@LMids, que ja cobre
+  # 1.25*Linf para todos os cenarios (Secao 6).
+  
+  out <- tryCatch({
+    fit <- LBSPRfit(Pars, Lengths, verbose = FALSE)
+    df <- data.frame(
+      cenario = cenario, eixo_sensibilidade = eixo_sensibilidade,
+      valor_testado = valor_testado, Ano = Lengths@Years,
+      SPR = fit@Ests[, "SPR"], FM = fit@Ests[, "FM"],
+      SL50 = fit@Ests[, "SL50"], SL95 = fit@Ests[, "SL95"],
+      erro = NA_character_
     )
-  
-  if (nrow(d) < 50) {
-    stop("Poucos individuos para estimar a ogiva de maturidade.")
-  }
-  
-  mod <- glm(
-    adulto ~ l_cm,
-    family = binomial(link = "logit"),
-    data = d
-  )
-  
-  a <- unname(coef(mod)[1])
-  b <- unname(coef(mod)[2])
-  
-  if (!is.finite(b) || b <= 0) {
-    stop("A ogiva estimada nao possui inclinacao positiva. Verifique os dados.")
-  }
-  
-  L50 <- -a / b
-  L95 <- (log(19) - a) / b
-  
-  tibble(
-    maturity_id = paste0("OWN_", sexo_alvo),
-    sex = sexo_alvo,
-    maturity_source = "Current data 2004-2024",
-    L50 = L50,
-    L95 = L95,
-    slope_b = b,
-    L50_origin = "estimated from current individual maturity data",
-    L95_origin = "estimated from current individual maturity data",
-    maturity_note = "Stage I immature; stages II-VII adult/mature"
-  )
+    list(df = df, fit = fit)
+  }, error = function(e) {
+    df <- data.frame(cenario = cenario, eixo_sensibilidade = eixo_sensibilidade,
+                     valor_testado = valor_testado, Ano = NA, SPR = NA, FM = NA,
+                     SL50 = NA, SL95 = NA, erro = conditionMessage(e))
+    list(df = df, fit = NULL)
+  })
+  out
 }
 
-mat_own_f <- estimar_maturidade(dados, sexo_alvo = "F")
+# Atalho para as sensibilidades, que so precisam da tabela de resultados
+# (nao dos objetos LB_obj completos, usados apenas no cenario BASE abaixo).
+run_lbspr_df <- function(...) run_lbspr(...)$df
 
-cat("\n--- Maturidade estimada com os dados atuais ---\n")
-print(mat_own_f)
+# =============================================================================
+# ---- 8. CENARIO BASE ---------------------------------------------------------
+# =============================================================================
+resultado_base <- run_lbspr("Base", "base", NA,
+                            Linf = base_Linf, MK = base_MK, L50 = base_L50, L95 = base_L95,
+                            BinWidth = BinWidth_base, Lengths = MyLengths_base)
+res_base <- resultado_base$df
+fit_base <- resultado_base$fit   # objeto LB_obj — usado nos graficos nativos do LBSPR (Secao 11d)
 
-write_csv(
-  mat_own_f,
-  file.path(out_dir, "maturity_current_data.csv")
-)
-
-#-------------------------------------------------------------------------------------------#
-# 3. PARAMETROS BIOLOGICOS UTILIZADOS
-#-------------------------------------------------------------------------------------------#
-
-# Equacao de Pauly usada apenas para derivar M no cenario de crescimento de
-# da Cruz Delgado et al. (2003-2007), pois esse conjunto fornece Linf e K,
-# mas M/K nao esta disponivel diretamente na parametrizacao utilizada aqui.
-
-pauly_M <- function(Linf_cm, K, T = T_PAULY) {
-  10^(
-    -0.0066 -
-      0.2790 * log10(Linf_cm) +
-      0.6543 * log10(K) +
-      0.4630 * log10(T)
-  )
+if (is.null(fit_base)) {
+  stop("O ajuste do cenario BASE falhou (", res_base$erro[1], "). Corrija antes de prosseguir.")
 }
 
-# Modelo BASE - Vieira (2019)
-Linf_base <- 40.60
-K_base    <- 0.45
-M_base    <- 0.92
-MK_base   <- M_base / K_base
+## -- 8a. GRAFICOS NATIVOS DO PACOTE LBSPR (Hordyk et al.) para o cenario BASE
+## plotSize: estrutura de tamanho observada vs. ajustada
+## plotMat:  ogivas de maturidade e de selectividade da frota
+## plotEsts: series temporais dos parametros estimados (SL50, SL95, F/M, SPR)
+##           com intervalos de confianca do proprio pacote
+png(file.path(output_dir, "LBSPR_base_estrutura_tamanho.png"), width = 1200, height = 850, res = 120)
+print(plotSize(fit_base))
+dev.off()
 
-# Sensibilidade de crescimento - da Cruz Delgado et al. (2003-2007)
-Linf_growth <- 41.48
-K_growth    <- 0.39
-M_growth    <- pauly_M(Linf_growth, K_growth, T_PAULY)
-MK_growth   <- M_growth / K_growth
+png(file.path(output_dir, "LBSPR_base_maturidade_selectividade.png"), width = 1200, height = 850, res = 120)
+print(plotMat(fit_base))
+dev.off()
 
-# Sensibilidades isoladas de M/K
-# Mantem Linf, maturidade e bin width iguais ao BASE e altera somente M/K.
-# O limite inferior vem de da Luz & Vieira (2020).
-# O limite superior usa o M/K derivado para Delgado 2003-2007.
-MK_low  <- 1.590
-MK_high <- MK_growth
+png(file.path(output_dir, "LBSPR_base_series_temporais.png"), width = 1200, height = 850, res = 120)
+print(plotEsts(fit_base))
+dev.off()
 
-# Maturidade dos dados atuais
-L50_own <- mat_own_f$L50
-L95_own <- mat_own_f$L95
+cat("Graficos nativos do LBSPR (cenario BASE) salvos em:", output_dir, "\n")
+cat("  - LBSPR_base_estrutura_tamanho.png (plotSize)\n")
+cat("  - LBSPR_base_maturidade_selectividade.png (plotMat)\n")
+cat("  - LBSPR_base_series_temporais.png (plotEsts)\n\n")
 
-# Sensibilidade de maturidade - Costa et al. (2020), femeas
-L50_costa_f <- 24.1
-L95_costa_f <- 27.8
+# =============================================================================
+# ---- 9. SENSIBILIDADES ONE-AT-A-TIME (OAT) -----------------------------------
+# Cada eixo varia sozinho, mantendo os demais no cenario BASE — evita a
+# explosao combinatoria de cenarios factoriais extremos.
+# =============================================================================
 
-#-------------------------------------------------------------------------------------------#
-# 4. CENARIOS REDUZIDOS DE SENSIBILIDADE
-#-------------------------------------------------------------------------------------------#
-
-# IMPORTANTE:
-# Cada sensibilidade altera apenas UM componente em relacao ao BASE.
-# Isso evita o cruzamento de extremos de crescimento, maturidade, bin width e M/K.
-#
-# BASE       = Vieira 2019 + maturidade atual F + bin 1 cm
-# S_GROWTH   = muda o conjunto de crescimento para Delgado 2003-2007
-# S_MATURITY = muda somente L50/L95 para Costa 2020 F
-# S_BIN2     = muda somente a largura de classe para 2 cm
-# S_MK_LOW   = muda somente M/K para 1.59
-# S_MK_HIGH  = muda somente M/K para o valor derivado de Delgado 2003-2007
-
-cenarios_run <- tribble(
-  ~scenario,     ~scenario_label,                       ~sensitivity_component,
-  ~growth_id,    ~growth_source,                        ~Linf,        ~K,          ~M,          ~MK,          ~MK_origin,
-  ~maturity_id,  ~maturity_source,                      ~sex,         ~L50,        ~L95,        ~L50_origin,  ~L95_origin,
-  ~BinWidth,     ~is_base,
-  
-  "BASE",        "BASE",                               "Reference model",
-  "VIEIRA_2019", "Vieira (2019)",                      Linf_base,    K_base,       M_base,       MK_base,       "same-study M estimated by Pauly",
-  "OWN_F",       "Current data 2004-2024",             "F",          L50_own,      L95_own,      "estimated",  "estimated",
-  1,              TRUE,
-  
-  "S_GROWTH",    "Growth - Delgado 2003-2007",         "Growth and M/K",
-  "DELGADO_2003_2007", "da Cruz Delgado et al. (2024)", Linf_growth, K_growth,     M_growth,     MK_growth,     paste0("derived with Pauly equation; T = ", T_PAULY, " C"),
-  "OWN_F",       "Current data 2004-2024",             "F",          L50_own,      L95_own,      "estimated",  "estimated",
-  1,              FALSE,
-  
-  "S_MATURITY",  "Maturity - Costa 2020 F",            "Maturity",
-  "VIEIRA_2019", "Vieira (2019)",                      Linf_base,    K_base,       M_base,       MK_base,       "same-study M estimated by Pauly",
-  "COSTA_2020_F", "Costa et al. (2020)",               "F",          L50_costa_f,  L95_costa_f,  "published",  "published",
-  1,              FALSE,
-  
-  "S_BIN2",      "Bin width - 2 cm",                   "Length-class width",
-  "VIEIRA_2019", "Vieira (2019)",                      Linf_base,    K_base,       M_base,       MK_base,       "same-study M estimated by Pauly",
-  "OWN_F",       "Current data 2004-2024",             "F",          L50_own,      L95_own,      "estimated",  "estimated",
-  2,              FALSE,
-  
-  "S_MK_LOW",    "M/K - 1.59",                         "M/K",
-  "VIEIRA_2019", "Vieira (2019) Linf; M/K from da Luz & Vieira (2020)", Linf_base, K_base, NA_real_, MK_low, "M/K reported by da Luz & Vieira (2020); only M/K changed from BASE",
-  "OWN_F",       "Current data 2004-2024",             "F",          L50_own,      L95_own,      "estimated",  "estimated",
-  1,              FALSE,
-  
-  "S_MK_HIGH",   "M/K - 2.13",                         "M/K",
-  "VIEIRA_2019", "Vieira (2019) Linf; M/K derived from Delgado 2003-2007", Linf_base, K_base, NA_real_, MK_high, paste0("M/K from Delgado 2003-2007 derived with Pauly equation; T = ", T_PAULY, " C; only M/K changed from BASE"),
-  "OWN_F",       "Current data 2004-2024",             "F",          L50_own,      L95_own,      "estimated",  "estimated",
-  1,              FALSE
+## 9a. Crescimento (Linf) -------------------------------------------------------
+res_crescimento <- bind_rows(
+  run_lbspr_df("Crescimento_min", "crescimento", range_Linf[1],
+               Linf = range_Linf[1], MK = base_MK, L50 = base_L50, L95 = base_L95,
+               BinWidth = BinWidth_base, Lengths = MyLengths_base),
+  run_lbspr_df("Crescimento_max", "crescimento", range_Linf[2],
+               Linf = range_Linf[2], MK = base_MK, L50 = base_L50, L95 = base_L95,
+               BinWidth = BinWidth_base, Lengths = MyLengths_base)
 )
 
-# Verificacao automatica dos cenarios
-cenarios_run <- cenarios_run %>%
-  mutate(
-    valid_biology =
-      is.finite(Linf) & is.finite(MK) & is.finite(L50) & is.finite(L95) &
-      MK > 0 & L50 > 0 & L95 > L50 & L95 < Linf
-  )
+## 9b. Maturidade (L50 e L95 variam juntos, mesma forma de ogiva) --------------
+res_maturidade <- bind_rows(
+  run_lbspr_df("Maturidade_min", "maturidade", range_L50_lit[1],
+               Linf = base_Linf, MK = base_MK, L50 = range_L50_lit[1], L95 = range_L95_lit[1],
+               BinWidth = BinWidth_base, Lengths = MyLengths_base),
+  run_lbspr_df("Maturidade_max", "maturidade", range_L50_lit[2],
+               Linf = base_Linf, MK = base_MK, L50 = range_L50_lit[2], L95 = range_L95_lit[2],
+               BinWidth = BinWidth_base, Lengths = MyLengths_base)
+)
 
-if (any(!cenarios_run$valid_biology)) {
-  print(cenarios_run %>% filter(!valid_biology))
-  stop("Existe pelo menos um cenario biologicamente invalido.")
+## 9c. Largura de classe (bin width) -------------------------------------------
+BinWidths_alt <- c(2, 3)  # cm — alternativas a 1 cm do cenario BASE
+res_binwidth <- purrr::map_dfr(BinWidths_alt, function(bw) {
+  Lengths_bw <- build_lengths(df_len, bw)
+  run_lbspr_df(paste0("LarguraClasse_", bw, "cm"), "largura_classe", bw,
+               Linf = base_Linf, MK = base_MK, L50 = base_L50, L95 = base_L95,
+               BinWidth = bw, Lengths = Lengths_bw)
+})
+
+## 9d. M/K ----------------------------------------------------------------------
+res_mk <- bind_rows(
+  run_lbspr_df("MK_min", "M_K", range_MK[1],
+               Linf = base_Linf, MK = range_MK[1], L50 = base_L50, L95 = base_L95,
+               BinWidth = BinWidth_base, Lengths = MyLengths_base),
+  run_lbspr_df("MK_max", "M_K", range_MK[2],
+               Linf = base_Linf, MK = range_MK[2], L50 = base_L50, L95 = base_L95,
+               BinWidth = BinWidth_base, Lengths = MyLengths_base)
+)
+
+# =============================================================================
+# ---- 10. CONSOLIDAR E EXPORTAR -----------------------------------------------
+# =============================================================================
+todos_resultados <- bind_rows(res_base, res_crescimento, res_maturidade, res_binwidth, res_mk)
+
+if (any(!is.na(todos_resultados$erro))) {
+  cat("\n\u26a0 Cenarios com erro no ajuste do LBSPR:\n")
+  print(todos_resultados %>% filter(!is.na(erro)) %>%
+          distinct(cenario, eixo_sensibilidade, valor_testado, erro))
 }
 
-cat("\n--- Cenarios LBSPR utilizados ---\n")
-print(
-  cenarios_run %>%
-    select(
-      scenario, scenario_label, growth_id, Linf, K, M, MK,
-      maturity_id, L50, L95, BinWidth
-    )
+write.csv(todos_resultados, file.path(output_dir, "LBSPR_sensibilidade_resultados.csv"), row.names = FALSE)
+cat("\nResultados (base + sensibilidades) salvos em:",
+    file.path(output_dir, "LBSPR_sensibilidade_resultados.csv"), "\n\n")
+
+# =============================================================================
+# ---- 11. GRAFICOS -------------------------------------------------------------
+# =============================================================================
+
+## 11a. SPR ao longo do tempo, por eixo de sensibilidade ----------------------
+eixos <- unique(todos_resultados$eixo_sensibilidade[todos_resultados$eixo_sensibilidade != "base"])
+
+base_repetido <- todos_resultados %>% filter(cenario == "Base") %>%
+  tidyr::crossing(eixo_facet = eixos) %>%
+  mutate(eixo_sensibilidade = eixo_facet) %>% select(-eixo_facet)
+
+plot_dat <- bind_rows(
+  todos_resultados %>% filter(is.na(erro), cenario != "Base"),
+  base_repetido
 )
 
-write_csv(
-  cenarios_run,
-  file.path(out_dir, "LBSPR_reduced_sensitivity_scenarios.csv")
-)
+p_time <- ggplot(plot_dat, aes(x = Ano, y = SPR, color = cenario)) +
+  geom_line(linewidth = 1) + geom_point(size = 1.5) +
+  geom_hline(yintercept = 0.40, linetype = "dashed", color = "darkgreen", inherit.aes = FALSE) +
+  geom_hline(yintercept = 0.20, linetype = "dashed", color = "firebrick", inherit.aes = FALSE) +
+  facet_wrap(~eixo_sensibilidade, scales = "free_y") +
+  labs(title = "Sensibilidade do SPR (LBSPR) — crescimento, maturidade, largura de classe e M/K",
+       subtitle = "Linhas tracejadas: 0.20 (critico) e 0.40 (alvo) — convencoes comuns",
+       y = "Spawning Potential Ratio (SPR)", x = "Ano", color = "Cenario") +
+  theme_minimal(base_size = 12)
+p_time
+ggsave(file.path(output_dir, "sensibilidade_SPR_por_ano.png"), p_time, width = 11, height = 7, dpi = 150)
 
-# Tabela simplificada para manuscrito/relatorio
-config_table <- cenarios_run %>%
-  transmute(
-    Scenario = scenario,
-    Description = scenario_label,
-    `Sensitivity component` = sensitivity_component,
-    `Growth source` = growth_source,
-    `Linf (cm FL)` = Linf,
-    K = K,
-    M = M,
-    `M/K` = MK,
-    `Maturity source` = maturity_source,
-    L50 = L50,
-    L95 = L95,
-    `Bin width (cm)` = BinWidth
-  )
+## 11b. Grafico "tornado" — impacto no SPR medio -------------------------------
+spr_medio_base <- mean(res_base$SPR, na.rm = TRUE)
 
-write_csv(
-  config_table,
-  file.path(out_dir, "LBSPR_sensitivity_configuration_table.csv")
-)
+tornado_dat <- todos_resultados %>%
+  filter(is.na(erro), eixo_sensibilidade != "base") %>%
+  group_by(eixo_sensibilidade, cenario) %>%
+  summarise(SPR_medio = mean(SPR, na.rm = TRUE), .groups = "drop") %>%
+  mutate(delta = SPR_medio - spr_medio_base)
 
-#-------------------------------------------------------------------------------------------#
-# 5. CONSTRUIR FREQUENCIAS DE COMPRIMENTO
-#-------------------------------------------------------------------------------------------#
+p_tornado <- ggplot(tornado_dat, aes(x = eixo_sensibilidade, y = delta, fill = cenario)) +
+  geom_col(position = "identity", alpha = 0.8) +
+  geom_hline(yintercept = 0, color = "black") +
+  coord_flip() +
+  labs(title = "Grafico tornado — sensibilidade do SPR medio",
+       subtitle = paste0("Referencia (cenario BASE): SPR medio = ", round(spr_medio_base, 3)),
+       x = NULL, y = "Variacao do SPR medio em relacao ao cenario BASE", fill = "Cenario") +
+  theme_minimal(base_size = 12)
+p_tornado
+ggsave(file.path(output_dir, "sensibilidade_tornado_SPR_medio.png"), p_tornado, width = 9, height = 5.5, dpi = 150)
 
-construir_lfq <- function(dat, bin_width = 1) {
-  
-  min_len <- floor(min(dat$l_cm, na.rm = TRUE))
-  max_len <- ceiling(max(dat$l_cm, na.rm = TRUE))
-  
-  # Dados foram registrados em centimetros inteiros.
-  # Para bin = 1 cm, os valores inteiros sao os pontos medios das classes.
-  origin <- min_len - 0.5
-  
-  n_bins <- ceiling(
-    ((max_len + 0.5) - origin) / bin_width
-  )
-  
-  breaks <- origin + (0:n_bins) * bin_width
-  mids <- breaks[-length(breaks)] + bin_width / 2
-  
-  anos <- sort(unique(dat$ano))
-  
-  aux <- dat %>%
-    mutate(
-      bin_id = cut(
-        l_cm,
-        breaks = breaks,
-        include.lowest = TRUE,
-        right = FALSE,
-        labels = FALSE
-      )
-    ) %>%
-    filter(!is.na(bin_id)) %>%
-    count(ano, bin_id, name = "n")
-  
-  grade <- expand_grid(
-    ano = anos,
-    bin_id = seq_along(mids)
-  ) %>%
-    left_join(aux, by = c("ano", "bin_id")) %>%
-    mutate(
-      n = replace_na(n, 0L),
-      LMids = mids[bin_id]
-    )
-  
-  wide <- grade %>%
-    select(LMids, ano, n) %>%
-    pivot_wider(
-      names_from = ano,
-      values_from = n,
-      values_fill = 0
-    ) %>%
-    arrange(LMids)
-  
-  list(
-    data = wide,
-    years = anos,
-    bin_width = bin_width
-  )
-}
+cat("Graficos salvos em:", output_dir, "\n")
+cat("  - sensibilidade_SPR_por_ano.png\n")
+cat("  - sensibilidade_tornado_SPR_medio.png\n\n")
 
-# Nesta analise reduzida precisamos apenas de bins de 1 e 2 cm.
-lfq_cache <- list(
-  `1` = construir_lfq(dados, 1),
-  `2` = construir_lfq(dados, 2)
-)
-
-for (bw in c(1, 2)) {
-  write_csv(
-    lfq_cache[[as.character(bw)]]$data,
-    file.path(out_dir, paste0("LFQ_", bw, "cm.csv"))
-  )
-}
-
-#-------------------------------------------------------------------------------------------#
-# 6. FUNCAO PARA RODAR UM CENARIO LBSPR
-#-------------------------------------------------------------------------------------------#
-
-rodar_lbspr <- function(sc) {
-  
-  sc <- as.list(sc)
-  lfq <- lfq_cache[[as.character(sc$BinWidth)]]
-  
-  arq_temp <- tempfile(fileext = ".csv")
-  write_csv(lfq$data, arq_temp)
-  
-  pars <- new("LB_pars", verbose = FALSE)
-  pars@Species  <- "Decapterus macarellus"
-  pars@L_units  <- "cm"
-  pars@Linf     <- sc$Linf
-  pars@MK       <- sc$MK
-  pars@L50      <- sc$L50
-  pars@L95      <- sc$L95
-  pars@CVLinf   <- CV_LINF
-  pars@BinWidth <- sc$BinWidth
-  
-  lens <- new(
-    "LB_lengths",
-    LB_pars = pars,
-    file = arq_temp,
-    dataType = "freq",
-    header = TRUE,
-    verbose = FALSE
-  )
-  
-  fit <- LBSPRfit(
-    pars,
-    lens,
-    Control = list(modtype = MODTYPE),
-    verbose = FALSE
-  )
-  
-  # Estimativas suavizadas do ajuste multianual
-  sm <- as.data.frame(fit@Ests)
-  
-  if (!all(c("SL50", "SL95", "FM", "SPR") %in% names(sm))) {
-    names(sm)[seq_len(min(4, ncol(sm)))] <-
-      c("SL50", "SL95", "FM", "SPR")[seq_len(min(4, ncol(sm)))]
-  }
-  
-  n_est <- min(nrow(sm), length(lfq$years))
-  
-  est_smoothed <- sm[seq_len(n_est), , drop = FALSE] %>%
-    transmute(
-      year = lfq$years[seq_len(n_est)],
-      SL50 = SL50,
-      SL95 = SL95,
-      FM = FM,
-      SPR = SPR,
-      estimate_type = "smoothed"
-    )
-  
-  # Estimativas anuais nao suavizadas
-  n_raw <- min(length(fit@SPR), length(lfq$years))
-  
-  est_raw <- tibble(
-    year = lfq$years[seq_len(n_raw)],
-    SL50 = fit@SL50[seq_len(n_raw)],
-    SL95 = fit@SL95[seq_len(n_raw)],
-    FM = fit@FM[seq_len(n_raw)],
-    SPR = fit@SPR[seq_len(n_raw)],
-    estimate_type = "raw"
-  )
-  
-  estimates <- bind_rows(est_smoothed, est_raw) %>%
-    mutate(
-      scenario = sc$scenario,
-      scenario_label = sc$scenario_label,
-      sensitivity_component = sc$sensitivity_component,
-      is_base = sc$is_base,
-      growth_id = sc$growth_id,
-      growth_source = sc$growth_source,
-      Linf = sc$Linf,
-      K = sc$K,
-      M = sc$M,
-      MK = sc$MK,
-      MK_origin = sc$MK_origin,
-      maturity_id = sc$maturity_id,
-      maturity_source = sc$maturity_source,
-      maturity_sex = sc$sex,
-      L50_input = sc$L50,
-      L95_input = sc$L95,
-      L50_origin = sc$L50_origin,
-      L95_origin = sc$L95_origin,
-      BinWidth = sc$BinWidth
-    )
-  
-  list(
-    fit = fit,
-    pars = pars,
-    lengths = lens,
-    estimates = estimates
-  )
-}
-
-#-------------------------------------------------------------------------------------------#
-# 7. RODAR OS SEIS CENARIOS
-#-------------------------------------------------------------------------------------------#
-
-fits <- vector("list", nrow(cenarios_run))
-names(fits) <- cenarios_run$scenario
-
-erros <- list()
-
-for (i in seq_len(nrow(cenarios_run))) {
-  
-  sc <- cenarios_run[i, ]
-  nome <- sc$scenario
-  cache_file <- file.path(cache_dir, paste0(nome, ".rds"))
-  
-  cat(
-    "\n[", i, "/", nrow(cenarios_run), "] ",
-    "Rodando ", nome,
-    " | Bin=", sc$BinWidth,
-    " | Linf=", round(sc$Linf, 2),
-    " | M/K=", round(sc$MK, 3),
-    " | L50=", round(sc$L50, 2),
-    " | L95=", round(sc$L95, 2),
-    "\n",
-    sep = ""
-  )
-  
-  if (file.exists(cache_file) && !RECALCULATE_ALL) {
-    
-    res <- readRDS(cache_file)
-    cat("  -> carregado do cache\n")
-    
-  } else {
-    
-    res <- tryCatch(
-      rodar_lbspr(sc),
-      error = function(e) e
-    )
-    
-    if (!inherits(res, "error")) {
-      saveRDS(res, cache_file)
-    }
-  }
-  
-  if (inherits(res, "error")) {
-    
-    warning(paste("Falha no cenario", nome, ":", res$message))
-    erros[[nome]] <- res$message
-    
-  } else {
-    
-    fits[[nome]] <- res
-  }
-}
-
-fits <- fits[!vapply(fits, is.null, logical(1))]
-
-if (length(fits) == 0) {
-  stop("Nenhum cenario LBSPR foi ajustado com sucesso.")
-}
-
-resultados <- bind_rows(lapply(fits, `[[`, "estimates"))
-
-write_csv(
-  resultados,
-  file.path(out_dir, "LBSPR_all_estimates.csv")
-)
-
-if (length(erros) > 0) {
-  
-  tabela_erros <- tibble(
-    scenario = names(erros),
-    error = unlist(erros)
-  )
-  
-  write_csv(
-    tabela_erros,
-    file.path(out_dir, "LBSPR_fit_errors.csv")
-  )
-  
-  print(tabela_erros)
-}
-
-#-------------------------------------------------------------------------------------------#
-# 8. RESUMOS DOS RESULTADOS
-#-------------------------------------------------------------------------------------------#
-
-res_sm <- resultados %>%
-  filter(estimate_type == "smoothed")
-
-# Estimativa terminal de cada cenario
-terminal <- res_sm %>%
-  group_by(scenario) %>%
-  filter(year == max(year, na.rm = TRUE)) %>%
-  slice(1) %>%
-  ungroup()
-
-# Comparacao com o BASE
-if ("BASE" %in% terminal$scenario) {
-  
-  spr_base <- terminal %>%
-    filter(scenario == "BASE") %>%
-    pull(SPR) %>%
-    first()
-  
-  fm_base <- terminal %>%
-    filter(scenario == "BASE") %>%
-    pull(FM) %>%
-    first()
-  
-  terminal <- terminal %>%
-    mutate(
-      delta_SPR = SPR - spr_base,
-      delta_SPR_pct = 100 * delta_SPR / spr_base,
-      delta_FM = FM - fm_base,
-      delta_FM_pct = 100 * delta_FM / fm_base
-    )
-}
-
-write_csv(
-  terminal,
-  file.path(out_dir, "LBSPR_terminal_estimates.csv")
-)
-
-# Media dos tres ultimos anos
-ultimos3 <- res_sm %>%
-  group_by(scenario, scenario_label) %>%
-  arrange(year) %>%
-  slice_tail(n = 3) %>%
-  summarise(
-    year_start = min(year),
-    year_end = max(year),
-    SPR_mean3 = mean(SPR, na.rm = TRUE),
-    FM_mean3 = mean(FM, na.rm = TRUE),
-    SL50_mean3 = mean(SL50, na.rm = TRUE),
-    SL95_mean3 = mean(SL95, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  left_join(
-    cenarios_run %>%
-      select(
-        scenario, sensitivity_component,
-        growth_id, growth_source, Linf, K, M, MK,
-        maturity_id, maturity_source, L50, L95,
-        BinWidth, is_base
-      ),
-    by = "scenario"
-  )
-
-write_csv(
-  ultimos3,
-  file.path(out_dir, "LBSPR_last3yr_summary.csv")
-)
-
-#-------------------------------------------------------------------------------------------#
-# 9. ENVELOPE REDUZIDO
-#-------------------------------------------------------------------------------------------#
-
-# Este envelope representa somente a amplitude entre os seis cenarios selecionados.
-# NAO corresponde a intervalo de confianca estatistico.
-
-annual_envelope <- res_sm %>%
-  group_by(year) %>%
-  summarise(
-    n_scenarios = n(),
-    SPR_min = min(SPR, na.rm = TRUE),
-    SPR_median = median(SPR, na.rm = TRUE),
-    SPR_max = max(SPR, na.rm = TRUE),
-    FM_min = min(FM, na.rm = TRUE),
-    FM_median = median(FM, na.rm = TRUE),
-    FM_max = max(FM, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-write_csv(
-  annual_envelope,
-  file.path(out_dir, "LBSPR_reduced_sensitivity_envelope.csv")
-)
-
-#-------------------------------------------------------------------------------------------#
-# 10. GRAFICOS
-#-------------------------------------------------------------------------------------------#
-
-base_est <- res_sm %>%
-  filter(scenario == "BASE")
-
-# 10.1 Envelope reduzido de SPR
-p_envelope <- ggplot(annual_envelope, aes(x = year)) +
-  geom_ribbon(
-    aes(ymin = SPR_min, ymax = SPR_max),
-    alpha = 0.20
-  ) +
-  geom_line(
-    aes(y = SPR_median),
-    linewidth = 0.8,
-    linetype = "dashed"
-  ) +
-  geom_line(
-    data = base_est,
-    aes(x = year, y = SPR),
-    linewidth = 1.1
-  ) +
-  geom_hline(
-    yintercept = SPR_TARGET,
-    linetype = "dashed",
-    linewidth = 0.6
-  ) +
-  geom_hline(
-    yintercept = SPR_LIMIT,
-    linetype = "dotted",
-    linewidth = 0.6
-  ) +
-  scale_x_continuous(
-    breaks = sort(unique(annual_envelope$year))
-  ) +
-  coord_cartesian(ylim = c(0, 1)) +
-  labs(
-    x = "Year",
-    y = "SPR",
-    title = "LBSPR reduced sensitivity envelope",
-    subtitle = "Ribbon = range among selected plausible scenarios; solid line = BASE; dashed line = scenario median"
-  ) +
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(
-      angle = 90,
-      vjust = 0.5,
-      hjust = 1
-    ),
-    panel.grid.minor = element_blank()
-  )
-
-print(p_envelope)
-
-ggsave(
-  file.path(out_dir, "01_SPR_reduced_sensitivity_envelope.png"),
-  p_envelope,
-  width = 12,
-  height = 6.5,
-  dpi = 300
-)
-
-# 10.2 Trajetorias de SPR dos seis cenarios
-p_spr_scenarios <- ggplot(
-  res_sm,
-  aes(
-    x = year,
-    y = SPR,
-    color = scenario_label,
-    linetype = scenario_label
-  )
-) +
-  geom_line(linewidth = 0.9) +
-  geom_hline(
-    yintercept = SPR_TARGET,
-    linetype = "dashed",
-    linewidth = 0.5,
-    inherit.aes = FALSE
-  ) +
-  geom_hline(
-    yintercept = SPR_LIMIT,
-    linetype = "dotted",
-    linewidth = 0.5,
-    inherit.aes = FALSE
-  ) +
-  scale_x_continuous(
-    breaks = sort(unique(res_sm$year))
-  ) +
-  coord_cartesian(ylim = c(0, 1)) +
-  labs(
-    x = "Year",
-    y = "SPR",
-    color = "Scenario",
-    linetype = "Scenario",
-    title = "LBSPR sensitivity scenarios"
-  ) +
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(
-      angle = 90,
-      vjust = 0.5,
-      hjust = 1
-    ),
-    panel.grid.minor = element_blank(),
-    legend.position = "bottom"
-  )
-
-print(p_spr_scenarios)
-
-ggsave(
-  file.path(out_dir, "02_SPR_selected_scenarios.png"),
-  p_spr_scenarios,
-  width = 12,
-  height = 7,
-  dpi = 300
-)
-
-# 10.3 SPR terminal dos seis cenarios
-terminal <- terminal %>%
-  mutate(
-    model_type = if_else(
-      scenario == "BASE",
-      "BASE",
-      "Sensitivity"
-    )
-  )
-
-p_terminal <- ggplot(
-  terminal,
-  aes(
-    x = scenario_label,
-    y = SPR,
-    shape = model_type
-  )
-) +
-  geom_point(
-    size = 4,
-    stroke = 1.2
-  ) +
-  
-  geom_hline(
-    yintercept = SPR_TARGET,
-    linetype = "dashed",
-    linewidth = 0.7
-  ) +
-  
-  geom_hline(
-    yintercept = SPR_LIMIT,
-    linetype = "dotted",
-    linewidth = 0.7
-  ) +
-  
-  scale_shape_manual(
-    values = c(
-      "BASE" = 18,
-      "Sensitivity" = 16
-    )
-  ) +
-  
-  scale_y_continuous(
-    limits = c(0, 1),
-    breaks = seq(0, 1, 0.2)
-  ) +
-  
-  labs(
-    x = NULL,
-    y = "Terminal SPR",
-    shape = NULL
-  ) +
-  
-  theme_bw() +
-  
-  theme(
-    axis.text.x = element_text(
-      angle = 35,
-      hjust = 1
-    ),
-    axis.title.y = element_text(face = "bold"),
-    legend.position = "none",
-    panel.grid.minor = element_blank()
-  )
-
-p_terminal
-
-ggsave(
-  file.path(out_dir, "03_terminal_SPR_selected_scenarios.png"),
-  p_terminal,
-  width = 9,
-  height = 6,
-  dpi = 300
-)
-
-# 10.4 Trajetorias de F/M
-p_fm <- ggplot(
-  res_sm,
-  aes(
-    x = year,
-    y = FM,
-    color = scenario_label,
-    linetype = scenario_label
-  )
-) +
-  geom_line(linewidth = 0.9) +
-  scale_x_continuous(
-    breaks = sort(unique(res_sm$year))
-  ) +
-  labs(
-    x = "Year",
-    y = "F/M",
-    color = "Scenario",
-    linetype = "Scenario",
-    title = "Fishing mortality relative to natural mortality"
-  ) +
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(
-      angle = 90,
-      vjust = 0.5,
-      hjust = 1
-    ),
-    panel.grid.minor = element_blank(),
-    legend.position = "bottom"
-  )
-
-print(p_fm)
-
-ggsave(
-  file.path(out_dir, "04_FM_selected_scenarios.png"),
-  p_fm,
-  width = 12,
-  height = 7,
-  dpi = 300
-)
-
-# 10.5 SL50 estimado
-p_sl50 <- ggplot(
-  res_sm,
-  aes(
-    x = year,
-    y = SL50,
-    color = scenario_label,
-    linetype = scenario_label
-  )
-) +
-  geom_line(linewidth = 0.9) +
-  geom_hline(
-    yintercept = MLS,
-    color = "red",
-    linetype = "dashed",
-    linewidth = 0.7
-  ) +
-  scale_x_continuous(
-    breaks = sort(unique(res_sm$year))
-  ) +
-  labs(
-    x = "Year",
-    y = expression(SL[50]~"(cm FL)"),
-    color = "Scenario",
-    linetype = "Scenario",
-    title = expression("Estimated fishery selectivity "*SL[50]),
-    subtitle = "Red dashed line = minimum legal catch size (20 cm FL)"
-  ) +
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(
-      angle = 90,
-      vjust = 0.5,
-      hjust = 1
-    ),
-    panel.grid.minor = element_blank(),
-    legend.position = "bottom"
-  )
-
-print(p_sl50)
-
-ggsave(
-  file.path(out_dir, "05_SL50_selected_scenarios.png"),
-  p_sl50,
-  width = 12,
-  height = 7,
-  dpi = 300
-)
-
-# 10.6 SL95 estimado
-p_sl95 <- ggplot(
-  res_sm,
-  aes(
-    x = year,
-    y = SL95,
-    color = scenario_label,
-    linetype = scenario_label
-  )
-) +
-  geom_line(linewidth = 0.9) +
-  geom_hline(
-    yintercept = MLS,
-    color = "red",
-    linetype = "dashed",
-    linewidth = 0.7
-  ) +
-  scale_x_continuous(
-    breaks = sort(unique(res_sm$year))
-  ) +
-  labs(
-    x = "Year",
-    y = expression(SL[95]~"(cm FL)"),
-    color = "Scenario",
-    linetype = "Scenario",
-    title = expression("Estimated fishery selectivity "*SL[95]),
-    subtitle = "Red dashed line = minimum legal catch size (20 cm FL)"
-  ) +
-  theme_bw() +
-  theme(
-    axis.text.x = element_text(
-      angle = 90,
-      vjust = 0.5,
-      hjust = 1
-    ),
-    panel.grid.minor = element_blank(),
-    legend.position = "bottom"
-  )
-
-print(p_sl95)
-
-ggsave(
-  file.path(out_dir, "06_SL95_selected_scenarios.png"),
-  p_sl95,
-  width = 12,
-  height = 7,
-  dpi = 300
-)
-
-#-------------------------------------------------------------------------------------------#
-# 11. DIAGNOSTICOS DO MODELO BASE
-#-------------------------------------------------------------------------------------------#
-
-if ("BASE" %in% names(fits)) {
-  
-  fit_base <- fits[["BASE"]]$fit
-  
-  cat("\n--- Modelo BASE ---\n")
-  cat(
-    "Growth: Vieira (2019): Linf=40.6 cm, K=0.45, M=0.92, M/K=",
-    round(MK_base, 4),
-    "\n",
-    sep = ""
-  )
-  cat(
-    "Maturity: current female data; Stage I immature, II-VII adult; L50=",
-    round(L50_own, 2),
-    "; L95=",
-    round(L95_own, 2),
-    " cm FL\n",
-    sep = ""
-  )
-  cat("Bin width: 1 cm\n\n")
-  
-  cat("Execute para diagnosticos graficos do BASE:\n")
-  cat("plotSize(fit_base)\n")
-  cat("plotMat(fit_base)\n")
-  cat("plotEsts(fit_base)\n\n")
-  
-  # Descomente caso queira abrir automaticamente:
-  # plotSize(fit_base)
-  # plotMat(fit_base)
-  # plotEsts(fit_base)
-}
-
-#-------------------------------------------------------------------------------------------#
-# 12. RESUMO FINAL NO CONSOLE
-#-------------------------------------------------------------------------------------------#
-
-cat("\n=====================================================================\n")
-cat("LBSPR REDUCED SENSITIVITY FINALIZADO\n")
-cat("Resultados em:", out_dir, "\n\n")
-
-cat("Cenarios avaliados:\n")
-cat("1. BASE       - Vieira 2019 + own female maturity + bin 1 cm\n")
-cat("2. S_GROWTH   - Delgado 2003-2007 growth/MK; demais parametros = BASE\n")
-cat("3. S_MATURITY - Costa 2020 female L50/L95; demais parametros = BASE\n")
-cat("4. S_BIN2     - bin width 2 cm; demais parametros = BASE\n")
-cat("5. S_MK_LOW   - M/K = 1.59; todos os demais parametros = BASE\n")
-cat("6. S_MK_HIGH  - M/K = ", round(MK_high, 3), "; todos os demais parametros = BASE\n\n", sep = "")
-
-cat("Arquivos principais:\n")
-cat(" - LBSPR_reduced_sensitivity_scenarios.csv\n")
-cat(" - LBSPR_sensitivity_configuration_table.csv\n")
-cat(" - LBSPR_all_estimates.csv\n")
-cat(" - LBSPR_terminal_estimates.csv\n")
-cat(" - LBSPR_last3yr_summary.csv\n")
-cat(" - LBSPR_reduced_sensitivity_envelope.csv\n")
-cat(" - 01_SPR_reduced_sensitivity_envelope.png\n")
-cat(" - 02_SPR_selected_scenarios.png\n")
-cat(" - 03_terminal_SPR_selected_scenarios.png\n")
-cat(" - 04_FM_selected_scenarios.png\n")
-cat(" - 05_SL50_selected_scenarios.png\n")
-cat(" - 06_SL95_selected_scenarios.png\n\n")
-
-cat("IMPORTANTE:\n")
-cat("1. As sensibilidades sao one-at-a-time: apenas um componente muda em cada cenario.\n")
-cat("2. O envelope representa a amplitude entre cenarios deterministicos selecionados; nao e IC.\n")
-cat("3. L50 e L95 do BASE sao estimados diretamente das femeas do banco atual.\n")
-cat("4. O cenario de maturidade usa a ogiva feminina completa de Costa et al. (2020).\n")
-cat("5. O cenario de crescimento usa Delgado 2003-2007; M e M/K sao derivados por Pauly.\n")
-cat("6. S_MK_LOW e S_MK_HIGH alteram somente M/K, mantendo Linf, L50, L95 e bin do BASE.\n")
-cat("=====================================================================\n")
+# =============================================================================
+# NOTAS FINAIS
+# -----------------------------------------------------------------------------
+# 1. O cenario BASE combina crescimento/M/K de Vieira (2019) com uma ogiva de
+#    maturidade ajustada diretamente aos dados atuais (femeas, 2004-2024,
+#    estadios I a VII). "SAT" foi excluido do ajuste por nao pertencer a essa
+#    escala — revise 'sat_incluido' na Secao 2 se quiser tratar esse estadio
+#    de outra forma.
+# 2. As sensibilidades sao one-at-a-time (um parametro varia, os demais ficam
+#    no cenario BASE), conforme pedido no cabecalho, para nao inflar a
+#    incerteza com combinacoes factoriais extremas.
+# 3. O intervalo de L95 na sensibilidade de maturidade e ESTIMADO: aplica a
+#    razao L95/L50 da propria ogiva ajustada aos dados atuais sobre os
+#    extremos de L50 reportados na literatura.
+# 4. Repita a extracao das Secoes 4-5 se as planilhas de entrada mudarem — o
+#    script e totalmente reprodutivel a partir delas.
+# =============================================================================
