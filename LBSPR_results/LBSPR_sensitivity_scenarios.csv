@@ -1,0 +1,9 @@
+scenario,set,Linf,MK,L50,L95,BinWidth,maturity_definition,source,rationale
+BASE,core,40.6,2.0444444444444443,21.068058595591573,23.928403002115303,1,II-VII adults,Vieira (2019) + current maturity data,Reference model using local growth/mortality and observed maturity
+S_Linf_high,core,46,2.0444444444444443,21.068058595591573,23.928403002115303,1,II-VII adults,"da Cruz Delgado et al. (2024), 2017-2021",Tests sensitivity to a higher recent estimate of asymptotic length
+S_MK_1.59,core,40.6,1.59,21.068058595591573,23.928403002115303,1,II-VII adults,da Luz & Vieira (2020),Tests sensitivity to a lower published M/K estimate
+S_bin_2cm,core,40.6,2.0444444444444443,21.068058595591573,23.928403002115303,2,II-VII adults,Current length data,Tests sensitivity to aggregation of the original 1-cm length classes
+E_Linf_41.48,extended,41.48,2.0444444444444443,21.068058595591573,23.928403002115303,1,II-VII adults,"da Cruz Delgado et al. (2024), 2003-2007",Alternative local Linf estimate close to the reference value
+E_MK_1.88,extended,40.6,1.8823529411764706,21.068058595591573,23.928403002115303,1,II-VII adults,"Almada (1997), M by Pauly",Historical alternative M/K based on Pauly natural mortality
+E_MK_1.26,extended,40.6,1.2647058823529411,21.068058595591573,23.928403002115303,1,II-VII adults,"Almada (1997), M by Tanaka",Lower historical M/K estimate; represents an extreme alternative
+E_bin_3cm,extended,40.6,2.0444444444444443,21.068058595591573,23.928403002115303,3,II-VII adults,Current length data,More aggressive aggregation to test sensitivity to class width
