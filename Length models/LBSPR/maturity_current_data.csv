@@ -1,0 +1,2 @@
+maturity_id,sex,maturity_source,L50,L95,slope_b,L50_origin,L95_origin,maturity_note
+OWN_F,F,Current data 2004-2024,21.068058595591573,23.928403002115303,1.029400156306671,estimated from current individual maturity data,estimated from current individual maturity data,Stage I immature; stages II-VII adult/mature
