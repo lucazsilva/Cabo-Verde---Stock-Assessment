@@ -22,8 +22,10 @@ library(ggplot2)
 library(dplyr)
 #installed.packages("tidyr")
 library(tidyr)
-install.packages("tibble")
-library(tible)
+#install.packages("tidyverse")
+library(tidyverse)
+#install.packages("tibble")
+library(tibble)
 #install.packages("neuralnet")
 library(neuralnet)
 #install.packages("purrr")
@@ -964,6 +966,266 @@ write.csv(
   "Depletion_hypotheses_Decapterus_macarellus.csv",
   row.names = FALSE
 )
+
+
+library(tidyverse)
+
+# lh já está carregado como tibble
+
+#------------------------------------------------------------------
+# Funções auxiliares (INALTERADAS)
+#------------------------------------------------------------------
+{
+  safe_uniroot <- function(fn, lower = 0, upper = 5, tol = 1e-8,
+                         max_expand = 10, by = 0.5) {
+  safe_eval <- function(x) tryCatch(fn(x), error = function(e) NA_real_)
+  f_low  <- safe_eval(lower)
+  f_high <- safe_eval(upper)
+  if (!is.na(f_low) && !is.na(f_high) && f_low * f_high < 0) {
+    return(tryCatch(uniroot(fn, c(lower, upper), tol = tol)$root,
+                    error = function(e) NA_real_))
+  }
+  for (i in seq_len(max_expand)) {
+    new_upper <- upper + i * by
+    f_new <- safe_eval(new_upper)
+    if (!is.na(f_low) && !is.na(f_new) && f_low * f_new < 0) {
+      return(tryCatch(uniroot(fn, c(lower, new_upper), tol = tol)$root,
+                      error = function(e) NA_real_))
+    }
+  }
+  NA_real_
+}
+
+rlnorm_from_mean_cv <- function(mean, cv, n) {
+  if (is.na(mean) || is.na(cv) || mean <= 0) return(rep(NA_real_, n))
+  sigma2 <- log(1 + cv^2)
+  mu <- log(mean) - 0.5 * sigma2
+  rlnorm(n, meanlog = mu, sdlog = sqrt(sigma2))
+}
+
+#------------------------------------------------------------------
+# Bootstrap para uma espécie  (ÚNICA COISA QUE MUDA: nomes das colunas)
+#------------------------------------------------------------------
+estimate_r_boot <- function(sp_row, nboot = 1000,
+                            cvs = list(Linf = 0.15, k = 0.20, M = 0.20,
+                                       tmax = 0.10, L50 = 0.15, ls = 0.25),
+                            ls_euler_fixed = 9.5,
+                            options = list(r_upper = 5, verbose = FALSE)) {
+  
+  sp <- sp_row$especie[1]   # <-- era Especie
+  
+  # ---- MAPEAMENTO DE COLUNAS --------------------------------------
+  Linf0 <- mean(na.omit(sp_row$linf_fl)) / 10   # <-- era `Linf(mm)TL`
+  k0    <- mean(na.omit(sp_row$k))              # <-- era `K(ano)`
+  L500  <- mean(na.omit(sp_row$l50_fl)) / 10    # <-- era `L50(mm)TL`
+  M0    <- mean(na.omit(sp_row$m))              # <-- era M
+  tmax0 <- mean(na.omit(sp_row$tmax))           # <-- era `Tmáx`
+  ls0   <- 4   # default (não existe em lh)
+  f     <- 1   # default (não existe em lh)
+  # -----------------------------------------------------------------
+  
+  if (any(is.na(c(Linf0, k0, L500, M0, tmax0)))) {
+    if (isTRUE(options$verbose)) warning(sp, ": insufficient parameters.")
+    return(list(
+      sims = tibble(),
+      summary = tibble(specie = sp,
+                       method = c("euler","myers","smith_rebound_eq6","demographic_inv"),
+                       r_median = NA_real_, r_q025 = NA_real_, r_q975 = NA_real_,
+                       n_conv = 0L, n_total = nboot)
+    ))
+  }
+  
+  # Bootstrap paramétrico (inalterado)
+  Linf_samps <- rlnorm_from_mean_cv(Linf0, cvs$Linf, nboot)
+  k_samps    <- rlnorm_from_mean_cv(k0,    cvs$k,    nboot)
+  M_samps    <- rlnorm_from_mean_cv(M0,    cvs$M,    nboot)
+  tmax_samps <- pmax(1, round(rlnorm_from_mean_cv(tmax0, cvs$tmax, nboot)))
+  L50_samps  <- rlnorm_from_mean_cv(L500,  cvs$L50,  nboot)
+  ls_samps   <- rlnorm_from_mean_cv(ls0,   cvs$ls,   nboot)
+  
+  # Cálculo por iteração (INALTERADO)
+  run_one <- function(Linf, k, L50, M, tmax, ls) {
+    if (is.na(Linf) || Linf <= 0 || is.na(k) || is.na(L50) || is.na(M) || is.na(tmax))
+      return(c(NA,NA,NA,NA))
+    if (L50 >= Linf) L50 <- 0.5 * Linf
+    
+    t50   <- -(log(1 - L50 / Linf) / k)
+    ages  <- 0:ceiling(tmax)
+    lx    <- exp(-M * ages)
+    mat_a <- 1 / (1 + exp(-(ages - t50)))
+    fr    <- ls / f / 2
+    mx    <- fr * mat_a
+    fr_euler  <- ls_euler_fixed / f / 2
+    mx_euler  <- fr_euler * mat_a
+    
+    euler_fn <- function(r) sum(lx * mx_euler * exp(-r * ages)) - 1
+    
+    s_adult  <- lx[which.min(abs(lx - 0.5))]
+    litter   <- ls; freqv <- f; tmat <- t50
+    formula_myers <- function(rm) ((exp(rm))^tmat) -
+      ((s_adult) * ((exp(rm))^(tmat - 1))) - (litter / freqv / 2)
+    
+    Z <- 1.5 * M
+    l_alpha <- if ((tmax - tmat + 1) > 0)
+      (1 - exp(-Z)) / ((litter/2/freqv) * (1 - exp(-Z*(tmax - tmat + 1)))) else NA
+    
+    eq6 <- function(reb) if (is.na(l_alpha)) NA_real_ else
+      1 - exp(-(M + reb)) -
+      l_alpha * (litter/2/freqv) * 1.25 * exp(-reb*tmat) *
+      (1 - exp(-(M+reb)*(tmax - tmat + 1)))
+    
+    formula5 <- function(r) if (exp(r) <= s_adult) NA_real_ else
+      exp(r) - (exp(1 / (tmat + 1 + (s_adult / (exp(r) - s_adult)))))
+    
+    up <- options$r_upper %||% 5
+    c(safe_uniroot(euler_fn, 0, up),
+      safe_uniroot(formula_myers, 0, up),
+      safe_uniroot(eq6, 0, up),
+      safe_uniroot(formula5, 0, up))
+  }
+  
+  sims <- purrr::pmap_dfr(
+    list(Linf_samps, k_samps, L50_samps, M_samps, tmax_samps, ls_samps),
+    function(Linf, k, L50, M, tmax, ls) {
+      rv <- run_one(Linf, k, L50, M, tmax, ls)
+      tibble(r_euler = rv[1], r_myers = rv[2], r_eq6 = rv[3], r_f5 = rv[4])
+    }) %>%
+    dplyr::mutate(iter = dplyr::row_number(), specie = sp)
+  
+  summarize_method <- function(x) {
+    n_conv <- sum(!is.na(x))
+    tibble(median = median(x, na.rm = TRUE),
+           q025   = quantile(x, 0.025, na.rm = TRUE),
+           q975   = quantile(x, 0.975, na.rm = TRUE),
+           n_conv = n_conv)
+  }
+  s1 <- summarize_method(sims$r_euler)
+  s2 <- summarize_method(sims$r_myers)
+  s3 <- summarize_method(sims$r_eq6)
+  s4 <- summarize_method(sims$r_f5)
+  
+  summary_tbl <- tibble(
+    specie   = sp,
+    method   = c("Euler","Myers","Smith rebound","Demographic inv"),
+    r_median = c(s1$median, s2$median, s3$median, s4$median),
+    r_q025   = c(s1$q025,   s2$q025,   s3$q025,   s4$q025),
+    r_q975   = c(s1$q975,   s2$q975,   s3$q975,   s4$q975),
+    n_conv   = c(s1$n_conv, s2$n_conv, s3$n_conv, s4$n_conv),
+    n_total  = nboot
+  )
+  list(sims = sims, summary = summary_tbl)
+}
+
+#------------------------------------------------------------------
+# Aplicar a todas as espécies (usando `lh`)
+#------------------------------------------------------------------
+species_list <- unique(lh$especie)
+
+res_list <- map(species_list, function(sp) {
+  sp_row <- lh %>% filter(especie == sp)
+  estimate_r_boot(sp_row, nboot = 1000)
+})
+
+r_sims <- map_dfr(res_list, "sims")
+write.csv(r_sims, "r_sims.csv", row.names = FALSE)
+
+r_summary <- map_dfr(res_list, "summary") %>%
+  dplyr::group_by(specie) %>%
+  dplyr::summarise(
+    r_median = median(r_median, na.rm = TRUE),
+    r_min    = pmax(median(r_q025, na.rm = TRUE), 0.1),
+    r_max    = pmin(median(r_q975, na.rm = TRUE), 1.5),
+    .groups  = "drop"
+  ) %>%
+  dplyr::mutate(across(where(is.numeric), \(x) round(x, 2)))
+
+write.csv(r_summary, "r_summary.csv", row.names = FALSE)
+
+#------------------------------------------------------------------
+# Plot (igual)
+#------------------------------------------------------------------
+all_sims_long <- r_sims %>%
+  pivot_longer(cols = starts_with("r_"),
+               names_to = "method", values_to = "r") %>%
+  mutate(method = dplyr::recode(method,
+                                r_euler = "Euler",
+                                r_myers = "Myers",
+                                r_eq6   = "Smith rebound",
+                                r_f5    = "Demographic inv"))
+
+p_r <- ggplot(all_sims_long, aes(x = specie, y = r, col = method, fill = method)) +
+  geom_boxplot(aes(fill = method, col = method), alpha = 0.4, width = 0.3,
+               position = position_dodge(width = 0.8)) +
+  geom_violin(aes(col = method), trim = TRUE, alpha = 0.5, width = 1.5,
+              position = position_dodge(width = 0.8)) +
+  geom_jitter(aes(col = method),
+              position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.8),
+              size = 1, alpha = 0.3) +
+  labs(x = "Species", y = "Intrinsic growth rate (r)", fill = "", color = "") +
+  scale_y_continuous(limits = c(0, 1.5), breaks = seq(0, 1.5, 0.1)) +
+  scale_color_viridis_d() +
+  scale_fill_viridis_d() +
+  theme_classic(base_size = 15) %+replace%
+  theme(
+    strip.background = element_blank(),
+    plot.margin = unit(c(0.05, 0.05, 0.05, 0.05), "mm"),
+    strip.text.x = element_text(margin = margin(b = 1), size = 15),
+    axis.text.y = element_text(size = 15),
+    axis.text.x = element_text(size = 15, face = "italic"),
+    legend.text = element_text(size = 15),
+    legend.box.margin = margin(t = -10),
+    legend.spacing.y = unit(0.1, "cm"),
+    legend.position = "bottom"
+  )
+p_r
+
+ggsave("r_priors.png", plot = p4, device = "png", units = "cm",
+       width = 32, height = 17)
+
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
