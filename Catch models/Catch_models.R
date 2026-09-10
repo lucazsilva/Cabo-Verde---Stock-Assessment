@@ -1289,7 +1289,53 @@ ggsave("r_priors.png", plot = p_r, device = "png", units = "cm",
 # Estimativas de MSY, Bmsy, Fmsy, Cmsy (OFL), K para o D. macarellus
 # avaliações para cada cenario considerado de depleção (btk)
 # e a diferença de produtividade que entra pelo M no DB-SRA
-#=================================================================
+# Cenários de Bt/k (já definidos) x Cenários de M (revisão de história
+# de vida) para D. macarellus -- para alimentar loops de fishmethods::dbsra()
+# =====================================================================
+
+print(bk_macarellus)
+
+# ---- cenários de M, com autor/fonte (da tabela Confiabilidade_Fontes) ----
+m_macarellus <- data.frame(
+  m_hipotese = c("M_mais_confiavel", "M_segunda_confiavel"),
+  m_fonte    = c("Jardim (1996/1999)", "Santos (2018)"),
+  m_metodo   = c("Tanaka", "Tanaka"),
+  M          = c(0.43, 0.60),
+  stringsAsFactors = FALSE
+)
+
+# ---- produto cartesiano: cada hipótese de bk x cada hipótese de M ----
+# (via índices -- não depende de nomes de coluna em comum, então é seguro
+#  mesmo que as duas tabelas ganhem colunas com nomes iguais no futuro)
+idx <- expand.grid(bk_i = seq_len(nrow(bk_macarellus)),
+                   m_i  = seq_len(nrow(m_macarellus)))
+
+cenarios_macarellus <- cbind(
+  bk_macarellus[idx$bk_i, c("especie", "hipotese", "bk_lo", "bk_hi", "bk")],
+  m_macarellus[idx$m_i, ]
+)
+rownames(cenarios_macarellus) <- NULL
+
+cenarios_macarellus$cenario_id <- paste(cenarios_macarellus$hipotese,
+                                        cenarios_macarellus$m_hipotese, sep = "_x_")
+
+# reordena pra ficar fácil de ler (hipótese de bk como bloco externo)
+cenarios_macarellus <- cenarios_macarellus[order(cenarios_macarellus$hipotese,
+                                                 cenarios_macarellus$m_hipotese), ]
+rownames(cenarios_macarellus) <- NULL
+
+print(cenarios_macarellus)
+cat("\nDimensões:", nrow(cenarios_macarellus), "linhas x", ncol(cenarios_macarellus), "colunas\n")
+cat("Esperado: 4 hipóteses bk x 2 hipóteses M = 8 linhas ->",
+    nrow(cenarios_macarellus) == 8, "\n")
+
+# ---- alternativa equivalente em uma linha, usando merge() ----
+# (by = character(0) força o cross join, independente de haver ou não
+#  nomes de coluna coincidentes entre as duas tabelas)
+alt <- merge(bk_macarellus[, c("especie", "hipotese", "bk_lo", "bk_hi", "bk")],
+             m_macarellus, by = character(0))
+cat("\nmerge() com by=character(0) dá o mesmo número de linhas:",
+    nrow(alt) == nrow(cenarios_macarellus), "\n")
 
 library(fishmethods)
 
