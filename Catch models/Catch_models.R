@@ -1244,4 +1244,18 @@ ggsave("r_priors.png", plot = p_r, device = "png", units = "cm",
        width = 32, height = 17)
 
 
+#================================================================
+# Avaliações baseadas em capturas 
+# Modelo utilizado : DB-SRA (Dick & MacCall, 2011)
+# Objetivo estimar viabilidade de trajetórias de biomasa compatíveis
+# com a serie de captura e biologia assumida
+# Estimativas de 
+
+
+
+
+
+
+
+
 
