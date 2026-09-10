@@ -938,6 +938,41 @@ write.csv(
   row.names = FALSE
 )
 
+# Plot de depleção B/K - Decapterus macarellus
+p_bk <- ggplot(bk_macarellus, aes(x = metodo, y = bk, ymin = bk_lo,
+  ymax = bk_hi, color = fonte,shape = hipotese, group = hipotese
+)) +
+  geom_linerange( position = position_dodge(width = 0.6),
+    linewidth = 1.2 ) +
+  geom_point( position = position_dodge(width = 0.6),
+    size = 3.5, stroke = 1.5) +
+  geom_hline(yintercept = 0.5,linetype = "dashed",color = "grey50",
+    linewidth = 0.4 ) +
+  scale_y_continuous(limits = c(0, 1),breaks = seq(0, 1, 0.1)
+  ) +
+  scale_color_viridis_d() +
+  labs(x = "Depletion hypothesis",
+    y = expression("Biomass depletion (B/K"[2015]*")"),
+    color = "Information source",
+    shape = "Hypothesis"
+  ) +
+  theme_bw(base_size = 13) +
+  theme(
+    legend.position = "bottom",
+    plot.margin = unit(c(0.05, 0.05, 0.05, 0.05), "mm"),
+    axis.text.y = element_text(size = 13),
+    axis.text.x = element_text(size = 13),
+    legend.text = element_text(size = 11.5),
+    legend.box.margin = margin(t = -10),
+    legend.spacing.y = unit(0.1, "cm")
+  )
+
+p_bk
+
+#salvar
+ggsave("bk_priors.png", plot = p_bk, device = "png",  units = "cm", width = 30, height = 17)
+
+
 
 # ============================================================================
 # PRIOR DE r PARA Decapterus macarellus (Euler-Lotka methods Cortes, 2016)
