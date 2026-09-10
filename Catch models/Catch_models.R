@@ -22,6 +22,8 @@ library(ggplot2)
 library(dplyr)
 #installed.packages("tidyr")
 library(tidyr)
+install.packages("tibble")
+library(tible)
 #install.packages("neuralnet")
 library(neuralnet)
 #install.packages("purrr")
@@ -979,336 +981,94 @@ write.csv(
 #   6. Gerar distribuição de r para uso como prior no CMSY/DB-SRA
 #
 # ============================================================================
-# -----------
-# 1. PACOTES
-# ------------
+#--------------------------------------------------------------------------
+# Create prior rmax based on life-history traits (Cortes, 2016)
+# Modified by Silva MLS
+# Parametric bootstrap to propagate uncertainty
+# Adapted for Decapterus macarellus - Cabo Verde
+#--------------------------------------------------------------------------
+
 library(dplyr)
 library(tidyr)
 library(purrr)
+library(tibble)
 library(ggplot2)
-# -----------------------------
-# 2. DADOS DE HISTÓRIA DE VIDA
-# -----------------------------
-# A tabela lh já deve estar carregada, por exemplo:
-# lh <- read_xlsx("Parâmetros_História de vida.xlsx")
-# Selecionar somente Decapterus macarellus
-lh_mac <- lh %>%
-  filter(especie == "Decapterus macarellus")
 
-# -------------------------------
-# 3. VERIFICAR DADOS DISPONÍVEIS
-# -------------------------------
-cat("\n")
-cat("============================================================\n")
-cat("HISTÓRIA DE VIDA — Decapterus macarellus\n")
-cat("============================================================\n")
-cat("\n")
-cat("Número de registros:", nrow(lh_mac), "\n")
-cat("Número de fontes:",
-    length(unique(lh_mac$fonte[!is.na(lh_mac$fonte)])), "\n\n")
+#--------------------------------------------------------------------------
+# 1. IMPORT LIFE-HISTORY DATA
+#--------------------------------------------------------------------------
 
-# -------------------------
-# 4. CONVERSÃO DE UNIDADES
-# -------------------------
-## a tabela apresenta:
-#  linf_fl  -> comprimento assintótico em FL
-#  unidade_crescimento -> FL
-## Os valores parecem estar em mm (ex.: 301, 406).
-# Para o cálculo usamos cm.
-# L50 também aparece como valores como 218 e 203,
-# portanto convertemos mm -> cm.
-## -----------------------------
-lh_mac <- lh_mac %>%
-  mutate(
-    Linf_cm = ifelse(
-      !is.na(linf_fl),
-      linf_fl / 10,
-      NA_real_
-    ),
-    L50_cm = ifelse(
-      !is.na(l50_fl),
-      l50_fl / 10,
-      NA_real_
-    )
+# lh <- readxl::read_xlsx("Parâmetros_História de vida.xlsx")
+
+# Keep only Decapterus macarellus
+lf <- lh %>%
+  filter(especie == "Decapterus macarellus") %>%
+  transmute(
+    Especie = especie,
+    `Linf(mm)TL` = linf_fl,
+    `K(ano)` = k,
+    `L50(mm)TL` = l50_fl,
+    M = m,
+    `Tmáx` = tmax,
+    ls = NA_real_,
+    f = f
   )
-# ------------------------------------
-# 5. FUNÇÃO PARA CALCULAR CV EMPÍRICO
-# ------------------------------------
-calc_cv <- function(x) {
+
+# IMPORTANT:
+# Your current table does not contain "ls".
+# Therefore the original model uses ls0 = 4.
+# f is kept exactly as in the original model.
+#
+# If f is absent from the dataframe, the model uses f = 2.
+
+#--------------------------------------------------------------------------
+# 2. SAFE UNIROOT
+#--------------------------------------------------------------------------
+
+safe_uniroot <- function(fn, lower = 0, upper = 5, tol = 1e-8,
+                         max_expand = 10, by = 0.5) {
+  safe_eval <- function(x) tryCatch(fn(x), error = function(e) NA_real_)
   
-  x <- x[
-    is.finite(x) &
-      !is.na(x) &
-      x > 0
-  ]
+  f_low <- safe_eval(lower)
+  f_high <- safe_eval(upper)
   
-  n <- length(x)
-  
-  if (n >= 2) {
-    
-    media <- mean(x)
-    sd_x <- sd(x)
-    cv <- sd_x / media
-    
+  if (!is.na(f_low) && !is.na(f_high) && f_low * f_high < 0) {
     return(
-      tibble(
-        n = n,
-        mean = media,
-        sd = sd_x,
-        cv = cv,
-        source = "Literature empirical CV"
-      )
-    )
-    
-  } else {
-    
-    return(
-      tibble(
-        n = n,
-        mean = ifelse(n == 1, x[1], NA_real_),
-        sd = NA_real_,
-        cv = NA_real_,
-        source = "Insufficient literature estimates"
+      tryCatch(
+        uniroot(fn, c(lower, upper), tol = tol)$root,
+        error = function(e) NA_real_
       )
     )
   }
+  
+  for (i in seq_len(max_expand)) {
+    new_upper <- upper + i * by
+    f_new <- safe_eval(new_upper)
+    
+    if (!is.na(f_low) && !is.na(f_new) && f_low * f_new < 0) {
+      return(
+        tryCatch(
+          uniroot(fn, c(lower, new_upper), tol = tol)$root,
+          error = function(e) NA_real_
+        )
+      )
+    }
+  }
+  
+  return(NA_real_)
 }
 
+#--------------------------------------------------------------------------
+# 3. LOGNORMAL SAMPLING FROM MEAN AND CV
+#--------------------------------------------------------------------------
 
-# ----------------------------------------------------------------------------
-# 6. CALCULAR CV EMPÍRICO DA LITERATURA
-# ----------------------------------------------------------------------------
-#
-# Cada parâmetro é tratado separadamente.
-#
-# ----------------------------------------------------------------------------
-
-cv_linf <- calc_cv(lh_mac$Linf_cm)
-cv_k    <- calc_cv(lh_mac$k)
-cv_M    <- calc_cv(lh_mac$m)
-cv_tmax <- calc_cv(lh_mac$tmax)
-cv_L50  <- calc_cv(lh_mac$L50_cm)
-
-
-# ----------------------------------------------------------------------------
-# 7. TABELA DE VARIABILIDADE OBSERVADA
-# ----------------------------------------------------------------------------
-
-cv_literature <- bind_rows(
-  
-  cv_linf %>%
-    mutate(parameter = "Linf"),
-  
-  cv_k %>%
-    mutate(parameter = "K"),
-  
-  cv_M %>%
-    mutate(parameter = "M"),
-  
-  cv_tmax %>%
-    mutate(parameter = "tmax"),
-  
-  cv_L50 %>%
-    mutate(parameter = "L50")
-  
-) %>%
-  select(
-    parameter,
-    n,
-    mean,
-    sd,
-    cv,
-    source
-  )
-
-
-cat("\n")
-cat("============================================================\n")
-cat("VARIABILIDADE DOS PARÂMETROS NA LITERATURA\n")
-cat("============================================================\n")
-cat("\n")
-
-print(cv_literature)
-
-
-# ----------------------------------------------------------------------------
-# 8. CV FALLBACK
-# ----------------------------------------------------------------------------
-#
-# Quando existe apenas uma estimativa na literatura, não conseguimos
-# calcular empiricamente o CV.
-#
-# Nesses casos usamos valores conservadores.
-#
-# IMPORTANTE:
-# esses valores NÃO substituem a variabilidade da literatura.
-# Eles são utilizados apenas quando a literatura disponível não permite
-# estimar um CV diretamente.
-#
-# ----------------------------------------------------------------------------
-
-cv_fallback <- list(
-  Linf = 0.15,
-  K    = 0.20,
-  M    = 0.30,
-  tmax = 0.20,
-  L50  = 0.15
-)
-
-
-# ----------------------------------------------------------------------------
-# 9. FUNÇÃO PARA ESCOLHER CV EMPÍRICO OU FALLBACK
-# ----------------------------------------------------------------------------
-
-get_cv <- function(parameter, cv_table, fallback) {
-  
-  cv_emp <- cv_table$cv[
-    cv_table$parameter == parameter
-  ]
-  
-  if (
-    length(cv_emp) == 1 &&
-    !is.na(cv_emp)
-  ) {
-    
-    return(
-      list(
-        cv = cv_emp,
-        source = "Literature empirical CV"
-      )
-    )
-    
-  } else {
-    
-    return(
-      list(
-        cv = fallback[[parameter]],
-        source = "Fallback CV"
-      )
-    )
-  }
-}
-
-
-# ----------------------------------------------------------------------------
-# 10. DEFINIR CVs UTILIZADOS NO BOOTSTRAP
-# ----------------------------------------------------------------------------
-
-cv_Linf_use <- get_cv(
-  "Linf",
-  cv_literature,
-  cv_fallback
-)
-
-cv_K_use <- get_cv(
-  "K",
-  cv_literature,
-  cv_fallback
-)
-
-cv_M_use <- get_cv(
-  "M",
-  cv_literature,
-  cv_fallback
-)
-
-cv_tmax_use <- get_cv(
-  "tmax",
-  cv_literature,
-  cv_fallback
-)
-
-cv_L50_use <- get_cv(
-  "L50",
-  cv_literature,
-  cv_fallback
-)
-
-
-# ----------------------------------------------------------------------------
-# 11. MOSTRAR CVs UTILIZADOS
-# ----------------------------------------------------------------------------
-
-cv_used <- tibble(
-  
-  parameter = c(
-    "Linf",
-    "K",
-    "M",
-    "tmax",
-    "L50"
-  ),
-  
-  cv = c(
-    cv_Linf_use$cv,
-    cv_K_use$cv,
-    cv_M_use$cv,
-    cv_tmax_use$cv,
-    cv_L50_use$cv
-  ),
-  
-  source = c(
-    cv_Linf_use$source,
-    cv_K_use$source,
-    cv_M_use$source,
-    cv_tmax_use$source,
-    cv_L50_use$source
-  )
-)
-
-
-cat("\n")
-cat("============================================================\n")
-cat("CVs UTILIZADOS NO BOOTSTRAP\n")
-cat("============================================================\n")
-cat("\n")
-
-print(cv_used)
-
-
-# ----------------------------------------------------------------------------
-# 12. FUNÇÃO — LOGNORMAL A PARTIR DE MÉDIA E CV
-# ----------------------------------------------------------------------------
-#
-# A distribuição lognormal é usada porque os parâmetros:
-#
-#   Linf
-#   K
-#   M
-#   tmax
-#   L50
-#
-# precisam ser positivos.
-#
-# ----------------------------------------------------------------------------
-
-rlnorm_from_mean_cv <- function(
-    mean,
-    cv,
-    n
-) {
-  
-  if (
-    is.na(mean) ||
-    is.na(cv) ||
-    mean <= 0 ||
-    cv <= 0
-  ) {
-    
-    return(
-      rep(
-        NA_real_,
-        n
-      )
-    )
+rlnorm_from_mean_cv <- function(mean, cv, n) {
+  if (is.na(mean) || is.na(cv) || mean <= 0) {
+    return(rep(NA_real_, n))
   }
   
-  sigma2 <- log(
-    1 + cv^2
-  )
-  
-  mu <- log(mean) -
-    0.5 * sigma2
+  sigma2 <- log(1 + cv^2)
+  mu <- log(mean) - 0.5 * sigma2
   
   rlnorm(
     n,
@@ -1317,917 +1077,691 @@ rlnorm_from_mean_cv <- function(
   )
 }
 
+#--------------------------------------------------------------------------
+# 4. BOOTSTRAP FOR ONE SPECIES
+#--------------------------------------------------------------------------
 
-# ----------------------------------------------------------------------------
-# 13. EXTRAIR ESTIMATIVAS CENTRAIS DA LITERATURA
-# ----------------------------------------------------------------------------
-#
-# Usamos a média das estimativas disponíveis.
-#
-# ----------------------------------------------------------------------------
-
-Linf0 <- mean(
-  lh_mac$Linf_cm,
-  na.rm = TRUE
-)
-
-K0 <- mean(
-  lh_mac$k,
-  na.rm = TRUE
-)
-
-M0 <- mean(
-  lh_mac$m,
-  na.rm = TRUE
-)
-
-tmax0 <- mean(
-  lh_mac$tmax,
-  na.rm = TRUE
-)
-
-L500 <- mean(
-  lh_mac$L50_cm,
-  na.rm = TRUE
-)
-
-
-# ----------------------------------------------------------------------------
-# 14. RESUMO DOS PARÂMETROS CENTRAIS
-# ----------------------------------------------------------------------------
-
-life_history_summary <- tibble(
+estimate_r_boot <- function(
+    sp_row,
+    nboot = 1000,
+    cvs = list(
+      Linf = 0.15,
+      k = 0.20,
+      M = 0.20,
+      tmax = 0.10,
+      L50 = 0.15,
+      ls = 0.25
+    ),
+    ls_euler_fixed = 9.5,
+    options = list(
+      r_upper = 5,
+      verbose = FALSE
+    )) {
   
-  parameter = c(
-    "Linf",
-    "K",
-    "M",
-    "tmax",
-    "L50"
-  ),
+  sp <- sp_row$Especie[1]
   
-  value = c(
-    Linf0,
-    K0,
-    M0,
-    tmax0,
-    L500
+  #----------------------------------------------------------------------
+  # Mean point estimates from data
+  #----------------------------------------------------------------------
+  
+  Linf0 <- mean(
+    na.omit(sp_row$`Linf(mm)TL`)
+  ) / 10
+  
+  k0 <- mean(
+    na.omit(sp_row$`K(ano)`)
   )
-)
-
-
-cat("\n")
-cat("============================================================\n")
-cat("PARÂMETROS CENTRAIS\n")
-cat("============================================================\n")
-cat("\n")
-
-print(life_history_summary)
-
-
-# ----------------------------------------------------------------------------
-# 15. CHECAGEM DE PARÂMETROS
-# ----------------------------------------------------------------------------
-
-if (
-  any(
-    is.na(
-      c(
-        Linf0,
-        K0,
-        M0,
+  
+  L500 <- mean(
+    na.omit(sp_row$`L50(mm)TL`)
+  ) / 10
+  
+  M0 <- mean(
+    na.omit(sp_row$M)
+  )
+  
+  tmax0 <- mean(
+    na.omit(sp_row$`Tmáx`)
+  )
+  
+  # EXACTLY AS IN THE ORIGINAL CODE:
+  # if ls does not exist, ls0 = 4
+  ls0 <- if ("ls" %in% names(sp_row)) {
+    mean(na.omit(sp_row$ls))
+  } else {
+    4
+  }
+  
+  # EXACTLY AS IN THE ORIGINAL CODE:
+  # if f does not exist, f = 2
+  f <- if ("f" %in% names(sp_row)) {
+    mean(na.omit(sp_row$f))
+  } else {
+    2
+  }
+  
+  #----------------------------------------------------------------------
+  # Check required parameters
+  #----------------------------------------------------------------------
+  
+  if (any(is.na(c(
+    Linf0,
+    k0,
+    L500,
+    M0,
+    tmax0
+  )))) {
+    
+    if (isTRUE(options$verbose)) {
+      warning(sp, ": insufficient parameters.")
+    }
+    
+    return(
+      list(
+        sims = tibble(),
+        summary = tibble(
+          specie = sp,
+          method = c(
+            "euler",
+            "myers",
+            "smith_rebound_eq6",
+            "demographic_inv"
+          ),
+          r_median = NA_real_,
+          r_q025 = NA_real_,
+          r_q975 = NA_real_,
+          n_conv = 0L,
+          n_total = nboot
+        )
+      )
+    )
+  }
+  
+  #----------------------------------------------------------------------
+  # Parametric bootstrap
+  #----------------------------------------------------------------------
+  
+  Linf_samps <- rlnorm_from_mean_cv(
+    Linf0,
+    cvs$Linf,
+    nboot
+  )
+  
+  k_samps <- rlnorm_from_mean_cv(
+    k0,
+    cvs$k,
+    nboot
+  )
+  
+  M_samps <- rlnorm_from_mean_cv(
+    M0,
+    cvs$M,
+    nboot
+  )
+  
+  tmax_samps <- pmax(
+    1,
+    round(
+      rlnorm_from_mean_cv(
         tmax0,
-        L500
+        cvs$tmax,
+        nboot
       )
     )
   )
-) {
   
-  stop(
-    paste0(
-      "Parâmetros insuficientes para calcular o prior de r.\n",
-      "Verifique Linf, K, M, tmax e L50."
-    )
+  L50_samps <- rlnorm_from_mean_cv(
+    L500,
+    cvs$L50,
+    nboot
   )
-}
-
-
-# ----------------------------------------------------------------------------
-# 16. BOOTSTRAP DE HISTÓRIA DE VIDA
-# ----------------------------------------------------------------------------
-
-set.seed(123)
-
-
-nboot <- 10000
-
-
-Linf_samps <- rlnorm_from_mean_cv(
-  Linf0,
-  cv_Linf_use$cv,
-  nboot
-)
-
-
-K_samps <- rlnorm_from_mean_cv(
-  K0,
-  cv_K_use$cv,
-  nboot
-)
-
-
-M_samps <- rlnorm_from_mean_cv(
-  M0,
-  cv_M_use$cv,
-  nboot
-)
-
-
-tmax_samps <- rlnorm_from_mean_cv(
-  tmax0,
-  cv_tmax_use$cv,
-  nboot
-)
-
-
-L50_samps <- rlnorm_from_mean_cv(
-  L500,
-  cv_L50_use$cv,
-  nboot
-)
-
-
-# ----------------------------------------------------------------------------
-# 17. RESTRIÇÕES BIOLÓGICAS
-# ----------------------------------------------------------------------------
-#
-# L50 não pode ser >= Linf.
-#
-# Quando isso ocorrer no bootstrap, ajustamos L50 para uma fração de Linf.
-#
-# Para tmax usamos pelo menos 1 ano.
-#
-# ----------------------------------------------------------------------------
-
-L50_samps <- pmin(
-  L50_samps,
-  0.95 * Linf_samps
-)
-
-tmax_samps <- pmax(
-  tmax_samps,
-  1
-)
-
-
-# ----------------------------------------------------------------------------
-# 18. FUNÇÃO PRINCIPAL PARA ESTIMAR r
-# ----------------------------------------------------------------------------
-#
-# Aqui usamos o princípio demográfico baseado em sobrevivência e maturidade.
-#
-# Como sua tabela não possui fecundidade/litter size confiável,
-# NÃO utilizamos as equações de Myers/Smith do código antigo.
-#
-# Em vez disso, utilizamos uma aproximação de Euler-Lotka com fecundidade
-# relativa normalizada.
-#
-# Isso fornece um prior de r dependente de:
-#
-#   - crescimento
-#   - maturidade
-#   - mortalidade natural
-#   - longevidade
-#
-# sem transformar F (mortalidade por pesca) em fecundidade.
-#
-# ----------------------------------------------------------------------------
-
-estimate_r_euler <- function(
+  
+  ls_samps <- rlnorm_from_mean_cv(
+    ls0,
+    cvs$ls,
+    nboot
+  )
+  
+  #----------------------------------------------------------------------
+  # Four original estimators of r
+  #----------------------------------------------------------------------
+  
+  run_one <- function(
     Linf,
-    K,
+    k,
     L50,
     M,
-    tmax
-) {
-  
-  if (
-    any(
-      !is.finite(
-        c(
-          Linf,
-          K,
-          L50,
-          M,
-          tmax
+    tmax,
+    ls) {
+    
+    if (
+      is.na(Linf) ||
+      Linf <= 0 ||
+      is.na(k) ||
+      is.na(L50) ||
+      is.na(M) ||
+      is.na(tmax)
+    ) {
+      return(c(NA, NA, NA, NA))
+    }
+    
+    if (L50 >= Linf) {
+      L50 <- 0.5 * Linf
+    }
+    
+    #--------------------------------------------------------------------
+    # Calculate age at 50% maturity, survivorship and fecundity
+    # EXACTLY AS ORIGINAL
+    #--------------------------------------------------------------------
+    
+    t50 <- -(
+      log(1 - L50 / Linf) / k
+    )
+    
+    ages <- 0:ceiling(tmax)
+    
+    lx <- exp(
+      -M * ages
+    )
+    
+    mat_a <- 1 / (
+      1 + exp(-(ages - t50))
+    )
+    
+    fr <- ls / f / 2
+    
+    mx <- fr * mat_a
+    
+    fr_euler <- ls_euler_fixed / f / 2
+    
+    mx_euler <- fr_euler * mat_a
+    
+    #--------------------------------------------------------------------
+    # Original root-finding functions
+    #--------------------------------------------------------------------
+    
+    euler_fn <- function(r) {
+      sum(
+        lx *
+          mx_euler *
+          exp(-r * ages)
+      ) - 1
+    }
+    
+    s_adult <- lx[
+      which.min(
+        abs(lx - 0.5)
+      )
+    ]
+    
+    litter <- ls
+    freqv <- f
+    tmat <- t50
+    
+    formula_myers <- function(rm) {
+      ((exp(rm))^tmat) -
+        (
+          (s_adult) *
+            ((exp(rm))^(tmat - 1))
+        ) -
+        (litter / freqv / 2)
+    }
+    
+    Z <- 1.5 * M
+    
+    l_alpha <- if (
+      (tmax - tmat + 1) > 0
+    ) {
+      (1 - exp(-Z)) /
+        (
+          (litter / 2 / freqv) *
+            (
+              1 -
+                exp(
+                  -Z *
+                    (tmax - tmat + 1)
+                )
+            )
         )
+    } else {
+      NA
+    }
+    
+    eq6 <- function(reb) {
+      if (is.na(l_alpha)) {
+        NA_real_
+      } else {
+        1 -
+          exp(-(M + reb)) -
+          l_alpha *
+          (litter / 2 / freqv) *
+          1.25 *
+          exp(-reb * tmat) *
+          (
+            1 -
+              exp(
+                -(M + reb) *
+                  (tmax - tmat + 1)
+              )
+          )
+      }
+    }
+    
+    formula5 <- function(r) {
+      if (
+        exp(r) <= s_adult
+      ) {
+        NA_real_
+      } else {
+        exp(r) -
+          (
+            exp(
+              1 /
+                (
+                  tmat +
+                    1 +
+                    (
+                      s_adult /
+                        (
+                          exp(r) -
+                            s_adult
+                        )
+                    )
+                )
+            )
+          )
+      }
+    }
+    
+    #--------------------------------------------------------------------
+    # Apply safe_uniroot
+    #--------------------------------------------------------------------
+    
+    up <- options$r_upper
+    
+    r1 <- safe_uniroot(
+      euler_fn,
+      0,
+      up
+    )
+    
+    r2 <- safe_uniroot(
+      formula_myers,
+      0,
+      up
+    )
+    
+    r3 <- safe_uniroot(
+      eq6,
+      0,
+      up
+    )
+    
+    r4 <- safe_uniroot(
+      formula5,
+      0,
+      up
+    )
+    
+    return(
+      c(
+        r1,
+        r2,
+        r3,
+        r4
       )
     )
-  ) {
+  }
+  
+  #----------------------------------------------------------------------
+  # Run bootstrap
+  #----------------------------------------------------------------------
+  
+  sims <- purrr::pmap_dfr(
+    list(
+      Linf_samps,
+      k_samps,
+      L50_samps,
+      M_samps,
+      tmax_samps,
+      ls_samps
+    ),
+    function(
+    Linf,
+    k,
+    L50,
+    M,
+    tmax,
+    ls) {
+      
+      rvec <- run_one(
+        Linf,
+        k,
+        L50,
+        M,
+        tmax,
+        ls
+      )
+      
+      tibble(
+        r_euler = rvec[1],
+        r_myers = rvec[2],
+        r_eq6 = rvec[3],
+        r_f5 = rvec[4]
+      )
+    }
+  ) %>%
+    dplyr::mutate(
+      iter = dplyr::row_number(),
+      specie = sp
+    )
+  
+  #----------------------------------------------------------------------
+  # Summaries
+  #----------------------------------------------------------------------
+  
+  summarize_method <- function(x) {
     
-    return(
-      NA_real_
+    n_conv <- sum(
+      !is.na(x)
+    )
+    
+    tibble(
+      median = median(
+        x,
+        na.rm = TRUE
+      ),
+      q025 = quantile(
+        x,
+        0.025,
+        na.rm = TRUE
+      ),
+      q975 = quantile(
+        x,
+        0.975,
+        na.rm = TRUE
+      ),
+      n_conv = n_conv
     )
   }
   
-  
-  if (
-    Linf <= 0 ||
-    K <= 0 ||
-    L50 <= 0 ||
-    M <= 0 ||
-    tmax <= 0
-  ) {
-    
-    return(
-      NA_real_
-    )
-  }
-  
-  
-  # --------------------------------------------------------------------------
-  # Idade de maturação
-  # --------------------------------------------------------------------------
-  
-  if (
-    L50 >= Linf
-  ) {
-    
-    L50 <- 0.95 * Linf
-  }
-  
-  
-  t50 <- -log(
-    1 - L50 / Linf
-  ) / K
-  
-  
-  # --------------------------------------------------------------------------
-  # Idades
-  # --------------------------------------------------------------------------
-  
-  ages <- seq(
-    0,
-    ceiling(tmax),
-    by = 1
+  s1 <- summarize_method(
+    sims$r_euler
   )
   
-  
-  # --------------------------------------------------------------------------
-  # Sobrevivência
-  # --------------------------------------------------------------------------
-  
-  lx <- exp(
-    -M * ages
+  s2 <- summarize_method(
+    sims$r_myers
   )
   
-  
-  # --------------------------------------------------------------------------
-  # Maturidade
-  # --------------------------------------------------------------------------
-  #
-  # Função logística centrada em t50.
-  #
-  # --------------------------------------------------------------------------
-  
-  mat <- 1 /
-    (
-      1 +
-        exp(
-          -(ages - t50)
-        )
-    )
-  
-  
-  # --------------------------------------------------------------------------
-  # Fecundidade relativa
-  # --------------------------------------------------------------------------
-  #
-  # Sem dados confiáveis de fecundidade absoluta, utilizamos fecundidade
-  # relativa proporcional à maturidade.
-  #
-  # A escala é normalizada de forma que o maior valor de fecundidade
-  # relativa seja 1.
-  #
-  # --------------------------------------------------------------------------
-  
-  mx <- mat
-  
-  
-  if (
-    sum(
-      lx * mx
-    ) <= 0
-  ) {
-    
-    return(
-      NA_real_
-    )
-  }
-  
-  
-  # --------------------------------------------------------------------------
-  # Normalização da fecundidade
-  # --------------------------------------------------------------------------
-  #
-  # O fator de reprodução é ajustado para que a população esteja
-  # aproximadamente no equilíbrio na ausência de mortalidade adicional.
-  #
-  # Isso transforma o cálculo em uma estimativa de potencial intrínseco
-  # de crescimento, e não em uma estimativa absoluta de recrutamento.
-  #
-  # --------------------------------------------------------------------------
-  
-  mx <- mx /
-    sum(
-      lx * mx
-    )
-  
-  
-  # --------------------------------------------------------------------------
-  # Equação de Euler-Lotka
-  # --------------------------------------------------------------------------
-  
-  euler_fn <- function(r) {
-    
-    sum(
-      lx *
-        mx *
-        exp(
-          -r * ages
-        )
-    ) - 1
-  }
-  
-  
-  # --------------------------------------------------------------------------
-  # Encontrar raiz
-  # --------------------------------------------------------------------------
-  
-  r_grid <- seq(
-    -2,
-    3,
-    by = 0.01
+  s3 <- summarize_method(
+    sims$r_eq6
   )
   
-  
-  vals <- sapply(
-    r_grid,
-    euler_fn
+  s4 <- summarize_method(
+    sims$r_f5
   )
   
-  
-  valid <- is.finite(
-    vals
+  summary_tbl <- tibble(
+    specie = sp,
+    method = c(
+      "Euler",
+      "Myers",
+      "Smith rebound",
+      "Demographic inv"
+    ),
+    r_median = c(
+      s1$median,
+      s2$median,
+      s3$median,
+      s4$median
+    ),
+    r_q025 = c(
+      s1$q025,
+      s2$q025,
+      s3$q025,
+      s4$q025
+    ),
+    r_q975 = c(
+      s1$q975,
+      s2$q975,
+      s3$q975,
+      s4$q975
+    ),
+    n_conv = c(
+      s1$n_conv,
+      s2$n_conv,
+      s3$n_conv,
+      s4$n_conv
+    ),
+    n_total = nboot
   )
   
-  
-  r_grid <- r_grid[valid]
-  vals <- vals[valid]
-  
-  
-  if (
-    length(vals) < 2
-  ) {
-    
-    return(
-      NA_real_
+  return(
+    list(
+      sims = sims,
+      summary = summary_tbl
     )
-  }
-  
-  
-  change <- which(
-    vals[-length(vals)] *
-      vals[-1] <= 0
-  )
-  
-  
-  if (
-    length(change) == 0
-  ) {
-    
-    return(
-      NA_real_
-    )
-  }
-  
-  
-  i <- change[1]
-  
-  
-  tryCatch(
-    
-    uniroot(
-      euler_fn,
-      lower = r_grid[i],
-      upper = r_grid[i + 1]
-    )$root,
-    
-    error = function(e)
-      NA_real_
   )
 }
 
+#--------------------------------------------------------------------------
+# 5. RUN FOR Decapterus macarellus
+#--------------------------------------------------------------------------
 
-# ----------------------------------------------------------------------------
-# 19. RODAR BOOTSTRAP
-# ----------------------------------------------------------------------------
+species_list <- unique(
+  lf$Especie
+)
 
-r_sims <- map_dfr(
-  
-  seq_len(nboot),
-  
-  function(i) {
+res_list <- map(
+  species_list,
+  function(sp) {
     
-    r <- estimate_r_euler(
-      
-      Linf = Linf_samps[i],
-      
-      K = K_samps[i],
-      
-      L50 = L50_samps[i],
-      
-      M = M_samps[i],
-      
-      tmax = tmax_samps[i]
-    )
+    sp_row <- lf %>%
+      filter(
+        Especie == sp
+      )
     
-    
-    tibble(
-      
-      iter = i,
-      
-      specie =
-        "Decapterus macarellus",
-      
-      Linf =
-        Linf_samps[i],
-      
-      K =
-        K_samps[i],
-      
-      M =
-        M_samps[i],
-      
-      tmax =
-        tmax_samps[i],
-      
-      L50 =
-        L50_samps[i],
-      
-      r =
-        r
+    estimate_r_boot(
+      sp_row,
+      nboot = 10000
     )
   }
 )
 
+#--------------------------------------------------------------------------
+# 6. COMBINE SIMULATIONS
+#--------------------------------------------------------------------------
 
-# ----------------------------------------------------------------------------
-# 20. REMOVER SIMULAÇÕES NÃO CONVERGENTES
-# ----------------------------------------------------------------------------
-
-r_sims_valid <- r_sims %>%
-  filter(
-    is.finite(r)
-  )
-
-
-# ----------------------------------------------------------------------------
-# 21. RESUMO DO PRIOR DE r
-# ----------------------------------------------------------------------------
-
-r_summary <- tibble(
-  
-  specie =
-    "Decapterus macarellus",
-  
-  n_total =
-    nrow(r_sims),
-  
-  n_converged =
-    nrow(r_sims_valid),
-  
-  convergence =
-    nrow(r_sims_valid) /
-    nrow(r_sims),
-  
-  r_median =
-    median(
-      r_sims_valid$r
-    ),
-  
-  r_q025 =
-    quantile(
-      r_sims_valid$r,
-      0.025
-    ),
-  
-  r_q975 =
-    quantile(
-      r_sims_valid$r,
-      0.975
-    ),
-  
-  r_mean =
-    mean(
-      r_sims_valid$r
-    ),
-  
-  r_sd =
-    sd(
-      r_sims_valid$r
-    ),
-  
-  r_min =
-    min(
-      r_sims_valid$r
-    ),
-  
-  r_max =
-    max(
-      r_sims_valid$r
-    )
+r_sims <- map_dfr(
+  res_list,
+  "sims"
 )
-
-
-# ---------------------------------------------------------------------------
-# 22. MOSTRAR RESULTADO
-# ----------------------------------------------------------------------------
-
-cat("\n")
-cat("============================================================\n")
-cat("PRIOR DE r — Decapterus macarellus\n")
-cat("============================================================\n")
-cat("\n")
-
-print(r_summary)
-
-
-# ----------------------------------------------------------------------------
-# 23. CHECAGEM DE VALORES EXTREMOS
-# ----------------------------------------------------------------------------
-
-cat("\n")
-cat("Percentis da distribuição de r:\n\n")
-
-print(
-  quantile(
-    r_sims_valid$r,
-    probs = c(
-      0.001,
-      0.01,
-      0.025,
-      0.05,
-      0.25,
-      0.50,
-      0.75,
-      0.95,
-      0.975,
-      0.99,
-      0.999
-    )
-  )
-)
-
-
-# ----------------------------------------------------------------------------
-# 24. TABELA DOS PARÂMETROS BOOTSTRAP
-# ----------------------------------------------------------------------------
-
-parameter_bootstrap_summary <- tibble(
-  
-  parameter = c(
-    "Linf",
-    "K",
-    "M",
-    "tmax",
-    "L50"
-  ),
-  
-  mean = c(
-    mean(r_sims_valid$Linf),
-    mean(r_sims_valid$K),
-    mean(r_sims_valid$M),
-    mean(r_sims_valid$tmax),
-    mean(r_sims_valid$L50)
-  ),
-  
-  median = c(
-    median(r_sims_valid$Linf),
-    median(r_sims_valid$K),
-    median(r_sims_valid$M),
-    median(r_sims_valid$tmax),
-    median(r_sims_valid$L50)
-  ),
-  
-  q025 = c(
-    quantile(r_sims_valid$Linf, 0.025),
-    quantile(r_sims_valid$K, 0.025),
-    quantile(r_sims_valid$M, 0.025),
-    quantile(r_sims_valid$tmax, 0.025),
-    quantile(r_sims_valid$L50, 0.025)
-  ),
-  
-  q975 = c(
-    quantile(r_sims_valid$Linf, 0.975),
-    quantile(r_sims_valid$K, 0.975),
-    quantile(r_sims_valid$M, 0.975),
-    quantile(r_sims_valid$tmax, 0.975),
-    quantile(r_sims_valid$L50, 0.975)
-  )
-)
-
-
-# ----------------------------------------------------------------------------
-# 25. MOSTRAR PARÂMETROS BOOTSTRAP
-# ----------------------------------------------------------------------------
-
-cat("\n")
-cat("============================================================\n")
-cat("DISTRIBUIÇÕES DOS PARÂMETROS BOOTSTRAP\n")
-cat("============================================================\n")
-cat("\n")
-
-print(
-  parameter_bootstrap_summary
-)
-
-
-# ----------------------------------------------------------------------------
-# 26. SALVAR SIMULAÇÕES
-# ----------------------------------------------------------------------------
 
 write.csv(
   r_sims,
-  "r_sims_Decapterus_macarellus.csv",
+  "r_sims_D_macarellus.csv",
   row.names = FALSE
 )
 
+#--------------------------------------------------------------------------
+# 7. COMBINE SUMMARIES
+#--------------------------------------------------------------------------
 
-# ----------------------------------------------------------------------------
-# 27. SALVAR SIMULAÇÕES VÁLIDAS
-# ----------------------------------------------------------------------------
-
-write.csv(
-  r_sims_valid,
-  "r_sims_valid_Decapterus_macarellus.csv",
-  row.names = FALSE
-)
-
-
-# ----------------------------------------------------------------------------
-# 28. SALVAR RESUMO DE r
-# ----------------------------------------------------------------------------
+r_summary <- map_dfr(
+  res_list,
+  "summary"
+) %>%
+  dplyr::group_by(
+    specie
+  ) %>%
+  dplyr::summarise(
+    r_median = median(
+      r_median,
+      na.rm = TRUE
+    ),
+    r_min = pmax(
+      median(
+        r_q025,
+        na.rm = TRUE
+      ),
+      0.1
+    ),
+    r_max = pmin(
+      median(
+        r_q975,
+        na.rm = TRUE
+      ),
+      1.5
+    ),
+    .groups = "drop"
+  ) %>%
+  dplyr::mutate(
+    across(
+      where(is.numeric),
+      \(x) round(x, 2)
+    )
+  )
 
 write.csv(
   r_summary,
-  "r_summary_Decapterus_macarellus.csv",
+  "r_summary_D_macarellus.csv",
   row.names = FALSE
 )
 
+#--------------------------------------------------------------------------
+# 8. LONG FORMAT
+#--------------------------------------------------------------------------
 
-# ----------------------------------------------------------------------------
-# 29. SALVAR CVs
-# ----------------------------------------------------------------------------
-
-write.csv(
-  cv_literature,
-  "CV_literature_Decapterus_macarellus.csv",
-  row.names = FALSE
-)
-
-
-write.csv(
-  cv_used,
-  "CV_used_Decapterus_macarellus.csv",
-  row.names = FALSE
-)
-
-
-# ----------------------------------------------------------------------------
-# 30. SALVAR RESUMO DE HISTÓRIA DE VIDA
-# ----------------------------------------------------------------------------
-
-write.csv(
-  parameter_bootstrap_summary,
-  "life_history_bootstrap_Decapterus_macarellus.csv",
-  row.names = FALSE
-)
-
-
-# ============================================================================
-# 31. DISTRIBUIÇÃO DE r
-# ============================================================================
-
-p_r <- ggplot(
-  r_sims_valid,
-  aes(
-    x = r
-  )
-) +
-  
-  geom_histogram(
-    bins = 60
-  ) +
-  
-  geom_vline(
-    xintercept =
-      r_summary$r_median,
-    linetype = "dashed",
-    linewidth = 0.8
-  ) +
-  
-  labs(
-    x = "Intrinsic growth rate (r)",
-    y = "Frequency"
-  ) +
-  
-  theme_classic(
-    base_size = 14
-  )
-
-
-p_r
-
-
-# ----------------------------------------------------------------------------
-# 32. SALVAR FIGURA
-# ----------------------------------------------------------------------------
-
-ggsave(
-  "r_prior_Decapterus_macarellus.png",
-  plot = p_r,
-  device = "png",
-  units = "cm",
-  width = 18,
-  height = 12,
-  dpi = 300
-)
-
-
-# ============================================================================
-# 33. DISTRIBUIÇÕES DOS PARÂMETROS DE HISTÓRIA DE VIDA
-# ============================================================================
-
-lh_long <- r_sims_valid %>%
-  
-  select(
-    Linf,
-    K,
-    M,
-    tmax,
-    L50
-  ) %>%
-  
+all_sims_long <- r_sims %>%
   pivot_longer(
-    cols = everything(),
-    names_to = "parameter",
-    values_to = "value"
+    cols = starts_with("r_"),
+    names_to = "method",
+    values_to = "r"
+  ) %>%
+  mutate(
+    method = dplyr::recode(
+      method,
+      r_euler = "Euler",
+      r_myers = "Myers",
+      r_eq6 = "Smith rebound",
+      r_f5 = "Demographic inv"
+    )
   )
 
+#--------------------------------------------------------------------------
+# 9. PLOT
+#--------------------------------------------------------------------------
 
-p_lh <- ggplot(
-  lh_long,
+p4 <- ggplot(
+  all_sims_long,
   aes(
-    x = value
+    x = specie,
+    y = r,
+    col = method,
+    fill = method
   )
 ) +
-  
-  geom_histogram(
-    bins = 50
+  geom_boxplot(
+    aes(
+      fill = method,
+      col = method
+    ),
+    alpha = 0.4,
+    width = 0.3,
+    position = position_dodge(
+      width = 0.8
+    )
   ) +
-  
-  facet_wrap(
-    ~parameter,
-    scales = "free"
+  geom_violin(
+    aes(
+      col = method
+    ),
+    trim = TRUE,
+    alpha = 0.5,
+    width = 1.5,
+    position = position_dodge(
+      width = 0.8
+    )
   ) +
-  
+  geom_jitter(
+    aes(
+      col = method
+    ),
+    position = position_jitterdodge(
+      jitter.width = 0.15,
+      dodge.width = 0.8
+    ),
+    size = 1,
+    alpha = 0.3
+  ) +
   labs(
-    x = "Value",
-    y = "Frequency"
+    x = "Species",
+    y = "Intrinsic growth rate (r)",
+    fill = "",
+    color = ""
   ) +
-  
+  scale_y_continuous(
+    limits = c(0, 1.5),
+    breaks = seq(
+      0,
+      1.5,
+      0.1
+    )
+  ) +
+  scale_color_viridis_d() +
+  scale_fill_viridis_d() +
   theme_classic(
-    base_size = 14
+    base_size = 15
+  ) %+replace%
+  theme(
+    strip.background = element_blank(),
+    plot.margin = unit(
+      c(
+        0.05,
+        0.05,
+        0.05,
+        0.05
+      ),
+      "mm"
+    ),
+    strip.text.x = element_text(
+      margin = margin(b = 1),
+      size = 15
+    ),
+    axis.text.y = element_text(
+      size = 15
+    ),
+    axis.text.x = element_text(
+      size = 15,
+      face = "italic"
+    ),
+    legend.text = element_text(
+      size = 15
+    ),
+    legend.box.margin = margin(
+      t = -10
+    ),
+    legend.spacing.y = unit(
+      0.1,
+      "cm"
+    ),
+    legend.position = "bottom"
   )
 
+p4
 
-p_lh
-
-
-# ----------------------------------------------------------------------------
-# 34. SALVAR FIGURA
-# ----------------------------------------------------------------------------
+#--------------------------------------------------------------------------
+# 10. SAVE FIGURE
+#--------------------------------------------------------------------------
 
 ggsave(
-  "life_history_bootstrap_Decapterus_macarellus.png",
-  plot = p_lh,
+  "r_priors_D_macarellus.png",
+  plot = p4,
   device = "png",
   units = "cm",
-  width = 20,
-  height = 14,
-  dpi = 300
+  width = 32,
+  height = 17
 )
-
-
-# ============================================================================
-# 35. RESUMO FINAL
-# ============================================================================
-
-cat("\n")
-cat("============================================================\n")
-cat("ANÁLISE FINALIZADA\n")
-cat("============================================================\n")
-cat("\n")
-
-cat(
-  "Espécie: Decapterus macarellus\n"
-)
-
-cat(
-  "Bootstrap:",
-  nboot,
-  "simulações\n"
-)
-
-cat(
-  "Simulações convergentes:",
-  nrow(r_sims_valid),
-  "\n"
-)
-
-cat(
-  "Taxa de convergência:",
-  round(
-    r_summary$convergence,
-    3
-  ),
-  "\n"
-)
-
-cat(
-  "r mediano:",
-  round(
-    r_summary$r_median,
-    3
-  ),
-  "\n"
-)
-
-cat(
-  "IC/intervalo 95%:",
-  round(
-    r_summary$r_q025,
-    3
-  ),
-  "–",
-  round(
-    r_summary$r_q975,
-    3
-  ),
-  "\n"
-)
-
-cat("\n")
-
-cat(
-  "Arquivos gerados:\n"
-)
-
-cat(
-  " - r_sims_Decapterus_macarellus.csv\n"
-)
-
-cat(
-  " - r_sims_valid_Decapterus_macarellus.csv\n"
-)
-
-cat(
-  " - r_summary_Decapterus_macarellus.csv\n"
-)
-
-cat(
-  " - CV_literature_Decapterus_macarellus.csv\n"
-)
-
-cat(
-  " - CV_used_Decapterus_macarellus.csv\n"
-)
-
-cat(
-  " - life_history_bootstrap_Decapterus_macarellus.csv\n"
-)
-
-cat(
-  " - r_prior_Decapterus_macarellus.png\n"
-)
-
-cat(
-  " - life_history_bootstrap_Decapterus_macarellus.png\n"
-)
-
-cat("\n")
-
 
 
 
