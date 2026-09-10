@@ -361,7 +361,7 @@ cat("  - sensibilidade_SPR_por_ano.png\n")
 cat("  - sensibilidade_tornado_SPR_medio.png\n\n")
 
 # =============================================================================
-# NOTAS FINAIS
+# NOTAS FINAIS 
 # -----------------------------------------------------------------------------
 # 1. O cenario BASE combina crescimento/M/K de Vieira (2019) com uma ogiva de
 #    maturidade ajustada diretamente aos dados atuais (femeas, 2004-2024,
