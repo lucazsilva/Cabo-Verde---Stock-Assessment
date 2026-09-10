@@ -17,7 +17,7 @@
 
 pacotes <- c(
   "tidyverse", "lubridate", "janitor", "skimr", "ggridges",
-  "patchwork", "broom", "mgcv", "scales"
+  "patchwork", "broom", "mgcv", "scales", "ggplot2"
 )
 
 instalar <- pacotes[!pacotes %in% rownames(installed.packages())]
@@ -1340,3 +1340,441 @@ cat("========================================================\n")
 # 15. SKIM FINAL --------------------------------------------------
 skimr::skim(dados %>% select(data, ano, mes, zona, l_cm, w_g, sexo, em, w_gon, w_fig))
 
+# 16. Visualização da composição de comprimento anual
+p_dist_ano <- ggplot(
+  dados,
+  aes(
+    x = l_cm,
+    group = ano,
+    color = ano
+  )
+) +
+  geom_density(
+    linewidth = 0.8,
+    alpha = 0.75,
+    adjust = 1
+  ) +
+  geom_vline(
+    xintercept = 20,
+    color = "red",
+    linetype = "dashed",
+    linewidth = 1
+  ) +
+  annotate(
+    "text",
+    x = 20,
+    y = Inf,
+    label = "Minimum catch size = 20 cm",
+    color = "red",
+    angle = 90,
+    vjust = -0.5,
+    hjust = 1.1,
+    size = 3.5
+  ) +
+  scale_color_viridis_c(
+    option = "viridis",
+    name = "Year",
+    breaks = seq(2004, 2024, by = 4)
+  ) +
+  scale_x_continuous(
+    breaks = seq(10, 50, by = 2)
+  ) +
+  labs(
+    x = "Length (cm)",
+    y = "Density"
+  ) +
+  theme_bw() +
+  theme(
+    panel.grid.minor = element_blank(),
+    legend.position = "right",
+    legend.title = element_text(face = "bold"),
+    axis.title = element_text(face = "bold")
+  )
+
+p_dist_ano
+
+#-------------------------------------------------------------------------------------------#
+# Distribuicao anual de comprimentos agrupada em classes de 2 cm
+#-------------------------------------------------------------------------------------------#
+
+library(dplyr)
+library(ggplot2)
+library(viridis)
+
+# Criar classes de comprimento de 2 cm
+# Ex.: 18-<20, 20-<22, 22-<24, ...
+dados_2cm <- dados %>%
+  filter(!is.na(l_cm), !is.na(ano)) %>%
+  mutate(
+    classe_2cm = floor(l_cm / 2) * 2,
+    classe_mid = classe_2cm + 1
+  )
+
+# Frequencia relativa de cada classe em cada ano
+freq_2cm <- dados_2cm %>%
+  count(ano, classe_mid, name = "n") %>%
+  group_by(ano) %>%
+  mutate(
+    prop = n / sum(n)
+  ) %>%
+  ungroup()
+
+# Grafico
+p_dist_ano_2cm <- ggplot(
+  freq_2cm,
+  aes(
+    x = classe_mid,
+    y = prop,
+    group = ano,
+    color = ano
+  )
+) +
+  geom_line(
+    linewidth = 0.9,
+    alpha = 0.8
+  ) +
+  geom_point(
+    size = 1.2,
+    alpha = 0.8
+  ) +
+  
+  # Tamanho minimo de captura
+  geom_vline(
+    xintercept = 20,
+    color = "red",
+    linetype = "dashed",
+    linewidth = 1
+  ) +
+  
+  annotate(
+    "text",
+    x = 20,
+    y = Inf,
+    label = "Minimum catch size = 20 cm",
+    color = "red",
+    angle = 90,
+    vjust = -0.5,
+    hjust = 1.1,
+    size = 3.5
+  ) +
+  
+  scale_color_viridis_c(
+    option = "viridis",
+    name = "Year",
+    breaks = seq(2004, 2024, by = 4)
+  ) +
+  
+  scale_x_continuous(
+    breaks = seq(14, 46, by = 2)
+  ) +
+  
+  scale_y_continuous(
+    labels = scales::percent
+  ) +
+  
+  labs(
+    x = "Length (cm)",
+    y = "Relative frequency"
+  ) +
+  
+  theme_bw() +
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.title = element_text(face = "bold"),
+    legend.title = element_text(face = "bold")
+  )
+
+p_dist_ano_2cm
+
+#-------------------------------------------------------------------------------------------#
+# Distribuicao anual de comprimentos agrupada em classes de 3 cm
+#-------------------------------------------------------------------------------------------#
+
+library(dplyr)
+library(ggplot2)
+library(viridis)
+
+# Criar classes de comprimento de 3 cm
+dados_3cm <- dados %>%
+  filter(!is.na(l_cm), !is.na(ano)) %>%
+  mutate(
+    classe_3cm = floor(l_cm / 3) * 3,
+    classe_mid = classe_3cm + 1
+  )
+
+# Frequencia relativa de cada classe em cada ano
+freq_3cm <- dados_3cm %>%
+  count(ano, classe_mid, name = "n") %>%
+  group_by(ano) %>%
+  mutate(
+    prop = n / sum(n)
+  ) %>%
+  ungroup()
+
+# Grafico
+p_dist_ano_3cm <- ggplot(
+  freq_3cm,
+  aes(
+    x = classe_mid,
+    y = prop,
+    group = ano,
+    color = ano
+  )
+) +
+  geom_line(
+    linewidth = 0.9,
+    alpha = 0.8
+  ) +
+  geom_point(
+    size = 1.2,
+    alpha = 0.8
+  ) +
+  
+  # Tamanho minimo de captura
+  geom_vline(
+    xintercept = 20,
+    color = "red",
+    linetype = "dashed",
+    linewidth = 1
+  ) +
+  
+  annotate(
+    "text",
+    x = 20,
+    y = Inf,
+    label = "Minimum catch size = 20 cm",
+    color = "red",
+    angle = 90,
+    vjust = -0.5,
+    hjust = 1.1,
+    size = 3.5
+  ) +
+  
+  scale_color_viridis_c(
+    option = "viridis",
+    name = "Year",
+    breaks = seq(2004, 2024, by = 4)
+  ) +
+  
+  scale_x_continuous(
+    breaks = seq(14, 46, by = 3)
+  ) +
+  
+  scale_y_continuous(
+    labels = scales::percent
+  ) +
+  
+  labs(
+    x = "Length (cm)",
+    y = "Relative frequency"
+  ) +
+  
+  theme_bw() +
+  theme(
+    panel.grid.minor = element_blank(),
+    axis.title = element_text(face = "bold"),
+    legend.title = element_text(face = "bold")
+  )
+
+p_dist_ano_3cm
+
+
+#-------------------------------------------------------------------------------------------#
+# Avaliacao estatistica da largura de classe de comprimento
+#-------------------------------------------------------------------------------------------#
+
+library(dplyr)
+
+# Funcao para calcular regras de largura de classe
+largura_classes <- function(x) {
+  
+  x <- x[!is.na(x)]
+  n <- length(x)
+  
+  h_fd <- 2 * IQR(x) / (n^(1/3))
+  
+  h_scott <- 3.5 * sd(x) / (n^(1/3))
+  
+  k_sturges <- ceiling(log2(n) + 1)
+  h_sturges <- diff(range(x)) / k_sturges
+  
+  tibble(
+    n = n,
+    Freedman_Diaconis = h_fd,
+    Scott = h_scott,
+    Sturges = h_sturges
+  )
+}
+
+# Para toda a serie
+largura_geral <- largura_classes(dados$l_cm)
+
+largura_geral
+
+largura_por_ano <- dados %>%
+  filter(!is.na(l_cm)) %>%
+  group_by(ano) %>%
+  summarise(
+    n = n(),
+    IQR = IQR(l_cm),
+    SD = sd(l_cm),
+    range = max(l_cm) - min(l_cm),
+    
+    Freedman_Diaconis = 2 * IQR / (n^(1/3)),
+    Scott = 3.5 * SD / (n^(1/3)),
+    Sturges = range / ceiling(log2(n) + 1),
+    
+    .groups = "drop"
+  )
+
+largura_por_ano
+
+largura_por_ano %>%
+  summarise(
+    FD_mediana = median(Freedman_Diaconis),
+    FD_min = min(Freedman_Diaconis),
+    FD_max = max(Freedman_Diaconis),
+    
+    Scott_mediana = median(Scott),
+    
+    Sturges_mediana = median(Sturges)
+  )
+
+# Larguras que queremos testar
+larguras <- c(1, 2, 3)
+
+avaliar_classes <- function(dados, largura) {
+  
+  dados %>%
+    filter(!is.na(l_cm), !is.na(ano)) %>%
+    mutate(
+      classe = floor(l_cm / largura) * largura
+    ) %>%
+    count(ano, classe, name = "n") %>%
+    group_by(ano) %>%
+    summarise(
+      largura = largura,
+      n_classes = n(),
+      n_medio_classe = mean(n),
+      n_mediano_classe = median(n),
+      n_minimo_classe = min(n),
+      
+      prop_classes_menor_5 =
+        mean(n < 5),
+      
+      prop_classes_menor_10 =
+        mean(n < 10),
+      
+      .groups = "drop"
+    )
+}
+
+comparacao_classes <- bind_rows(
+  avaliar_classes(dados, 1),
+  avaliar_classes(dados, 2),
+  avaliar_classes(dados, 3)
+)
+
+comparacao_classes
+
+comparacao_classes %>%
+  group_by(largura) %>%
+  summarise(
+    classes_mediana = median(n_classes),
+    individuos_por_classe = median(n_mediano_classe),
+    prop_menor_5 = mean(prop_classes_menor_5),
+    prop_menor_10 = mean(prop_classes_menor_10)
+  )
+
+largura_por_ano
+
+largura_por_ano %>%
+  summarise(
+    FD_mediana = median(Freedman_Diaconis, na.rm = TRUE),
+    FD_min = min(Freedman_Diaconis, na.rm = TRUE),
+    FD_max = max(Freedman_Diaconis, na.rm = TRUE),
+    Scott_mediana = median(Scott, na.rm = TRUE),
+    Sturges_mediana = median(Sturges, na.rm = TRUE)
+  )
+
+#-------------------------------------------------------------------------------------------#
+# Avaliacao da largura das classes de comprimento
+#-------------------------------------------------------------------------------------------#
+
+# Regras estatisticas para escolha da largura de classe por ano
+largura_por_ano <- dados %>%
+  filter(!is.na(l_cm), !is.na(ano)) %>%
+  group_by(ano) %>%
+  summarise(
+    n = n(),
+    IQR = IQR(l_cm),
+    SD = sd(l_cm),
+    amplitude = max(l_cm) - min(l_cm),
+    
+    # Freedman-Diaconis
+    Freedman_Diaconis = 2 * IQR / (n^(1/3)),
+    
+    # Scott
+    Scott = 3.5 * SD / (n^(1/3)),
+    
+    # Sturges
+    Sturges = amplitude / ceiling(log2(n) + 1),
+    
+    .groups = "drop"
+  )
+
+print(largura_por_ano)
+
+# Resumo das larguras sugeridas
+resumo_largura_classes <- largura_por_ano %>%
+  summarise(
+    FD_mediana = median(Freedman_Diaconis, na.rm = TRUE),
+    FD_min = min(Freedman_Diaconis, na.rm = TRUE),
+    FD_max = max(Freedman_Diaconis, na.rm = TRUE),
+    
+    Scott_mediana = median(Scott, na.rm = TRUE),
+    
+    Sturges_mediana = median(Sturges, na.rm = TRUE)
+  )
+
+print(resumo_largura_classes)
+
+# Comparacao do numero de individuos por classe para diferentes larguras
+
+avaliar_classes <- function(dados, largura) {
+  
+  dados %>%
+    filter(!is.na(l_cm), !is.na(ano)) %>%
+    mutate(
+      classe = floor(l_cm / largura) * largura
+    ) %>%
+    count(ano, classe, name = "n") %>%
+    group_by(ano) %>%
+    summarise(
+      largura = largura,
+      n_classes = n(),
+      n_medio_classe = mean(n),
+      n_mediano_classe = median(n),
+      prop_classes_menor_5 = mean(n < 5),
+      prop_classes_menor_10 = mean(n < 10),
+      .groups = "drop"
+    )
+}
+
+comparacao_classes <- bind_rows(
+  avaliar_classes(dados, 1),
+  avaliar_classes(dados, 2),
+  avaliar_classes(dados, 3)
+)
+
+resumo_comparacao_classes <- comparacao_classes %>%
+  group_by(largura) %>%
+  summarise(
+    n_classes_mediana = median(n_classes),
+    individuos_medianos_classe = median(n_mediano_classe),
+    prop_classes_menor_5 = mean(prop_classes_menor_5),
+    prop_classes_menor_10 = mean(prop_classes_menor_10),
+    .groups = "drop"
+  )
+
+print(resumo_comparacao_classes)
