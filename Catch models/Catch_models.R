@@ -1509,7 +1509,7 @@ extrair_aceitos <- function(id, var) {
 
 png("comparacao_cenarios_outputs.png", width = 28, height = 20,
                                 res = 300,antialias = "cleartype", units = "cm")
-op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1), bty="l",cex=0.8)
+op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1), bty="l",cex=0.8,cex.main=0.9)
 for (v in c("OFLT1", "K", "MSY", "Bmsy")) {
   if (!v %in% names(resultados_dbsra[[1]]$Values)) next
   lst <- lapply(ordem_ids, extrair_aceitos, var = v)
@@ -1528,7 +1528,7 @@ cat("\nPNG salvo: comparacao_cenarios_outputs.png\n")
 
 png("comparacao_cenarios_parametros.png", width = 28, height = 20,
                           res = 300,antialias = "cleartype", units = "cm")
-op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1), bty="l",cex=0.8)
+op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1), bty="l",cex=0.8,cex.main=0.9)
 for (v in c("FmsyM", "BtK", "BmsyK", "M")) {
   if (!v %in% names(resultados_dbsra[[1]]$Values)) next
   lst <- lapply(ordem_ids, extrair_aceitos, var = v)
@@ -1608,21 +1608,295 @@ for (id in cenarios_para_detalhar) {
 cat("\nPos-processamento concluido.\n")
 
 
+# =====================================================================
+# Trajetorias de biomassa reconstruidas, todos os cenarios num so grafico
+# =====================================================================
+# O dbsra() plota a trajetoria de biomassa (aceitos/rejeitados) internamente
+# (grout), mas NAO devolve essa matriz no objeto retornado -- res$Values
+# so guarda os parametros/estimativas de cada simulacao, nao a serie
+# ano-a-ano de biomassa. Por isso reconstruimos a trajetoria aqui, ano a
+# ano, usando a mesma funcao de producao Schaefer-Pella-Tomlinson-Fletcher
+# do metodo (Dick & MacCall 2011; formulas tambem em Owashi 2014 eq 1.2 e
+# Sweka et al. 2018 eqs 1-4), a partir dos parametros que JA ficam
+# guardados por simulacao aceita em res$Values: K, n, g (=gamma), B1K, MSY.
+#
+#   B[1]        = B1K * K
+#   P(B[t-a])   = g * MSY * (B[t-a]/K) - g * MSY * (B[t-a]/K)^n
+#   B[t]        = B[t-1] + P(B[t-a]) - C[t-1]      (a = agemat; se t-a<1,usa B[1] no lugar)
+#
+# A validacao que o script faz: para cada simulacao aceita, recalcula a
+# biomassa no ano de referencia (refyr) e compara com o BtK que o proprio
+# dbsra() reportou naquela linha de res$Values (que foi o alvo que o
+# optimize() do pacote usou para achar k). Se a diferenca media for
+# pequena (a impressao no console avisa), a reconstrucao esta capturando
+# a dinamica corretamente e da para confiar na FORMA da trajetoria.
+# =====================================================================
+
+stopifnot(exists("resultados_dbsra"), exists("cenarios_macarellus_dbsra"), exists("ct"))
+
+agemat <- 2          # mesmo valor usado no dbsra()
+refyr  <- 2015        # mesmo refyr usado no btk
+anos   <- ct$year
+catches <- ct$ct
+n_anos <- length(anos)
+idx_refyr <- which(anos == refyr)
+stopifnot(length(idx_refyr) == 1)
+
+n_amostra_por_cenario <- 10000   # quantas trajetorias aceitas usar (amostra, p/ nao pesar)
+
+## ---------------------------------------------------------------------
+## Reconstroi UMA trajetoria de biomassa a partir de 1 linha de res$Values
+## ---------------------------------------------------------------------
+reconstruir_biomassa <- function(K, n, g, B1K, MSY, catches, agemat) {
+  n_t <- length(catches)
+  B <- numeric(n_t)
+  B[1] <- B1K * K
+  for (t in 2:n_t) {
+    lag_idx <- t - agemat
+    B_lag <- if (lag_idx >= 1) B[lag_idx] else B[1]
+    razao <- B_lag / K
+    P <- g * MSY * razao - g * MSY * razao^n
+    B[t] <- B[t - 1] + P - catches[t - 1]
+  }
+  B
+}
+
+## ---------------------------------------------------------------------
+## Reconstroi as trajetorias aceitas de 1 cenario e resume (mediana + IC)
+## ---------------------------------------------------------------------
+reconstruir_cenario <- function(res, catches, agemat, idx_refyr, n_amostra) {
+  vals <- res$Values
+  acc  <- vals[vals$ll == 1, ] #só aceita trajetórias válidas
+  
+  vars_necessarias <- c("K", "n", "g", "B1K", "MSY", "BtK")
+  faltando <- setdiff(vars_necessarias, names(acc))
+  if (length(faltando) > 0) {
+    stop("res$Values esta sem as colunas: ", paste(faltando, collapse = ", "),
+         " -- confira names(resultados[[1]]$Values)")
+  }
+  
+  if (nrow(acc) > n_amostra) {
+    acc <- acc[sample(nrow(acc), n_amostra), ]
+  }
+  
+  mat <- t(mapply(function(K, n, g, B1K, MSY) {
+    reconstruir_biomassa(K, n, g, B1K, MSY, catches, agemat)
+  }, acc$K, acc$n, acc$g, acc$B1K, acc$MSY))
+  
+  # validacao: BtK reconstruido no refyr vs BtK reportado pelo dbsra()
+  btk_reconstruido <- mat[, idx_refyr] / acc$K
+  residuo <- btk_reconstruido - acc$BtK
+  diagnostico <- c(erro_medio_abs = mean(abs(residuo)),
+                   erro_max_abs  = max(abs(residuo)))
+  
+  mat_bk <- sweep(mat, 1, acc$K, "/")   # biomassa relativa (B/K), por linha
+  
+  list(
+    biomassa   = mat,
+    biomassa_bk = mat_bk,
+    mediana_B  = apply(mat, 2, median),
+    p2.5_B     = apply(mat, 2, quantile, 0.025),
+    p97.5_B    = apply(mat, 2, quantile, 0.975),
+    mediana_BK = apply(mat_bk, 2, median),
+    p2.5_BK    = apply(mat_bk, 2, quantile, 0.025),
+    p97.5_BK   = apply(mat_bk, 2, quantile, 0.975),
+    diagnostico = diagnostico
+  )
+}
+
+## ---------------------------------------------------------------------
+## Roda para todos os cenarios e valida
+## ---------------------------------------------------------------------
+set.seed(1)
+trajetorias <- lapply(names(resultados_dbsra), function(id) {
+  cat("Reconstruindo trajetorias:", id, "... ")
+  out <- reconstruir_cenario(resultados_dbsra[[id]], catches, agemat, idx_refyr, n_amostra_por_cenario)
+  cat(sprintf("erro medio abs no Bt/K do ano de referencia: %.4f (max: %.4f)\n",
+              out$diagnostico["erro_medio_abs"], out$diagnostico["erro_max_abs"]))
+  out
+})
+names(trajetorias) <- names(resultados_dbsra)
+
+erros <- sapply(trajetorias, function(x) x$diagnostico["erro_medio_abs"])
+if (any(erros > 0.05)) {
+  cat("\n[AVISO] Em pelo menos um cenario o erro medio no Bt/K reconstruido",
+      "passou de 0.02 -- a reconstrucao pode nao estar batendo com a",
+      "convencao exata do pacote (ex: tratamento do lag nos primeiros anos).",
+      "Trate a FORMA da trajetoria com cautela nesses casos.\n\n")
+} else {
+  cat("\nValidacao OK em todos os cenarios (erro medio no Bt/K reconstruido <= 0.02).\n\n")
+}
+
+## ---------------------------------------------------------------------
+## Grafico unico -- todos os cenarios sobrepostos (mediana + IC 95%)
+## ---------------------------------------------------------------------
+
+ordem_ids <- if (all(c("hipotese", "m_hipotese") %in% names(cenarios_macarellus_dbsra))) {
+  cenarios_macarellus_dbsra$cenario_id[order(cenarios_macarellus_dbsra$hipotese, cenarios_macarellus_dbsra$m_hipotese)]
+} else {
+  names(resultados)
+}
+cores <- setNames(grDevices::hcl.colors(length(ordem_ids), palette = "Dark 3"), ordem_ids)
+
+png("trajetorias_biomassa_cenarios.png", width = 32, height = 16,
+                          res = 300,antialias = "cleartype", units = "cm")
+op <- par(mfrow = c(1, 2), mar = c(4.5, 4.5, 3, 1), xpd = FALSE, bty="l",cex.main=0.9)
+
+# ---- painel 1: B/K (comparavel entre cenarios com K muito diferente) ----
+plot(NA, xlim = range(anos), ylim = c(0, 1),
+     xlab = "Ano", ylab = "Biomassa relativa (B/K)",
+     main = "Trajetorias de biomassa relativa -- B/K")
+for (id in ordem_ids) {
+  tr <- trajetorias[[id]]
+  polygon(c(anos, rev(anos)), c(tr$p2.5_BK, rev(tr$p97.5_BK)),
+          col = adjustcolor(cores[id], alpha.f = 0.12), border = NA)
+}
+for (id in ordem_ids) {
+  lines(anos, trajetorias[[id]]$mediana_BK, col = cores[id], lwd = 3.2)
+}
+abline(h=0.5, col="firebrick",lty=2)
+legend("topright", legend = ordem_ids, col = cores, lwd = 3.2, bty = "n", cex = 0.7)
+
+# ---- painel 2: biomassa absoluta ----
+todas_max <- max(sapply(trajetorias, function(tr) max(tr$p97.5_B)))
+plot(NA, xlim = range(anos), ylim = c(0, todas_max),
+     xlab = "Ano", ylab = "Biomassa (t)",
+     main = "Trajetorias de biomassa absoluta -- (t)")
+for (id in ordem_ids) {
+  tr <- trajetorias[[id]]
+  polygon(c(anos, rev(anos)), c(tr$p2.5_B, rev(tr$p97.5_B)),
+          col = adjustcolor(cores[id], alpha.f = 0.12), border = NA)
+}
+for (id in ordem_ids) {
+  lines(anos, trajetorias[[id]]$mediana_B, col = cores[id], lwd = 3.2)
+}
+legend("topright", legend = ordem_ids, col = cores, lwd = 3.2, bty = "n", cex = 0.7)
+
+par(op)
+dev.off()
+cat("PNG salvo: trajetorias_biomassa_cenarios.png\n")
 
 
+# =====================================================================
+# Posteriores de MSY por cenário, reunidas num data.frame e plotadas
+# junto com a série histórica de captura, num painel só.
+# =====================================================================
+# Pré-requisitos no ambiente:
+#   resultados_dbsra          - lista de objetos retornados por dbsra(),
+#                                com names(resultados_dbsra) <-
+#                                cenarios_macarellus_dbsra$cenario_id
+#   cenarios_macarellus_dbsra - data.frame com as combinações de cenário
+#   ct                        - data.frame com a série de captura, colunas
+#                                year e ct (a mesma série usada no dbsra())
+#
+# Gera:
+#   1) msy_posteriores_cenarios_dbsra.csv  -- formato longo: 1 linha por
+#      simulação aceita (cenario_id, MSY), todas as posteriores juntas
+#   2) msy_resumo_cenarios_dbsra.csv       -- 1 linha por cenário: mediana
+#      e IC 95% do MSY (resumo usado para desenhar as faixas do gráfico)
+#   3) msy_posteriores_serie_captura_dbsra.png -- painel único: linha da
+#      captura histórica + uma linha (mediana) e uma faixa (IC 95%)
+#      horizontais por cenário, mostrando onde o MSY estimado de cada
+#      cenário cai em relação ao nível de captura efetivamente pescado.
+# =====================================================================
 
+stopifnot(exists("resultados_dbsra"), exists("cenarios_macarellus_dbsra"), exists("ct"))
 
+## ---------------------------------------------------------------------
+## 1) Data frame único com as posteriores de MSY de todos os cenários
+## ---------------------------------------------------------------------
 
+msy_posteriores <- do.call(rbind, lapply(names(resultados_dbsra), function(id) {
+  vals <- resultados_dbsra[[id]]$Values
+  acc  <- vals[vals$ll == 1, ]
+  data.frame(cenario_id = id, MSY = acc$MSY, stringsAsFactors = FALSE)
+}))
 
+meta_cols <- intersect(c("cenario_id", "hipotese", "m_hipotese"), names(cenarios_macarellus_dbsra))
+if (length(meta_cols) > 1) {
+  msy_posteriores <- merge(cenarios_macarellus_dbsra[, meta_cols], msy_posteriores, by = "cenario_id")
+}
 
+cat("===== msy_posteriores (primeiras linhas) =====\n")
+print(head(msy_posteriores, 8))
+write.csv(msy_posteriores, "msy_posteriores_cenarios_dbsra.csv", row.names = FALSE)
+cat(sprintf("\nCSV salvo: msy_posteriores_cenarios_dbsra.csv (%d linhas, %d cenarios)\n",
+            nrow(msy_posteriores), length(unique(msy_posteriores$cenario_id))))
 
+## ---------------------------------------------------------------------
+## 2) Resumo por cenário (mediana + IC 95%) -- usado no gráfico
+## ---------------------------------------------------------------------
 
+msy_resumo <- do.call(rbind, lapply(split(msy_posteriores, msy_posteriores$cenario_id), function(d) {
+  data.frame(
+    cenario_id = d$cenario_id[1],
+    mediana    = median(d$MSY),
+    p2.5       = as.numeric(quantile(d$MSY, 0.025)),
+    p97.5      = as.numeric(quantile(d$MSY, 0.975)),
+    n_aceitos  = nrow(d)
+  )
+}))
+if (length(meta_cols) > 1) {
+  msy_resumo <- merge(cenarios_macarellus_dbsra[, meta_cols], msy_resumo, by = "cenario_id")
+}
+rownames(msy_resumo) <- NULL
 
+cat("\n===== Resumo do MSY por cenario =====\n")
+print(msy_resumo)
+write.csv(msy_resumo, "msy_resumo_cenarios_dbsra.csv", row.names = FALSE)
+cat("CSV salvo: msy_resumo_cenarios_dbsra.csv\n")
 
+## ---------------------------------------------------------------------
+## 3) Gráfico único -- captura histórica (linha) + faixas de MSY por cenário
+## ---------------------------------------------------------------------
 
+ordem_ids <- if (all(c("hipotese", "m_hipotese") %in% names(msy_resumo))) {
+  msy_resumo$cenario_id[order(msy_resumo$hipotese, msy_resumo$m_hipotese)]
+} else {
+  msy_resumo$cenario_id
+}
+cores <- setNames(grDevices::hcl.colors(length(ordem_ids), palette = "Dark 3"), ordem_ids)
 
+anos    <- ct$year
+catches <- ct$ct
 
+# folga de ~28% à direita (em anos) para caber a legenda sem sobrepor as faixas
+xlim_plot <- c(min(anos), max(anos) + diff(range(anos)) * 0.45)
+ylim_max  <- max(catches, msy_resumo$p97.5) * 1.08
 
+png("msy_posteriores_serie_captura_dbsra.png",  width = 25, height = 16,
+    res = 300,antialias = "cleartype", units = "cm")
+op <- par(mar = c(4.5, 5, 3, 1),bty="l",cex.main=0.7)
+
+# ---- eixo/moldura em branco primeiro, pra desenhar as faixas de MSY atrás da linha ----
+plot(NA, xlim = xlim_plot, ylim = c(0, ylim_max),
+     xlab = "Ano", ylab = "Captura (t)",
+     main = "Série de captura e posteriores de MSY por cenário")
+
+# ---- faixas horizontais (IC95%) + linha (mediana) de MSY, por cenário ----
+x0 <- min(anos)
+x1 <- max(anos)
+for (id in ordem_ids) {
+  r <- msy_resumo[msy_resumo$cenario_id == id, ]
+  rect(x0, r$p2.5, x1, r$p97.5, col = adjustcolor(cores[id], alpha.f = 0.14), border = NA)
+}
+for (id in ordem_ids) {
+  r <- msy_resumo[msy_resumo$cenario_id == id, ]
+  segments(x0, r$mediana, x1, r$mediana, col = cores[id], lwd = 2.4)
+}
+
+# ---- linha da captura histórica, por cima das faixas ----
+lines(anos, catches, type = "o", col = "grey25", pch = 16, cex = 0.8, lwd = 2)
+
+legend("topright", inset = c(0, 0), xpd = NA,
+       legend = ordem_ids, col = cores, lwd = 2.4, bty = "n", cex = 0.8,
+       title = "MSY (mediana, faixa = IC 95%)", title.cex = 0.66)
+legend("topleft", legend = "Captura observada", col = "grey25", lwd = 2.4, pch = 16,
+       pt.cex = 0.8, bty = "n", cex = 0.8)
+
+par(op)
+dev.off()
+cat("\nPNG salvo: msy_posteriores_serie_captura_dbsra.png\n")
 
 
 
