@@ -32,7 +32,8 @@ library(neuralnet)
 library(purrr)
 #install.packages("fishmethods")
 library(fishmethods)
-install.packages("future.apply")
+#install.packages("future.apply")
+library(future.apply)
 #------------------------------------
 #instalando o datalimited2
 #install.packages("devtools") #pra baixar o datalimited2
