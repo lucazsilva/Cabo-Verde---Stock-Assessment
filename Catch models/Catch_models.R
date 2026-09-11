@@ -32,6 +32,7 @@ library(neuralnet)
 library(purrr)
 #install.packages("fishmethods")
 library(fishmethods)
+install.packages("future.apply")
 #------------------------------------
 #instalando o datalimited2
 #install.packages("devtools") #pra baixar o datalimited2
@@ -1368,6 +1369,30 @@ print(idade_maturacao)
 #=====================
 #rodando o modelo
 #=====================
+library(future.apply)
+plan(multisession, workers = min(nrow(cenarios_macarellus_dbsra), parallel::detectCores() - 1))
+
+resultados_dbsra <- future_lapply(seq_len(nrow(cenarios_macarellus_dbsra)), function(i) {
+  cen <- cenarios_macarellus_dbsra[i, ]
+  fishmethods::dbsra(
+    year = ct$year, catch = ct$ct,
+    agemat = 2,
+    k     = list(low = 3000, up = 60000, tol = 0.01, permax = 1000),
+    b1k   = list(dist = "unif", low = 0.8, up = 0.99, mean = 1, sd = 0.1),
+    btk   = list(dist = "unif", low = cen$bk_lo, up = cen$bk_hi, refyr = 2015),
+    fmsym = list(dist = "lnorm", low = 0.1, up = 2, mean = log(0.8), sd = 0.3),
+    bmsyk = list(dist = "beta", low = 0.05, up = 0.95, mean = 0.4, sd = 0.1),
+    M     = list(dist = "lnorm", low = cen$M * 0.7, up = cen$M * 1.3, mean = log(cen$M), sd = 0.10),
+    nsims = 10000, grout = 0
+  )
+}, future.seed = TRUE)
+
+names(resultados_dbsra) <- cenarios_macarellus_dbsra$cenario_id
+plan(sequential)  # libera os workers no final
+
+
+
+
 resultados_dbsra <- lapply(seq_len(nrow(cenarios_macarellus_dbsra)), function(i) {
   cen <- cenarios_macarellus_dbsra[i, ]
   dbsra(
