@@ -1898,5 +1898,104 @@ par(op)
 dev.off()
 cat("\nPNG salvo: msy_posteriores_serie_captura_dbsra.png\n")
 
+## ---------------------------------------------------------------------
+## 1) Pool único com o MSY de todas as simulações aceitas, de todos os
+##    cenários (ignora de qual cenário veio -- é a distribuição conjunta)
+## ---------------------------------------------------------------------
 
+msy_todos <- unlist(lapply(resultados_dbsra, function(res) {
+  vals <- res$Values
+  vals$MSY[vals$ll == 1]
+}), use.names = FALSE)
 
+cat(sprintf("MSY combinado: %d simulacoes aceitas, de %d cenarios.\n",
+            length(msy_todos), length(resultados_dbsra)))
+
+## ---------------------------------------------------------------------
+## 2) Quantis de incerteza
+## ---------------------------------------------------------------------
+
+probs <- c(0.025, 0.25, 0.50, 0.75, 0.975)
+q <- quantile(msy_todos, probs)
+
+quantis_msy <- data.frame(
+  quantil = c("2.5%", "25%", "mediana (50%)", "75%", "97.5%"),
+  MSY     = as.numeric(q)
+)
+cat("\n===== Quantis do MSY (pool conjunto) =====\n")
+print(quantis_msy)
+write.csv(quantis_msy, "quantis_msy_conjunto_dbsra.csv", row.names = FALSE)
+cat("CSV salvo: quantis_msy_conjunto_dbsra.csv\n")
+
+## ---------------------------------------------------------------------
+## 3) Gráfico de densidade, com a faixa de 95% sombreada e os quantis
+##    marcados por linhas verticais
+## ---------------------------------------------------------------------
+# Duas escolhas deliberadas aqui, pensadas para um pool que mistura
+# cenários bem restritos (posterior estreita) com cenários pouco
+# informativos (ex.: Uninformative, com bk quase livre): isso produz uma
+# mistura de escalas muito diferentes, e uma densidade "ingênua" (escala
+# linear, bw padrão) sai com cara de agulha -- pico fino demais e cauda
+# comprida quase invisível, mesmo quando os dados estão certos.
+#
+#  a) suavização um pouco mais larga (adjust > 1): ainda é a mesma forma
+#     geral, só sem o serrilhado de amostra finita.
+#  b) densidade calculada em log10(MSY) e depois transformada de volta
+#     para a escala de MSY (mudança de variável: f_X(x) = f_U(u)/(x*ln10),
+#     com u=log10(x)) -- isto NÃO distorce a densidade, é o jeito
+#     estatisticamente correto de exibir uma quantidade estritamente
+#     positiva e assimetricamente distribuída (MSY, biomassa, captura...)
+#     num eixo log, o que evita que o grosso da massa (perto da mediana)
+#     fique espremido em poucos pixels enquanto a cauda dos cenários
+#     pouco informativos estica o eixo inteiro.
+suavizacao <- 2   # >1 = mais suave; ajuste se ainda parecer serrilhado
+
+dl <- density(log10(msy_todos), adjust = suavizacao)
+x_msy <- 10^dl$x
+y_msy <- dl$y / (x_msy * log(10))   # densidade na escala de MSY (mudança de variável)
+
+# eixo x log, com marcas "redondas" legíveis em t de MSY
+marcas_x <- pretty(log10(msy_todos), n = 8)
+marcas_x <- marcas_x[10^marcas_x >= min(x_msy) & 10^marcas_x <= max(x_msy)]
+
+png("msy_densidade_conjunta_dbsra.png", width = 28, height = 20,
+                          res = 300,antialias = "cleartype", units = "cm")
+op <- par(mar = c(4.5, 4.5, 3, 1),bty="l",cex.main=0.9)
+
+plot(x_msy, y_msy, type = "l", log = "x",
+     main = "Distribuição conjunta de MSY (todos os cenários combinados)",
+     xlab = "MSY (t)", ylab = "Densidade", col = "#1F4E79", lwd = 2.2,
+     xaxt = "n")
+axis(1, at = 10^marcas_x, labels = format(round(10^marcas_x), big.mark = ".", decimal.mark = ",", scientific = FALSE))
+
+# sombreia a faixa de 95% (entre os quantis 2.5% e 97.5%) sob a curva
+faixa <- x_msy >= q["2.5%"] & x_msy <= q["97.5%"]
+polygon(c(x_msy[faixa], rev(x_msy[faixa])), c(y_msy[faixa], rep(0, sum(faixa))),
+        col = adjustcolor("#1F4E79", alpha.f = 0.18), border = NA)
+
+# curva por cima da faixa sombreada
+lines(x_msy, y_msy, col = "#1F4E79", lwd = 2.2)
+
+# linhas verticais nos quantis
+cores_q <- c("2.5%" = "#C00000", "25%" = "#7F7F7F", "mediana (50%)" = "#1F4E79",
+             "75%" = "#7F7F7F", "97.5%" = "#C00000")
+lty_q   <- c("2.5%" = 2, "25%" = 3, "mediana (50%)" = 1, "75%" = 3, "97.5%" = 2)
+for (nm in names(q)) {
+  key <- if (nm == "50%") "mediana (50%)" else nm
+  abline(v = q[nm], col = cores_q[key], lty = lty_q[key], lwd = 1.8)
+}
+
+# rótulos dos quantis, perto do eixo x
+y_lab <- max(y_msy) * 0.05
+text(q["2.5%"],  y_lab, sprintf("2,5%%\n%.0f", q["2.5%"]),  col = "#C00000", cex = 0.8, pos = 2, offset = 0.3)
+text(q["97.5%"], y_lab, sprintf("97,5%%\n%.0f", q["97.5%"]), col = "#C00000", cex = 0.8, pos = 4, offset = 0.3)
+text(q["50%"], max(y_msy) * 0.97, sprintf("mediana: %.0f t", q["50%"]),
+     col = "#1F4E79", cex = 0.8, pos = 4, offset = 0.3, font = 2)
+
+legend("topright", legend = c("Densidade conjunta do MSY", "Faixa de 95% (IC)", "Mediana"),
+       col = c("#1F4E79", adjustcolor("#1F4E79", alpha.f = 0.4), "#1F4E79"),
+       lwd = c(2.2, 8, 1.8), lty = c(1, 1, 1), bty = "n", cex = 0.8)
+
+par(op)
+dev.off()
+cat("\nPNG salvo: msy_densidade_conjunta_dbsra.png\n")
