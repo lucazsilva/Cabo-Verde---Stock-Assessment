@@ -48,7 +48,7 @@ setwd("C:/Users/mathe/OneDrive/Documents/Cabo-Verde---Stock-Assessment/Catch mod
 ### lendo os dados de capturas... ###
 ct<- read.csv("Catch_Luz and Vieira.csv",sep = ",",dec = ".")
 # lendo dados de história de vida... ##
-lh<- read_xlsx("Parâmetros_História de vida.xlsx")
+lh<- read_xlsx("Parametros_Historia_de_vida.xlsx")
 #carregar ffnn.bin (parametros da rede neural do CMSY)
 load("ffnn.bin")
 
