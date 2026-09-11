@@ -1,0 +1,5 @@
+"fator","nivel","cenario_id","valor","delta_pct"
+"M (mortalidade natural)","M_segunda_confiavel","Target_switch_x_M_segunda_confiavel",2095.47244010346,1.81826579378688
+"Bt/K (metodo de depleção)","NN_CMSY","NN_CMSY_x_M_mais_confiavel",1806.58413584101,-12.218714881873
+"Bt/K (metodo de depleção)","zBRT","zBRT_x_M_mais_confiavel",2029.77803774772,-1.37380201498414
+"Bt/K (metodo de depleção)","Uninformative","Uninformative_x_M_mais_confiavel",2215.02404753583,7.62723617615189

@@ -1999,3 +1999,171 @@ legend("topright", legend = c("Densidade conjunta do MSY", "Faixa de 95% (IC)", 
 par(op)
 dev.off()
 cat("\nPNG salvo: msy_densidade_conjunta_dbsra.png\n")
+
+
+# =====================================================================
+# Gráfico tornado -- sensibilidade de uma quantidade de manejo do DB-SRA
+# aos dois eixos de cenário testados: M (fonte da mortalidade natural) e
+# a hipótese de depleção (Bt/K).
+#   1) tornado_sensibilidade_<metrica>_dbsra.csv -- 1 linha por cenário
+#      alternativo, com o valor absoluto e a variação % em relação ao
+#      cenário BASE, para cada um dos dois fatores testados
+#   2) tornado_sensibilidade_<metrica>_dbsra.png -- o gráfico tornado
+# =====================================================================
+
+stopifnot(exists("resultados_dbsra"), exists("cenarios_macarellus_dbsra"))
+stopifnot(all(c("hipotese", "m_hipotese") %in% names(cenarios_macarellus_dbsra)))
+
+## ---------------------------------------------------------------------
+## 0) CONFIGURAÇÃO -- ajuste aqui
+## ---------------------------------------------------------------------
+
+metrica <- "MSY"   # troque para "OFLT1", "Bmsy", "Fmsy", "Umsy", "K", etc.
+# (qualquer coluna presente em resultados_dbsra[[i]]$Values)
+
+# cenário BASE: a combinação de bk/M que vocês tratam como referência
+# (ex.: a hipótese de bk mais defensável e a fonte de M mais confiável)
+bk_base <- "Target_switch"
+m_base  <- "M_mais_confiavel"
+
+## ---------------------------------------------------------------------
+## 1) Mediana da métrica escolhida, por cenário (só simulações aceitas)
+## ---------------------------------------------------------------------
+
+medianas <- sapply(names(resultados_dbsra), function(id) {
+  vals <- resultados_dbsra[[id]]$Values
+  acc  <- vals[vals$ll == 1, ]
+  stopifnot(metrica %in% names(acc))
+  median(acc[[metrica]])
+})
+names(medianas) <- names(resultados_dbsra)
+
+id_base <- cenarios_macarellus_dbsra$cenario_id[
+  cenarios_macarellus_dbsra$hipotese == bk_base & cenarios_macarellus_dbsra$m_hipotese == m_base]
+if (length(id_base) != 1) {
+  stop("Nao encontrei (ou encontrei mais de um) cenario BASE com hipotese='", bk_base,
+       "' e m_hipotese='", m_base, "'. Confira os valores em cenarios_macarellus_dbsra.")
+}
+valor_base <- medianas[[id_base]]
+cat(sprintf("Cenario BASE: %s  |  mediana de %s = %.2f\n", id_base, metrica, valor_base))
+
+## ---------------------------------------------------------------------
+## 2) Variação de cada fator, mantendo o outro fator fixo no nível BASE
+## ---------------------------------------------------------------------
+
+niveis_m <- unique(cenarios_macarellus_dbsra$m_hipotese)
+tab_m <- do.call(rbind, lapply(setdiff(niveis_m, m_base), function(m_alt) {
+  id <- cenarios_macarellus_dbsra$cenario_id[
+    cenarios_macarellus_dbsra$hipotese == bk_base & cenarios_macarellus_dbsra$m_hipotese == m_alt]
+  data.frame(fator = "M (mortalidade natural)", nivel = m_alt,
+             cenario_id = id, valor = medianas[[id]], stringsAsFactors = FALSE)
+}))
+
+niveis_bk <- unique(cenarios_macarellus_dbsra$hipotese)
+tab_bk <- do.call(rbind, lapply(setdiff(niveis_bk, bk_base), function(bk_alt) {
+  id <- cenarios_macarellus_dbsra$cenario_id[
+    cenarios_macarellus_dbsra$hipotese == bk_alt & cenarios_macarellus_dbsra$m_hipotese == m_base]
+  data.frame(fator = "Bt/K (metodo de depleção)", nivel = bk_alt,
+             cenario_id = id, valor = medianas[[id]], stringsAsFactors = FALSE)
+}))
+
+tab <- rbind(tab_m, tab_bk)
+tab$delta_pct <- 100 * (tab$valor - valor_base) / valor_base
+
+cat("\n===== Variação em relação ao cenário BASE =====\n")
+print(tab[, c("fator", "nivel", "valor", "delta_pct")])
+write.csv(tab, sprintf("tornado_sensibilidade_%s_dbsra.csv", tolower(metrica)), row.names = FALSE)
+cat(sprintf("\nCSV salvo: tornado_sensibilidade_%s_dbsra.csv\n", tolower(metrica)))
+
+## ---------------------------------------------------------------------
+## 3) Empilha os níveis de cada fator dos dois lados do zero (negativos
+##    à esquerda, positivos à direita), do menor para o maior módulo --
+##    é só uma convenção de leiaute para caber vários níveis numa única
+##    barra por fator, igual ao gráfico do seu amigo; não representa soma
+##    real de efeitos (cada cenário é uma rodada independente do dbsra()).
+## ---------------------------------------------------------------------
+
+empilhar <- function(df) {
+  df <- df[order(abs(df$delta_pct)), ]
+  neg <- df[df$delta_pct < 0, , drop = FALSE]
+  pos <- df[df$delta_pct >= 0, , drop = FALSE]
+  if (nrow(neg) > 0) {
+    cum <- 0
+    for (i in seq_len(nrow(neg))) {
+      neg$xmax[i] <- cum
+      cum <- cum + neg$delta_pct[i]
+      neg$xmin[i] <- cum
+    }
+  }
+  if (nrow(pos) > 0) {
+    cum <- 0
+    for (i in seq_len(nrow(pos))) {
+      pos$xmin[i] <- cum
+      cum <- cum + pos$delta_pct[i]
+      pos$xmax[i] <- cum
+    }
+  }
+  rbind(neg, pos)
+}
+
+tab_emp <- do.call(rbind, lapply(split(tab, tab$fator), empilhar))
+
+# ordena os fatores pela amplitude total (maior impacto primeiro, no topo)
+amplitude <- sapply(split(tab_emp, tab_emp$fator), function(d) max(d$xmax) - min(d$xmin))
+ordem_fatores <- names(sort(amplitude, decreasing = TRUE))
+tab_emp$y <- match(tab_emp$fator, rev(ordem_fatores))  # fator de maior impacto no topo
+
+## ---------------------------------------------------------------------
+## 4) Gráfico tornado
+## ---------------------------------------------------------------------
+
+niveis_unicos <- unique(tab_emp$nivel)
+cores <- setNames(grDevices::hcl.colors(length(niveis_unicos), palette = "Dynamic"), niveis_unicos)
+
+xlim_plot <- range(c(tab_emp$xmin, tab_emp$xmax, 0)) * 1.15
+altura_barra <- 0.32
+
+png(sprintf("tornado_sensibilidade_%s_dbsra.png", tolower(metrica)),  width = 32, height = 20,
+                                    res = 300,antialias = "cleartype", units = "cm")
+op <- par(mar = c(4.5, 13, 4.5, 12), xpd = FALSE, bty="l",cex.main=0.8)
+
+plot(NA, xlim = xlim_plot, ylim = c(0.5, length(ordem_fatores) + 0.5),
+     yaxt = "n", ylab = "", xlab = sprintf("Variação da mediana de %s em relação ao cenário Base (%%)", metrica),
+     main = "")
+mtext(sprintf("Gráfico tornado — sensibilidade da mediana de %s", metrica), side = 3, line = 2.3, cex = 1.15, font = 2, adj = 0)
+mtext(sprintf("Referência (cenário BASE: %s): mediana de %s = %.1f", id_base, metrica, valor_base),
+      side = 3, line = 0.8, cex = 0.85, adj = 0)
+
+abline(v = 0, col = "black", lwd = 1.4)
+abline(v = pretty(xlim_plot), col = "grey90", lty = 1)
+abline(v = 0, col = "black", lwd = 1.4)
+
+for (i in seq_len(nrow(tab_emp))) {
+  r <- tab_emp[i, ]
+  rect(r$xmin, r$y - altura_barra, r$xmax, r$y + altura_barra,
+       col = cores[r$nivel], border = "white")
+}
+
+axis(2, at = seq_along(ordem_fatores), labels = rev(ordem_fatores), las = 1, tick = FALSE, cex.axis = 0.85)
+
+legend(x = xlim_plot[2] * 1.1, y = length(ordem_fatores) + 0.5, xpd = NA,
+       legend = niveis_unicos, fill = cores[niveis_unicos], bty = "n", cex = 0.9,
+       title = "Nível testado", xjust = 0)
+
+par(op)
+dev.off()
+cat(sprintf("\nPNG salvo: tornado_sensibilidade_%s_dbsra.png\n", tolower(metrica)))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
