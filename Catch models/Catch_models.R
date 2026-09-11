@@ -1368,39 +1368,243 @@ print(idade_maturacao)
 #=====================
 #rodando o modelo
 #=====================
-resultados <- lapply(seq_len(nrow(cenarios_macarellus_dbsra)), function(i) {
-  cen <- cenarios_macarellus[i, ]
+resultados_dbsra <- lapply(seq_len(nrow(cenarios_macarellus_dbsra)), function(i) {
+  cen <- cenarios_macarellus_dbsra[i, ]
   dbsra(
-    year = ..., catch = ...,
-    agemat = ...,
-    k     = list(low = ..., up = ..., tol = 0.01, permax = 1000),   # busca aberta
-    b1k   = list(dist = "none", low = 0.01, up = 0.99, mean = 1, sd = 0.1),  # busca aberta (fixo em 1)
-    btk   = list(dist = "unif", low = cen$bk_lo, up = cen$bk_hi, refyr = 2015),
-    fmsym = list(dist = "lnorm", low = 0.1, up = 2, mean = -0.223, sd = 0.2), # busca aberta (default do pacote)
-    bmsyk = list(dist = "beta", low = 0.05, up = 0.95, mean = 0.30, sd = 0.07),
-    M     = list(dist = "lnorm", low = cen$M * 0.7, up = cen$M * 1.3,
-                 mean = log(cen$M), sd = 0.10),
-    nsims = 10000, grout = 1
+    year = ct$year, catch =ct$ct,
+    agemat = 2,
+    k     = list(low = 3000, up = 120000, tol = 0.01, permax = 1000),   # busca aberta
+    b1k   = list(dist = "unif", low = 0.8, up = 0.99, mean = 1, sd = 0.1),  
+    btk = list(dist = "unif", low = cen$bk_lo, up = cen$bk_hi, refyr = 2015),
+    fmsym = list(dist = "lnorm", low = 0.1, up = 2, mean = log(0.8), sd = 0.3),
+    bmsyk = list(dist = "beta", low = 0.05, up = 0.95, mean = 0.4, sd = 0.1),
+    M     = list(dist = "lnorm", low = cen$M* 0.7, up = cen$M * 1.3, mean = log(cen$M), sd = 0.10),
+    nsims = 10000, grout = 0
   )
 })
-names(resultados) <- cenarios_macarellus_dbsra$cenario_id
-
-resultados$Estimates   # quantis de MSY, Bmsy, Fmsy, Cmsy (OFL), K
-resultados$Parameters  # quantis dos parâmetros aceitos (M, Fmsy/M, Bmsy/k, Bt/k)
+names(resultados_dbsra) <- cenarios_macarellus_dbsra$cenario_id
 
 
 
-res<-dbsra(
-  year = ct$year, catch =ct$ct,
-  agemat = 2,
-  k     = list(low = 3000, up = 120000, tol = 0.01, permax = 1000),   # busca aberta
-  b1k   = list(dist = "unif", low = 0.8, up = 0.99, mean = 1, sd = 0.1),  # busca aberta (fixo em 1)
-  btk   = list(dist = "unif", low = 0.1, up = 0.4, refyr = 2015),
-  fmsym = list(dist = "lnorm", low = 0.1, up = 2, mean = log(0.8), sd = 0.2),
-  bmsyk = list(dist = "beta", low = 0.05, up = 0.95, mean = 0.40, sd = 0.09),
-  M     = list(dist = "lnorm", low = 0.4 * 0.7, up = 0.4 * 1.3, mean = log(0.4), sd = 0.10),
-  nsims = 1000, grout = 1
-)
+# =====================================================================
+# Pós-processamento dos 8 cenários de dbsra() -- D. macarellus
+# =====================================================================
+# Pré-requisitos no ambiente (já devem existir depois de rodar o lapply
+# e o cenarios_macarellus.R):
+#   resultados          - lista de objetos retornados por dbsra(), com
+#                          names(resultados) <- cenarios_macarellus$cenario_id
+#   cenarios_macarellus - data.frame com as 8 combinações hipótese bk x M
+#                          (colunas: cenario_id, hipotese, bk_lo, bk_hi, bk,
+#                           m_hipotese, m_fonte, M, ...)
+#
+# Gera:
+#   1) tabela_resumo_dbsra_macarellus.csv   -- resumo longo (1 linha por
+#      variável x cenário: média, mediana, IC 95%, % aceitação)
+#   2) tabela_aceitacao_dbsra_macarellus.csv -- 1 linha por cenário
+#   3) comparacao_cenarios_outputs.png       -- boxplots comparando OFL,
+#      K, MSY, Bmsy entre os 8 cenários
+#   4) comparacao_cenarios_parametros.png    -- boxplots comparando as
+#      posteriores de Fmsy/M, Bt/K, Bmsy/K e M entre os 8 cenários
+#   5) priori_posteriori_<cenario_id>.png    -- 1 arquivo por cenário
+#      (ou só para os cenários listados em `cenarios_para_detalhar`)
+# =====================================================================
+
+stopifnot(exists("resultados"), exists("cenarios_macarellus"))
+stopifnot(all(names(resultados) == cenarios_macarellus$cenario_id) ||
+            all(names(resultados) %in% cenarios_macarellus$cenario_id))
+
+## ---------------------------------------------------------------------
+## 1) TABELA RESUMO (longa) -- média, mediana, IC95%, por variável x cenário
+## ---------------------------------------------------------------------
+
+vars_saida <- c("K", "MSY", "Bmsy", "Fmsy", "Umsy", "OFLT1", "Brefyr",
+                "FmsyM", "BtK", "BmsyK", "M")
+
+resumir_cenario <- function(res, cenario_id) {
+  vals <- res$Values
+  acc  <- vals[vals$ll == 1, ]
+  n_tot <- nrow(vals)
+  n_acc <- nrow(acc)
+  
+  vars <- vars_saida[vars_saida %in% names(acc)]
+  
+  linhas <- lapply(vars, function(v) {
+    x <- acc[[v]]
+    data.frame(
+      cenario_id = cenario_id,
+      variavel   = v,
+      media      = mean(x),
+      mediana    = median(x),
+      p2.5       = as.numeric(quantile(x, 0.025)),
+      p97.5      = as.numeric(quantile(x, 0.975)),
+      stringsAsFactors = FALSE
+    )
+  })
+  out <- do.call(rbind, linhas)
+  out$n_total       <- n_tot
+  out$n_aceitos     <- n_acc
+  out$pct_aceitacao <- round(100 * n_acc / n_tot, 1)
+  out
+}
+
+tabela_resumo <- do.call(rbind, lapply(names(resultados_dbsra), function(id) {
+  resumir_cenario(resultados_dbsra[[id]], id)
+}))
+
+meta_cols <- intersect(c("cenario_id", "hipotese", "m_hipotese", "m_fonte", "bk_lo", "bk_hi"),
+                       names(cenarios_macarellus_dbsra))
+tabela_resumo <- merge(cenarios_macarellus_dbsra[, meta_cols], tabela_resumo, by = "cenario_id")
+
+# reordena para leitura mais fácil: hipótese de bk como bloco externo
+if (all(c("hipotese", "m_hipotese") %in% names(tabela_resumo))) {
+  tabela_resumo <- tabela_resumo[order(tabela_resumo$hipotese, tabela_resumo$m_hipotese,
+                                       tabela_resumo$variavel), ]
+}
+rownames(tabela_resumo) <- NULL
+
+cat("\n===== Tabela resumo (primeiras linhas) =====\n")
+print(head(tabela_resumo, 12))
+write.csv(tabela_resumo, "tabela_resumo_dbsra_macarellus.csv", row.names = FALSE)
+
+## ---------------------------------------------------------------------
+## 2) TABELA DE ACEITAÇÃO -- 1 linha por cenário
+## ---------------------------------------------------------------------
+
+tabela_aceitacao <- unique(tabela_resumo[, c("cenario_id", meta_cols[meta_cols != "cenario_id"],
+                                             "n_total", "n_aceitos", "pct_aceitacao")])
+rownames(tabela_aceitacao) <- NULL
+
+cat("\n===== Tabela de aceitacao por cenario =====\n")
+print(tabela_aceitacao)
+write.csv(tabela_aceitacao, "tabela_aceitacao_dbsra_macarellus.csv", row.names = FALSE)
+
+# aviso automático se algum cenário tiver aceitação muito baixa (< 5%) ou
+# muito alta (> 90%) -- ambos merecem checagem antes de confiar no resultado
+baixa <- tabela_aceitacao$cenario_id[tabela_aceitacao$pct_aceitacao < 5]
+alta  <- tabela_aceitacao$cenario_id[tabela_aceitacao$pct_aceitacao > 90]
+if (length(baixa) > 0) {
+  cat("\n[AVISO] Aceitacao muito baixa (<5%) -- resultado instavel / poucas draws aceitas:\n  ",
+      paste(baixa, collapse = ", "), "\n")
+}
+if (length(alta) > 0) {
+  cat("\n[AVISO] Aceitacao muito alta (>90%) -- confira se algum criterio (ex: permax)",
+      "esta afrouxado demais:\n  ", paste(alta, collapse = ", "), "\n")
+}
+
+## ---------------------------------------------------------------------
+## 3) COMPARACAO ENTRE CENARIOS -- variaveis de manejo (OFL, K, MSY, Bmsy)
+## ---------------------------------------------------------------------
+
+ordem_ids <- if (all(c("hipotese", "m_hipotese") %in% names(cenarios_macarellus))) {
+  cenarios_macarellus$cenario_id[order(cenarios_macarellus$hipotese, cenarios_macarellus$m_hipotese)]
+} else {
+  names(resultados)
+}
+
+extrair_aceitos <- function(id, var) {
+  acc <- resultados[[id]]$Values
+  acc <- acc[acc$ll == 1, ]
+  acc[[var]]
+}
+
+png("comparacao_cenarios_outputs.png", width = 1700, height = 1300, res = 150)
+op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1))
+for (v in c("OFLT1", "K", "MSY", "Bmsy")) {
+  if (!v %in% names(resultados[[1]]$Values)) next
+  lst <- lapply(ordem_ids, extrair_aceitos, var = v)
+  boxplot(lst, names = ordem_ids, las = 2, main = v, col = "#8FAADC",
+          cex.axis = 0.65, ylab = v)
+}
+par(op)
+dev.off()
+cat("\nPNG salvo: comparacao_cenarios_outputs.png\n")
+
+## ---------------------------------------------------------------------
+## 4) COMPARACAO ENTRE CENARIOS -- os 4 parametros estocasticos
+## ---------------------------------------------------------------------
+
+png("comparacao_cenarios_parametros.png", width = 1700, height = 1300, res = 150)
+op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1))
+for (v in c("FmsyM", "BtK", "BmsyK", "M")) {
+  if (!v %in% names(resultados[[1]]$Values)) next
+  lst <- lapply(ordem_ids, extrair_aceitos, var = v)
+  boxplot(lst, names = ordem_ids, las = 2, main = v, col = "#C9A227",
+          cex.axis = 0.65, ylab = v)
+}
+par(op)
+dev.off()
+cat("PNG salvo: comparacao_cenarios_parametros.png\n")
+
+## ---------------------------------------------------------------------
+## 5) PRIORI x POSTERIORI por cenario (generaliza o script anterior,
+##    usando os limites/medias especificos de cada cenario em vez de
+##    valores fixos)
+## ---------------------------------------------------------------------
+
+plot_prior_post <- function(prior_dens_fun, post_values, xlim, xlab, col_post, main) {
+  x <- seq(xlim[1], xlim[2], length.out = 500)
+  pd <- prior_dens_fun(x)
+  plot(x, pd / max(pd), type = "l", col = "grey45", lwd = 2, lty = 2,
+       xlab = xlab, ylab = "densidade (normalizada ao pico)", main = main,
+       ylim = c(0, 1.05))
+  pdens <- density(post_values, from = xlim[1], to = xlim[2])
+  lines(pdens$x, pdens$y / max(pdens$y), col = col_post, lwd = 2.5)
+  legend("topright", c("Priori (especificada)", "Posteriori (aceitos, ll=1)"),
+         col = c("grey45", col_post), lty = c(2, 1), lwd = 2, bty = "n", cex = 0.7)
+}
+
+gerar_priori_posteriori <- function(cenario_id, cen_row,
+                                    fmsym_mean = 0.8, fmsym_sd = 0.3,
+                                    bmsyk_mean = 0.35, bmsyk_sd = 0.1,
+                                    m_sd = 0.10) {
+  res <- resultados[[cenario_id]]
+  acc <- res$Values
+  acc <- acc[acc$ll == 1, ]
+  
+  png(sprintf("priori_posteriori_%s.png", cenario_id), width = 1400, height = 1000, res = 150)
+  op <- par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+  
+  plot_prior_post(function(x) dlnorm(x, meanlog = log(fmsym_mean), sdlog = fmsym_sd),
+                  acc$FmsyM, xlim = c(0.1, 2), xlab = "Fmsy/M",
+                  col_post = "#1F4E79", main = paste("Fmsy/M -", cenario_id))
+  
+  plot_prior_post(function(x) dunif(x, min = cen_row$bk_lo, max = cen_row$bk_hi),
+                  acc$BtK, xlim = c(max(0, cen_row$bk_lo - 0.05), min(1, cen_row$bk_hi + 0.05)),
+                  xlab = "Bt/K", col_post = "#C00000", main = paste("Bt/K -", cenario_id))
+  
+  m_alpha <- bmsyk_mean * ((bmsyk_mean * (1 - bmsyk_mean) / bmsyk_sd^2) - 1)
+  m_beta  <- (1 - bmsyk_mean) * ((bmsyk_mean * (1 - bmsyk_mean) / bmsyk_sd^2) - 1)
+  plot_prior_post(function(x) dbeta(x, m_alpha, m_beta),
+                  acc$BmsyK, xlim = c(0.05, 0.7), xlab = "Bmsy/K",
+                  col_post = "#548235", main = paste("Bmsy/K -", cenario_id))
+  
+  plot_prior_post(function(x) dlnorm(x, meanlog = log(cen_row$M), sdlog = m_sd),
+                  acc$M, xlim = c(cen_row$M * 0.6, cen_row$M * 1.4), xlab = "M",
+                  col_post = "#7030A0", main = paste("M -", cenario_id))
+  
+  par(op)
+  dev.off()
+  cat(sprintf("PNG salvo: priori_posteriori_%s.png  (aceitos: %d de %d, %.1f%%)\n",
+              cenario_id, nrow(acc), nrow(res$Values), 100 * nrow(acc) / nrow(res$Values)))
+}
+
+# Por padrao gera para todos os 8 cenarios. Se preferir só alguns
+# representativos, troque a linha abaixo por, por exemplo:
+#   cenarios_para_detalhar <- c("NN_CMSY_x_M_mais_confiavel", "Uninformative_x_M_segunda_confiavel")
+cenarios_para_detalhar <- cenarios_macarellus$cenario_id
+
+for (id in cenarios_para_detalhar) {
+  cen_row <- cenarios_macarellus[cenarios_macarellus$cenario_id == id, ]
+  gerar_priori_posteriori(id, cen_row)
+}
+
+cat("\nPos-processamento concluido.\n")
+
+
+
+
+
+
 
 
 
