@@ -1297,7 +1297,7 @@ print(bk_macarellus) #deplecoes já calculadas
 
 # ---- cenários de M, com autor/fonte (da tabela Confiabilidade_Fontes) ----
 m_macarellus <- data.frame(
-  m_hipotese = c("M_mais_confiavel", "M_segunda_confiavel"),
+  m_hipotese = c("M_Jardim(1996/1999)", "M_Santos(2018)"),
   m_fonte    = c("Jardim (1996/1999)", "Santos (2018)"),
   m_metodo   = c("Tanaka", "Tanaka"),
   M          = c(0.43, 0.60),
@@ -1317,7 +1317,7 @@ cenarios_macarellus_dbsra <- cbind(
 rownames(cenarios_macarellus_dbsra) <- NULL
 
 cenarios_macarellus_dbsra$cenario_id <- paste(cenarios_macarellus_dbsra$hipotese,
-                                        cenarios_macarellus_dbsra$m_hipotese, sep = "_x_")
+                                        cenarios_macarellus_dbsra$m_hipotese, sep = "_")
 
 # reordena pra ficar fácil de ler (hipótese de bk como bloco externo)
 cenarios_macarellus_dbsra <- cenarios_macarellus_dbsra[order(cenarios_macarellus_dbsra$hipotese,
@@ -1495,25 +1495,28 @@ if (length(alta) > 0) {
 ## 3) COMPARACAO ENTRE CENARIOS -- variaveis de manejo (OFL, K, MSY, Bmsy)
 ## ---------------------------------------------------------------------
 
-ordem_ids <- if (all(c("hipotese", "m_hipotese") %in% names(cenarios_macarellus))) {
-  cenarios_macarellus$cenario_id[order(cenarios_macarellus$hipotese, cenarios_macarellus$m_hipotese)]
+ordem_ids <- if (all(c("hipotese", "m_hipotese") %in% names(cenarios_macarellus_dbsra))) {
+  cenarios_macarellus_dbsra$cenario_id[order(cenarios_macarellus_dbsra$hipotese, cenarios_macarellus_dbsra$m_hipotese)]
 } else {
-  names(resultados)
+  names(resultados_dbsra)
 }
 
 extrair_aceitos <- function(id, var) {
-  acc <- resultados[[id]]$Values
+  acc <- resultados_dbsra[[id]]$Values
   acc <- acc[acc$ll == 1, ]
   acc[[var]]
 }
 
-png("comparacao_cenarios_outputs.png", width = 1700, height = 1300, res = 150)
-op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1))
+png("comparacao_cenarios_outputs.png", width = 28, height = 20,
+                                res = 300,antialias = "cleartype", units = "cm")
+op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1), bty="l",cex=0.8)
 for (v in c("OFLT1", "K", "MSY", "Bmsy")) {
-  if (!v %in% names(resultados[[1]]$Values)) next
+  if (!v %in% names(resultados_dbsra[[1]]$Values)) next
   lst <- lapply(ordem_ids, extrair_aceitos, var = v)
   boxplot(lst, names = ordem_ids, las = 2, main = v, col = "#8FAADC",
-          cex.axis = 0.65, ylab = v)
+          cex.axis = 0.65, ylab = v, lwd=1, bty="l", xaxt="n")
+  axis( 1,at = 1:length(ordem_ids),  labels = FALSE )
+  text(x = 1:length(ordem_ids), y = par("usr")[3],labels = ordem_ids, srt = 45,adj = 1,xpd = TRUE) 
 }
 par(op)
 dev.off()
@@ -1523,13 +1526,16 @@ cat("\nPNG salvo: comparacao_cenarios_outputs.png\n")
 ## 4) COMPARACAO ENTRE CENARIOS -- os 4 parametros estocasticos
 ## ---------------------------------------------------------------------
 
-png("comparacao_cenarios_parametros.png", width = 1700, height = 1300, res = 150)
-op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1))
+png("comparacao_cenarios_parametros.png", width = 28, height = 20,
+                          res = 300,antialias = "cleartype", units = "cm")
+op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1), bty="l",cex=0.8)
 for (v in c("FmsyM", "BtK", "BmsyK", "M")) {
-  if (!v %in% names(resultados[[1]]$Values)) next
+  if (!v %in% names(resultados_dbsra[[1]]$Values)) next
   lst <- lapply(ordem_ids, extrair_aceitos, var = v)
-  boxplot(lst, names = ordem_ids, las = 2, main = v, col = "#C9A227",
-          cex.axis = 0.65, ylab = v)
+  boxplot(lst, names = ordem_ids, las = 2, main = v, lwd=1,col = "#74C476" ,
+          cex.axis = 0.65, ylab = v, bty="l", xaxt="n")
+  axis( 1,at = 1:length(ordem_ids),  labels = FALSE )
+  text(x = 1:length(ordem_ids), y = par("usr")[3],labels = ordem_ids, srt = 45,adj = 1,xpd = TRUE) 
 }
 par(op)
 dev.off()
@@ -1544,25 +1550,26 @@ cat("PNG salvo: comparacao_cenarios_parametros.png\n")
 plot_prior_post <- function(prior_dens_fun, post_values, xlim, xlab, col_post, main) {
   x <- seq(xlim[1], xlim[2], length.out = 500)
   pd <- prior_dens_fun(x)
-  plot(x, pd / max(pd), type = "l", col = "grey45", lwd = 2, lty = 2,
+  plot(x, pd / max(pd), type = "l", col = "grey45", lwd = 3, lty = 2,
        xlab = xlab, ylab = "densidade (normalizada ao pico)", main = main,
-       ylim = c(0, 1.05))
+       ylim = c(0, 1.05),bty="l")
   pdens <- density(post_values, from = xlim[1], to = xlim[2])
   lines(pdens$x, pdens$y / max(pdens$y), col = col_post, lwd = 2.5)
   legend("topright", c("Priori (especificada)", "Posteriori (aceitos, ll=1)"),
-         col = c("grey45", col_post), lty = c(2, 1), lwd = 2, bty = "n", cex = 0.7)
+         col = c("grey45", col_post), lty = c(2, 1), lwd = 2, bty = "n", cex = 0.8)
 }
 
 gerar_priori_posteriori <- function(cenario_id, cen_row,
                                     fmsym_mean = 0.8, fmsym_sd = 0.3,
                                     bmsyk_mean = 0.35, bmsyk_sd = 0.1,
                                     m_sd = 0.10) {
-  res <- resultados[[cenario_id]]
+  res <- resultados_dbsra[[cenario_id]]
   acc <- res$Values
   acc <- acc[acc$ll == 1, ]
   
-  png(sprintf("priori_posteriori_%s.png", cenario_id), width = 1400, height = 1000, res = 150)
-  op <- par(mfrow = c(2, 2), mar = c(4, 4, 3, 1))
+  png(sprintf("priori_posteriori_%s.png", cenario_id), width = 28, height = 20, 
+                                      res = 300,antialias = "cleartype",units = "cm")
+  op <- par(mfrow = c(2, 2), mar = c(4, 4, 3, 1),cex.main=0.9)
   
   plot_prior_post(function(x) dlnorm(x, meanlog = log(fmsym_mean), sdlog = fmsym_sd),
                   acc$FmsyM, xlim = c(0.1, 2), xlab = "Fmsy/M",
@@ -1591,10 +1598,10 @@ gerar_priori_posteriori <- function(cenario_id, cen_row,
 # Por padrao gera para todos os 8 cenarios. Se preferir só alguns
 # representativos, troque a linha abaixo por, por exemplo:
 #   cenarios_para_detalhar <- c("NN_CMSY_x_M_mais_confiavel", "Uninformative_x_M_segunda_confiavel")
-cenarios_para_detalhar <- cenarios_macarellus$cenario_id
+cenarios_para_detalhar <- cenarios_macarellus_dbsra$cenario_id
 
 for (id in cenarios_para_detalhar) {
-  cen_row <- cenarios_macarellus[cenarios_macarellus$cenario_id == id, ]
+  cen_row <- cenarios_macarellus_dbsra[cenarios_macarellus_dbsra$cenario_id == id, ]
   gerar_priori_posteriori(id, cen_row)
 }
 
