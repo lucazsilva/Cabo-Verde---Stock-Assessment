@@ -1299,8 +1299,8 @@ print(bk_macarellus) #deplecoes já calculadas
 
 # ---- cenários de M, com autor/fonte (da tabela Confiabilidade_Fontes) ----
 m_macarellus <- data.frame(
-  m_hipotese = c("M_Jardim(1996/1999)", "M_Santos(2018)"),
-  m_fonte    = c("Jardim (1996/1999)", "Santos (2018)"),
+  m_hipotese = c("M_Jardim(1996-1999)", "M_Santos(2018)"),
+  m_fonte    = c("Jardim (1996-1999)", "Santos (2018)"),
   m_metodo   = c("Tanaka", "Tanaka"),
   M          = c(0.43, 0.60),
   stringsAsFactors = FALSE
@@ -1392,26 +1392,6 @@ names(resultados_dbsra) <- cenarios_macarellus_dbsra$cenario_id
 plan(sequential)  # libera os workers no final
 
 
-
-
-resultados_dbsra <- lapply(seq_len(nrow(cenarios_macarellus_dbsra)), function(i) {
-  cen <- cenarios_macarellus_dbsra[i, ]
-  dbsra(
-    year = ct$year, catch =ct$ct,
-    agemat = 2,
-    k     = list(low = 3000, up = 120000, tol = 0.01, permax = 1000),   # busca aberta
-    b1k   = list(dist = "unif", low = 0.8, up = 0.99, mean = 1, sd = 0.1),  
-    btk = list(dist = "unif", low = cen$bk_lo, up = cen$bk_hi, refyr = 2015),
-    fmsym = list(dist = "lnorm", low = 0.1, up = 2, mean = log(0.8), sd = 0.3),
-    bmsyk = list(dist = "beta", low = 0.05, up = 0.95, mean = 0.4, sd = 0.1),
-    M     = list(dist = "lnorm", low = cen$M* 0.7, up = cen$M * 1.3, mean = log(cen$M), sd = 0.10),
-    nsims = 10000, grout = 0
-  )
-})
-names(resultados_dbsra) <- cenarios_macarellus_dbsra$cenario_id
-
-
-
 # =====================================================================
 # Pós-processamento dos 8 cenários de dbsra() -- D. macarellus
 # =====================================================================
@@ -1435,9 +1415,9 @@ names(resultados_dbsra) <- cenarios_macarellus_dbsra$cenario_id
 #      (ou só para os cenários listados em `cenarios_para_detalhar`)
 # =====================================================================
 
-stopifnot(exists("resultados"), exists("cenarios_macarellus"))
-stopifnot(all(names(resultados) == cenarios_macarellus$cenario_id) ||
-            all(names(resultados) %in% cenarios_macarellus$cenario_id))
+stopifnot(exists("resultados_dbsra"), exists("cenarios_macarellus_dbsra"))
+stopifnot(all(names(resultados_dbsra) == cenarios_macarellus_dbsra$cenario_id) ||
+            all(names(resultados_dbsra) %in% cenarios_macarellus_dbsra$cenario_id))
 
 ## ---------------------------------------------------------------------
 ## 1) TABELA RESUMO (longa) -- média, mediana, IC95%, por variável x cenário
@@ -1542,7 +1522,8 @@ for (v in c("OFLT1", "K", "MSY", "Bmsy")) {
   boxplot(lst, names = ordem_ids, las = 2, main = v, col = "#8FAADC",
           cex.axis = 0.65, ylab = v, lwd=1, bty="l", xaxt="n")
   axis( 1,at = 1:length(ordem_ids),  labels = FALSE )
-  text(x = 1:length(ordem_ids), y = par("usr")[3],labels = ordem_ids, srt = 45,adj = 1,xpd = TRUE) 
+  text(x = 1:length(ordem_ids), y = par("usr")[3],
+       labels = ordem_ids, srt = 45,adj = 1,xpd = TRUE,cex=0.8) 
 }
 par(op)
 dev.off()
@@ -1561,7 +1542,8 @@ for (v in c("FmsyM", "BtK", "BmsyK", "M")) {
   boxplot(lst, names = ordem_ids, las = 2, main = v, lwd=1,col = "#74C476" ,
           cex.axis = 0.65, ylab = v, bty="l", xaxt="n")
   axis( 1,at = 1:length(ordem_ids),  labels = FALSE )
-  text(x = 1:length(ordem_ids), y = par("usr")[3],labels = ordem_ids, srt = 45,adj = 1,xpd = TRUE) 
+  text(x = 1:length(ordem_ids), y = par("usr")[3],labels = ordem_ids, 
+       srt = 45,adj = 1,xpd = TRUE,cex=0.8) 
 }
 par(op)
 dev.off()
@@ -2050,7 +2032,7 @@ metrica <- "MSY"   # troque para "OFLT1", "Bmsy", "Fmsy", "Umsy", "K", etc.
 # cenário BASE: a combinação de bk/M que vocês tratam como referência
 # (ex.: a hipótese de bk mais defensável e a fonte de M mais confiável)
 bk_base <- "Target_switch"
-m_base  <- "M_mais_confiavel"
+m_base  <- "M_Jardim(1996-1999)"
 
 ## ---------------------------------------------------------------------
 ## 1) Mediana da métrica escolhida, por cenário (só simulações aceitas)
@@ -2151,7 +2133,7 @@ altura_barra <- 0.32
 
 png(sprintf("tornado_sensibilidade_%s_dbsra.png", tolower(metrica)),  width = 32, height = 20,
                                     res = 300,antialias = "cleartype", units = "cm")
-op <- par(mar = c(4.5, 13, 4.5, 12), xpd = FALSE, bty="l",cex.main=0.8)
+op <- par(mar = c(4.5, 13, 4.5, 12), xpd = FALSE, bty="l",cex.main=0.6)
 
 plot(NA, xlim = xlim_plot, ylim = c(0.5, length(ordem_fatores) + 0.5),
      yaxt = "n", ylab = "", xlab = sprintf("Variação da mediana de %s em relação ao cenário Base (%%)", metrica),
@@ -2173,13 +2155,15 @@ for (i in seq_len(nrow(tab_emp))) {
 axis(2, at = seq_along(ordem_fatores), labels = rev(ordem_fatores), las = 1, tick = FALSE, cex.axis = 0.85)
 
 legend(x = xlim_plot[2] * 1.1, y = length(ordem_fatores) + 0.5, xpd = NA,
-       legend = niveis_unicos, fill = cores[niveis_unicos], bty = "n", cex = 0.9,
+       legend = niveis_unicos, fill = cores[niveis_unicos], bty = "n", cex = 0.95,
        title = "Nível testado", xjust = 0)
 
 par(op)
 dev.off()
 cat(sprintf("\nPNG salvo: tornado_sensibilidade_%s_dbsra.png\n", tolower(metrica)))
-
+#===========================================================================================================================#
+# -----------------------------------------------  Fim do DB-SRA -----------------------------------------------------------#                
+#===========================================================================================================================#
 
 
 
