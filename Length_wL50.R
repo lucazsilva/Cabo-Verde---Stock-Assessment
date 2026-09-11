@@ -13,6 +13,154 @@
 # com foco na identificacao de efeitos do desenho amostral sobre a estrutura de comprimentos#
 # Codificacao criada por Silva, LVS ; 09/09/2026, Instituto do Mar - IMar, Mindelo          #
 #-------------------------------------------------------------------------------------------#
+#-------------------------------------------------------------------------------------------#
+#   DIAGNOSTICO DE COMPOSICAO DE COMPRIMENTO — Decapterus macarellus, Cabo Verde            #
+#   Objetivo: identificar anos com amostragem fraca ou distribuicao de tamanho              #
+#   atipica antes de rodar o LBSPR (ex.: o que esta acontecendo com 1991?)                  #
+#-------------------------------------------------------------------------------------------#
+
+# ---- 1. Pacotes -------------------------------------------------------------
+required_pkgs <- c("readxl", "dplyr", "tidyr", "ggplot2")
+new_pkgs <- required_pkgs[!(required_pkgs %in% installed.packages()[, "Package"])]
+if (length(new_pkgs) > 0) install.packages(new_pkgs)
+invisible(lapply(required_pkgs, library, character.only = TRUE))
+
+# ---- 2. Arquivos / parametros ------------------------------------------------
+length_file <- "Base_Comprimentos_Combinada_1988_2024.xlsx"
+output_dir  <- "LBSPR_output"
+dir.create(output_dir, showWarnings = FALSE)
+
+ANO_MIN     <- 1988    # aqui deixamos a serie TODA por padrao, para diagnostico
+ANO_MAX     <- 2024
+sex_filter  <- "F"     # "ALL", "M" ou "F"
+MLS_cm      <- 20       # tamanho minimo legal de captura (furcal length)
+MIN_N_ANO   <- 150       # limiar de amostra minima considerada confiavel por ano
+
+# ---- 3. Dados -----------------------------------------------------------------
+raw_len <- read_excel(length_file)
+
+df <- raw_len %>%
+  filter(!is.na(`L(cm)`), `L(cm)` > 0, Ano >= ANO_MIN, Ano <= ANO_MAX)
+if (sex_filter != "ALL") df <- df %>% filter(Sexo == sex_filter)
+
+cat("Registos no diagnostico (", ANO_MIN, "-", ANO_MAX, ", sexo=", sex_filter, "): ",
+    nrow(df), "\n\n", sep = "")
+
+# =============================================================================
+# ---- 4. ESTATISTICAS POR ANO ------------------------------------------------
+# =============================================================================
+stats_por_ano <- df %>%
+  group_by(Ano) %>%
+  summarise(
+    n       = n(),
+    media   = mean(`L(cm)`),
+    mediana = median(`L(cm)`),
+    dp      = sd(`L(cm)`),
+    minimo  = min(`L(cm)`),
+    maximo  = max(`L(cm)`),
+    pct_abaixo_MLS = mean(`L(cm)` < MLS_cm) * 100,
+    .groups = "drop"
+  ) %>%
+  mutate(amostra_fraca = n < MIN_N_ANO) %>%
+  arrange(Ano)
+
+write.csv(stats_por_ano, file.path(output_dir, "diagnostico_composicao_por_ano.csv"), row.names = FALSE)
+cat("Estatisticas de comprimento por ano:\n")
+print(stats_por_ano, n = Inf)
+cat("\n")
+
+anos_fracos <- stats_por_ano %>% filter(amostra_fraca)
+if (nrow(anos_fracos) > 0) {
+  cat("\u26a0 Anos com amostra fraca (n <", MIN_N_ANO, "medicoes) — resultados do LBSPR\n")
+  cat("  para esses anos devem ser interpretados com cautela ou excluidos:\n")
+  print(anos_fracos %>% select(Ano, n))
+  cat("\n")
+} else {
+  cat("Nenhum ano abaixo do limiar de", MIN_N_ANO, "medicoes.\n\n")
+}
+
+# ---- 4a. Anos com media/mediana muito fora do padrao geral -------------------
+# (util para flagrar anos como 1991, que podem ter poucos peixes e/ou
+# composicao de tamanho pouco representativa)
+media_geral   <- mean(df$`L(cm)`)
+mediana_geral <- median(df$`L(cm)`)
+dp_geral      <- sd(df$`L(cm)`)
+
+anos_atipicos <- stats_por_ano %>%
+  filter(abs(media - media_geral) > 1.5 * dp_geral)
+
+if (nrow(anos_atipicos) > 0) {
+  cat("\u26a0 Anos com media de comprimento a mais de 1,5 desvio-padrao da media geral:\n")
+  print(anos_atipicos %>% select(Ano, n, media, mediana))
+  cat("(Media geral =", round(media_geral, 2), "| Mediana geral =", round(mediana_geral, 2),
+      "| DP geral =", round(dp_geral, 2), ")\n\n")
+}
+
+# =============================================================================
+# ---- 5. GRAFICO: COMPOSICAO DE COMPRIMENTO ANO A ANO -------------------------
+# Histograma por ano (facetado), com 3 linhas verticais:
+#   - media geral (azul, solida)
+#   - mediana geral (laranja, tracejada)
+#   - MLS = 20 cm (vermelha, tracejada)
+# =============================================================================
+linhas_ref <- tibble(
+  tipo  = c("Media geral", "Mediana geral", paste0("MLS (", MLS_cm, " cm)")),
+  valor = c(media_geral, mediana_geral, MLS_cm),
+  cor   = c("steelblue", "darkorange", "firebrick")
+)
+
+p_comp <- ggplot(df, aes(x = `L(cm)`)) +
+  geom_histogram(binwidth = 1, fill = "grey70", color = "white", linewidth = 0.1) +
+  geom_vline(data = linhas_ref, aes(xintercept = valor, color = tipo, linetype = tipo),
+             linewidth = 0.8, inherit.aes = FALSE) +
+  scale_color_manual(name = NULL, values = setNames(linhas_ref$cor, linhas_ref$tipo)) +
+  scale_linetype_manual(name = NULL, values = setNames(c("solid", "dashed", "dashed"), linhas_ref$tipo)) +
+  facet_wrap(~Ano, scales = "free_y") +
+  labs(title = "Composicao de comprimento por ano — Decapterus macarellus",
+       subtitle = paste0("Sexo = ", sex_filter, " | Media geral = ", round(media_geral, 1),
+                         " cm | Mediana geral = ", round(mediana_geral, 1),
+                         " cm | MLS = ", MLS_cm, " cm"),
+       x = "Comprimento (cm)", y = "N. de individuos") +
+  theme_minimal(base_size = 11) +
+  theme(legend.position = "bottom")
+
+ggsave(file.path(output_dir, "diagnostico_composicao_comprimento_por_ano.png"), p_comp,
+       width = 14, height = 10, dpi = 150)
+
+cat("Grafico salvo em:", file.path(output_dir, "diagnostico_composicao_comprimento_por_ano.png"), "\n")
+
+# =============================================================================
+# ---- 6. GRAFICO COMPLEMENTAR: BOXPLOT POR ANO (bom para ver outliers rapido) -
+# =============================================================================
+p_box <- ggplot(df, aes(x = factor(Ano), y = `L(cm)`)) +
+  geom_boxplot(outlier.size = 0.5, fill = "grey85") +
+  geom_hline(yintercept = media_geral, color = "steelblue", linewidth = 0.8) +
+  geom_hline(yintercept = mediana_geral, color = "darkorange", linetype = "dashed", linewidth = 0.8) +
+  geom_hline(yintercept = MLS_cm, color = "firebrick", linetype = "dashed", linewidth = 0.8) +
+  labs(title = "Distribuicao de comprimento por ano (boxplot)",
+       subtitle = "Azul = media geral | Laranja tracejado = mediana geral | Vermelho tracejado = MLS (20 cm)",
+       x = "Ano", y = "Comprimento (cm)") +
+  theme_minimal(base_size = 11) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1))
+
+ggsave(file.path(output_dir, "diagnostico_boxplot_comprimento_por_ano.png"), p_box,
+       width = 14, height = 6, dpi = 150)
+
+cat("Grafico salvo em:", file.path(output_dir, "diagnostico_boxplot_comprimento_por_ano.png"), "\n\n")
+
+
+# =============================================================================
+# NOTAS
+# -----------------------------------------------------------------------------
+# 1. Rode este script ANTES do LBSPR_stock_assessment.R para decidir se algum
+#    ano deve ser excluido (por amostra fraca) na Secao 3 do script principal.
+# 2. 'diagnostico_composicao_por_ano.csv' traz n, media, mediana, desvio-padrao,
+#    min, max e % de individuos abaixo do MLS por ano — confira especificamente
+#    a linha do ano suspeito (ex.: 1991) e compare com os anos vizinhos.
+# 3. Ajuste MIN_N_ANO e o multiplicador de desvio-padrao (Secao 4a) conforme o
+#    rigor que quiser aplicar na deteccao de anos problematicos.
+# =============================================================================
+
 # 0. PACOTES ------------------------------------------------------
 
 pacotes <- c(
