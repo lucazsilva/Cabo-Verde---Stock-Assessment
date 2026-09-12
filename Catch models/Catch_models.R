@@ -2469,23 +2469,6 @@ head(cinfo)
 # ***take all stocks****
 stks<- unique(cinfo$Stock)
 
-# stks <-  stks[grep("Uninformative \\(Wide priors\\)", stks)][1]
-# 
-#stks<-"seabob_S_Silva_projected_Forecast (Projected catches via neural network)_Euler-Lotka derived methods_Boosted Regression Tree- BRT"   
-
-#stks<- "seabob_S_Freire_projected_Forecast (Projected catches via neural network)_Euler-Lotka derived methods_Boosted Regression Tree- BRT"   
-
-
-#[1] "brown_N_Silva_reconstructed_Baseline (CMSY-default)_Resilience category (CMSY-default)_Neural network (CMSY-default)"               
-#[2] "brown_N_Silva_reconstructed_Informed (Biological + Statistical)_Euler-Lotka derived methods_Boosted Regression Tree- BRT"           
-#[3] "brown_N_Silva_reconstructed_Economic hypothesis (High B/k)_Euler-Lotka derived methods_relaxed high B/k prior"                      
-#[4] "brown_N_Silva_reconstructed_Literature hypothesis_Euler-Lotka derived methods_Literature informed B/k"                              
-#[5] "brown_N_Silva_reconstructed_Uninformative (Wide priors)_Uninformative (Wide priors)_Uninformative (Wide priors)"                    
-#[6] "brown_N_Silva_reconstructed_Uninformative (Fixed r / Flexible B/k)_Euler-Lotka derived methods_Uninformative (Wide B/k)"            
-#[7] "brown_N_Silva_reconstructed_Uninformative (Fixed B/k / Flexible r)_Uninformative (Wide r)_Boosted Regression Tree- BRT"             
-#[8] "brown_N_Silva_projected_Forecast (Projected catches via neural network)_Euler-Lotka derived methods_Boosted Regression Tree- BRT"   
-
-
 message("Stocks to be assessed:", "\n"); print(stks)
 
 for (stk in stks) { #loop through stock picking
@@ -5115,7 +5098,7 @@ for (stk in stks) { #loop through stock picking
   kobe_out= rbind(kobe_out, kobedat)
   
   
-}#*****end of stocks loop (Silva MLS)*****
+}#*******end of stocks loop (Silva MLS)*******
 
 
 #writing some results..
