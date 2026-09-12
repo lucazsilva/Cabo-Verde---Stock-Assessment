@@ -1265,13 +1265,13 @@ r_macarellus <- bind_rows(
       fonte     = "Independente",
       racional  = paste("Sem informação prévia: toda a faixa biologicamente",
                          "plausível de r entre 0 e 1.5 é considerada."),
-      r_lo = 0.01,
+      r_lo = 0.1,
       r_hi = 1.5,
       r    = NA_real_
     )
 ) %>%
   dplyr::mutate(across(c(r, r_lo, r_hi), \(x) round(x, 2))) %>%
-  rename(especie = specie)
+  dplyr::rename(especie = specie)
 
 
 # Salvar
@@ -5223,7 +5223,7 @@ scenarios_sumarized <- cmsy_out %>%
   arrange(stock, scenario)
 
 # Export
-write.csv(scenarios_sumarized, "scenarios_sumarized.csv", row.names = FALSE, na = "")
+write.csv(scenarios_sumarized, "scenarios_sumarized_macarellus_cmsy.csv", row.names = FALSE, na = "")
 
 
 # ====================================================
@@ -5231,16 +5231,7 @@ write.csv(scenarios_sumarized, "scenarios_sumarized.csv", row.names = FALSE, na 
 # Prior/posterior summary table by SCENARIO only
 # Robust summary using Median and IQR (Q25-Q75)
 # ====================================================
-order_scenarios <- c(
-  "Baseline (CMSY-default)",
-  "Informed (Biological + Statistical)",
-  "Economic hypothesis (High B/k)",
-  "Literature hypothesis",
-  "Uninformative (Wide priors)",
-  "Uninformative (Fixed r / Flexible B/k)",
-  "Uninformative (Fixed B/k / Flexible r)",
-  "Forecast (Projected catches via neural network)"
-)
+order_scenarios <- unique(cinfo$scenario)
 
 # --------------------------------------------
 # helper function:
@@ -5341,7 +5332,7 @@ print(scenarios_summarized_by_scenario)
 # --------------------------------------------
 write.csv(
   scenarios_summarized_by_scenario,
-  "scenarios_summarized_by_scenario.csv",
+  "scenarios_summarized_by_scenario_macarellus_cmsy.csv",
   row.names = FALSE,
   na = ""
 )
@@ -5372,11 +5363,8 @@ bio_out <- bio_out %>%
 # Outros = 2015
 # -------------------
 last_bbmsy_ffmsy <- bio_out %>%
-  filter(
-    (scenario == "Forecast (Projected catches via neural network)" & yr == 2025) |
-      (scenario != "Forecast (Projected catches via neural network)" & yr == 2015)
-  ) %>%
-  select(
+  dplyr::filter(yr==2015) %>%
+  dplyr::select(
     stock_id,
     stock_base,
     stock_group,
@@ -5450,7 +5438,7 @@ head(management_table)
 # export
 write.csv(
   management_table,
-  "management_table.csv",
+  "management_table_macarellus_cmsy.csv",
   row.names = FALSE,
   na = ""
 )
@@ -5521,12 +5509,7 @@ consistence_table <- management_table %>%
 head(consistence_table)
 
 # export
-write.csv(
-  consistence_table,
-  "consistence_table.csv",
-  row.names = FALSE,
-  na = ""
-)
+write.csv(consistence_table,"consistence_table_macarellus_cmsy.csv",row.names = FALSE,na = "")
 
 
 
@@ -5588,7 +5571,7 @@ p5 <- ggplot(prior_r,
 p5
 
 # saving...
-ggsave("Intrinsic_growth_rate_priors_all_scenarios.png", 
+ggsave("Intrinsic_growth_rate_priors_all_scenarios_macarellus_cmsy.png", 
        plot = p5, device = "png",  units = "cm", width = 22, height = 20)
 
 
@@ -5599,7 +5582,7 @@ ggsave("Intrinsic_growth_rate_priors_all_scenarios.png",
 library(dplyr)
 library(ggplot2)
 
-# resumindo Silva/Freire
+# resumindo 
 prior_bk <- cmsy_out %>%
   dplyr::group_by(category, region, scenario) %>%
   dplyr::summarise(
@@ -5615,13 +5598,7 @@ prior_bk <- cmsy_out %>%
 # ordem dos estoques
 prior_bk$stock <- factor(
   prior_bk$stock,
-  levels = c(
-    "brown_N","brown_NE",
-    "pink_S","pink_SE",
-    "seabob_N","seabob_NE","seabob_S","seabob_SE",
-    "white_N","white_NE","white_S","white_SE"
-  )
-)
+  levels = c("Decapterus macarellus_Cabo Verde"))
 
 # gráfico
 p7 <- ggplot(
@@ -5698,13 +5675,101 @@ p7 <- ggplot(
 
 p7
 # salvar
-ggsave("Bk_priors_by_region_all_scenarios.png", 
+ggsave("Bk_priors_by_region_all_scenarios_macarellus_cmsy.png", 
        plot = p7, device = "png",  units = "cm", width = 22, height = 20)
 
 
 #----------------------------------------------
 # Biomass series (B/Bmsy) for all scenarios.. 
 #----------------------------------------------
+stopifnot(exists("bio_out"), exists("cmsy_out"))
+stopifnot(all(c("scenario", "yr", "B.Bmsy", "lcl.B.Bmsy", "ucl.B.Bmsy") %in% names(bio_out)))
+stopifnot(all(c("scenario", "bmsy") %in% names(cmsy_out)))
+
+## ---------------------------------------------------------------------
+## 1) Bmsy pontual por cenário (de cmsy_out), casado por "scenario"
+## ---------------------------------------------------------------------
+
+bmsy_por_cenario <- setNames(cmsy_out$bmsy, cmsy_out$scenario)
+
+faltando <- setdiff(unique(bio_out$scenario), names(bmsy_por_cenario))
+if (length(faltando) > 0) {
+  warning("Cenarios em bio_out sem Bmsy correspondente em cmsy_out (nao vao entrar no painel 2): ",
+          paste(faltando, collapse = ", "))
+}
+
+## ---------------------------------------------------------------------
+## 2) Ordem e cores dos cenários (mesma lógica do script do DB-SRA)
+## ---------------------------------------------------------------------
+
+ordem_ids <- if (all(c("bk_method", "r_method") %in% names(bio_out))) {
+  meta <- unique(bio_out[, c("scenario", "bk_method", "r_method")])
+  meta$scenario[order(meta$bk_method, meta$r_method)]
+} else {
+  unique(bio_out$scenario)
+}
+ordem_ids <- intersect(ordem_ids, names(bmsy_por_cenario))  # só cenários com Bmsy conhecido
+
+cores <- setNames(grDevices::hcl.colors(length(ordem_ids), palette = "Dark 3"), ordem_ids)
+anos  <- sort(unique(bio_out$yr))
+
+## ---------------------------------------------------------------------
+## 3) Gráfico -- 2 painéis: B/Bmsy e biomassa absoluta
+## ---------------------------------------------------------------------
+
+png("trajetorias_biomassa_macarellus_cmsy.png", width = 32, height = 16,
+    res = 300, antialias = "cleartype", units = "cm")
+op <- par(mfrow = c(1, 2), mar = c(4.5, 4.5, 3, 1), xpd = FALSE, bty = "l", cex.main = 0.9)
+
+# ---- painel 1: B/Bmsy ----
+ylim1 <- c(0, max(bio_out$ucl.B.Bmsy, na.rm = TRUE) * 1.05)
+plot(NA, xlim = range(anos), ylim = ylim1,
+     xlab = "Ano", ylab = "Biomassa relativa (B/Bmsy)",
+     main = "Trajetorias de biomassa relativa -- B/Bmsy")
+for (id in ordem_ids) {
+  d <- bio_out[bio_out$scenario == id, ]
+  d <- d[order(d$yr), ]
+  polygon(c(d$yr, rev(d$yr)), c(d$lcl.B.Bmsy, rev(d$ucl.B.Bmsy)),
+          col = adjustcolor(cores[id], alpha.f = 0.12), border = NA)
+}
+for (id in ordem_ids) {
+  d <- bio_out[bio_out$scenario == id, ]
+  d <- d[order(d$yr), ]
+  lines(d$yr, d$B.Bmsy, col = cores[id], lwd = 3.2)
+}
+abline(h = 1, col = "firebrick", lty = 2)
+legend("topright", legend = ordem_ids, col = cores, lwd = 3.2, bty = "n", cex = 0.75)
+
+# ---- painel 2: biomassa absoluta (B/Bmsy * Bmsy pontual do cenário) ----
+biomassa_abs <- lapply(ordem_ids, function(id) {
+  d <- bio_out[bio_out$scenario == id, ]
+  d <- d[order(d$yr), ]
+  bm <- bmsy_por_cenario[[id]]
+  data.frame(yr = d$yr, B = d$B.Bmsy * bm, lcl = d$lcl.B.Bmsy * bm, ucl = d$ucl.B.Bmsy * bm)
+})
+names(biomassa_abs) <- ordem_ids
+
+todas_max <- max(sapply(biomassa_abs, function(d) max(d$ucl)))
+plot(NA, xlim = range(anos), ylim = c(0, todas_max * 1.05),
+     xlab = "Ano", ylab = "Biomassa (1000 t)",
+     main = "Trajetorias de biomassa absoluta -- (t)")
+for (id in ordem_ids) {
+  d <- biomassa_abs[[id]]
+  polygon(c(d$yr, rev(d$yr)), c(d$lcl, rev(d$ucl)),
+          col = adjustcolor(cores[id], alpha.f = 0.12), border = NA)
+}
+for (id in ordem_ids) {
+  d <- biomassa_abs[[id]]
+  lines(d$yr, d$B, col = cores[id], lwd = 3.2)
+}
+legend("topright", legend = ordem_ids, col = cores, lwd = 3.2, bty = "n", cex = 0.75)
+
+par(op)
+dev.off()
+cat("PNG salvo: trajetorias_biomassa_macarellus_cmsy.png\n")
+
+
+
 
 ## interquartile range across the two catch reconstructions
 ## The IQR below matches the Methods and produces much

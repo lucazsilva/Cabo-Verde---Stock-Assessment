@@ -1,0 +1,81 @@
+"stock","scenario","r_prior_post","k_prior_post","bk_prior_post","RU","VR"
+"Decapterus macarellus_Cabo Verde","NN_CMSY_Euler-lotka methods","0.26 (0.10-0.59)
+0.14 (0.10-0.23)","41 (12-103)
+51 (31-77)","0.20 (0.07-0.33)
+0.24 (0.11-0.40)","RU r = 0.463
+RU bk = -0.005",7.3
+"Decapterus macarellus_Cabo Verde","NN_CMSY_Higher resilience","0.50 (0.30-0.79)
+0.38 (0.28-0.54)","19 (8-38)
+20 (15-26)","0.20 (0.07-0.33)
+0.22 (0.09-0.36)","RU r = 0.254
+RU bk = -0.019",4.4
+"Decapterus macarellus_Cabo Verde","NN_CMSY_lower resilience","0.16 (0.05-0.39)
+0.08 (0.05-0.12)","72 (18-199)
+107 (61-163)","0.20 (0.07-0.33)
+0.27 (0.12-0.42)","RU r = 0.491
+RU bk = 0.042",10.4
+"Decapterus macarellus_Cabo Verde","NN_CMSY_Non-informative","0.48 (0.10-1.50)
+0.16 (0.10-0.24)","29 (5-96)
+48 (30-69)","0.20 (0.07-0.33)
+0.24 (0.11-0.39)","RU r = 0.641
+RU bk = 0.001",4.5
+"Decapterus macarellus_Cabo Verde","Target_switch_Euler-lotka methods","0.27 (0.10-0.59)
+0.15 (0.10-0.23)","40 (12-103)
+56 (35-82)","0.45 (0.20-0.70)
+0.48 (0.28-0.68)","RU r = 0.450
+RU bk = 0.229",37.3
+"Decapterus macarellus_Cabo Verde","Target_switch_Higher resilience","0.50 (0.30-0.79)
+0.40 (0.29-0.57)","19 (8-38)
+21 (15-28)","0.45 (0.20-0.70)
+0.48 (0.25-0.70)","RU r = 0.256
+RU bk = 0.153",29.6
+"Decapterus macarellus_Cabo Verde","Target_switch_lower resilience","0.16 (0.05-0.39)
+0.08 (0.05-0.13)","72 (19-197)
+112 (68-167)","0.45 (0.20-0.70)
+0.49 (0.29-0.70)","RU r = 0.457
+RU bk = 0.223",42.1
+"Decapterus macarellus_Cabo Verde","Target_switch_Non-informative","0.49 (0.10-1.50)
+0.17 (0.11-0.26)","29 (5-98)
+52 (32-74)","0.45 (0.20-0.70)
+0.51 (0.32-0.70)","RU r = 0.654
+RU bk = 0.243",23.8
+"Decapterus macarellus_Cabo Verde","Uninformative_Euler-lotka methods","0.27 (0.10-0.59)
+0.16 (0.10-0.26)","41 (12-103)
+56 (35-81)","0.50 (0.01-1.00)
+0.56 (0.27-0.83)","RU r = 0.418
+RU bk = 0.510",78.6
+"Decapterus macarellus_Cabo Verde","Uninformative_Higher resilience","0.50 (0.30-0.79)
+0.42 (0.30-0.58)","19 (8-38)
+21 (15-28)","0.51 (0.01-1.00)
+0.57 (0.31-0.81)","RU r = 0.284
+RU bk = 0.581",75.2
+"Decapterus macarellus_Cabo Verde","Uninformative_lower resilience","0.16 (0.05-0.39)
+0.08 (0.05-0.13)","75 (19-206)
+118 (74-174)","0.51 (0.01-1.00)
+0.59 (0.28-0.84)","RU r = 0.501
+RU bk = 0.528",78.3
+"Decapterus macarellus_Cabo Verde","Uninformative_Non-informative","0.49 (0.10-1.50)
+0.17 (0.10-0.30)","29 (5-95)
+51 (31-76)","0.50 (0.01-1.00)
+0.51 (0.13-0.86)","RU r = 0.533
+RU bk = 0.327",73.7
+"Decapterus macarellus_Cabo Verde","zBRT_Euler-lotka methods","0.27 (0.10-0.59)
+0.15 (0.10-0.22)","41 (12-104)
+55 (34-81)","0.37 (0.05-0.69)
+0.41 (0.21-0.65)","RU r = 0.472
+RU bk = 0.354",39.3
+"Decapterus macarellus_Cabo Verde","zBRT_Higher resilience","0.50 (0.30-0.79)
+0.40 (0.30-0.57)","19 (8-37)
+21 (15-27)","0.37 (0.05-0.69)
+0.46 (0.17-0.73)","RU r = 0.259
+RU bk = 0.209",30.8
+"Decapterus macarellus_Cabo Verde","zBRT_lower resilience","0.16 (0.05-0.39)
+0.08 (0.05-0.13)","72 (18-197)
+110 (68-163)","0.37 (0.05-0.69)
+0.48 (0.25-0.69)","RU r = 0.515
+RU bk = 0.402",44.2
+"Decapterus macarellus_Cabo Verde","zBRT_Non-informative","0.49 (0.10-1.50)
+0.16 (0.10-0.27)","28 (5-94)
+50 (30-73)","0.37 (0.05-0.69)
+0.45 (0.20-0.70)","RU r = 0.576
+RU bk = 0.272",25
