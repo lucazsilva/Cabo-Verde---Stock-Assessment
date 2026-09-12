@@ -5,5 +5,5 @@
 "zBRT_M_Santos(2018)","zBRT","M_Santos(2018)","Santos (2018)",0.05,0.69,10000,6518,65.2
 "Target_switch_M_Jardim(1996-1999)","Target_switch","M_Jardim(1996-1999)","Jardim (1996-1999)",0.2,0.7,10000,8530,85.3
 "Target_switch_M_Santos(2018)","Target_switch","M_Santos(2018)","Santos (2018)",0.2,0.7,10000,8130,81.3
-"Uninformative_M_Jardim(1996-1999)","Uninformative","M_Jardim(1996-1999)","Jardim (1996-1999)",0.01,1,10000,6284,62.8
-"Uninformative_M_Santos(2018)","Uninformative","M_Santos(2018)","Santos (2018)",0.01,1,10000,6138,61.4
+"Uninformative_bk_M_Jardim(1996-1999)","Uninformative_bk","M_Jardim(1996-1999)","Jardim (1996-1999)",0.01,1,10000,6284,62.8
+"Uninformative_bk_M_Santos(2018)","Uninformative_bk","M_Santos(2018)","Santos (2018)",0.01,1,10000,6138,61.4

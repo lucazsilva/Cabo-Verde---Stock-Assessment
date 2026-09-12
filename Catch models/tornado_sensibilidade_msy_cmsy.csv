@@ -1,0 +1,7 @@
+"fator","nivel","cenario_id","valor","delta_pct"
+"Método de r (resiliência)","lower resilience","Target_switch_lower resilience",2.14987910035944,9.30587300763271
+"Método de r (resiliência)","Higher resilience","Target_switch_Higher resilience",2.0442744287497,3.93663581561682
+"Método de r (resiliência)","Non-informative_r","Target_switch_Non-informative_r",1.98602286465991,0.974963196059319
+"Método Bt/K (depleção)","NN_CMSY","NN_CMSY_Euler-lotka methods",1.73064737836804,-12.0090415645873
+"Método Bt/K (depleção)","zBRT","zBRT_Euler-lotka methods",1.89102013386056,-3.85524164029496
+"Método Bt/K (depleção)","Uninformative_bk","Uninformative_bk_Euler-lotka methods",2.07157014813312,5.32442661561009

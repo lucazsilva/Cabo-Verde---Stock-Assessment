@@ -897,7 +897,7 @@ run_depletion_hypotheses <- function(
       
       ano = yr_target,
       
-      hipotese = "Uninformative",
+      hipotese = "Uninformative_bk",
       
       metodo = "Priori de depleção não informativa",
       
@@ -938,7 +938,7 @@ run_depletion_hypotheses <- function(
           "NN_CMSY",
           "zBRT",
           "Target_switch",
-          "Uninformative"
+          "Uninformative_bk"
         )
       )
     ) %>%
@@ -1260,7 +1260,7 @@ r_macarellus <- bind_rows(
     transmute(
       specie,
       ano       = "1989-2015",
-      hipotese = "Non-informative",
+      hipotese = "Non-informative_r",
       metodo     = "Priori não informativa",
       fonte     = "Independente",
       racional  = paste("Sem informação prévia: toda a faixa biologicamente",
@@ -2435,7 +2435,8 @@ bio_out<-data.frame(
 rk_out<- data.frame(
   stock_id= NULL,stock_base=NULL,category=NULL, region= NULL,source=NULL,
   name= NULL, type_data= NULL, scenario= NULL, r_method=NULL, bk_method= NULL,
-  priorr=NULL,priork=NULL,postr=NULL,postk=NULL)
+  priorr=NULL,priork=NULL,postr=NULL,postk=NULL,priormsy=NULL,postmsy=NULL,
+  priorintbk=NULL,postintbk=NULL,priorfinalbk=NULL,postfinalbk=NULL)
 
 cmsy_out <- data.frame(
   stock_id= NULL,stock_base=NULL,category=NULL, region= NULL,source=NULL,
@@ -4048,8 +4049,8 @@ for (stk in stks) { #loop through stock picking
         
         # MSY
         pp.lab = "MSY (1000 tonnes/year)"
-        rpr = sort(rk[,1]*rk[,2]/4)
-        post = rs*ks/4
+        rpr = sort(rk[,1]*rk[,2]/4);msy_prior<- sample(rpr,6000,replace = T) 
+        post = rs*ks/4;             msy_post<- sample(post,6000,replace = T) 
         prior <-dlnorm(sort(rpr),meanlog = mean(log(rpr)), sdlog = sd(log(rpr))) #><>HW now pdf
         prand <- rlnorm(2000,meanlog = mean(log(rpr)), sdlog = sd(log(rpr)))
         # generic ><>HW streamlined GP to check
@@ -4089,8 +4090,8 @@ for (stk in stks) { #loop through stock picking
         
         # bk2
         pp.lab=paste0("B/k ", int.yr)
-        post = all.bk.cmsy[,which(int.yr==yr)]
-        rpr = seq(0.5*intbio[1],intbio[2]*1.5,0.005)
+        post = all.bk.cmsy[,which(int.yr==yr)];bk_int_post<-sample(post,6000,replace = T)
+        rpr = seq(0.5*intbio[1],intbio[2]*1.5,0.005);bk_int_prior<-sample(rpr,6000,replace = T)
         pdf = stats::density(post,adjust=2)
         prand <- sort(rbeta(2000,bk.beta[1,2], bk.beta[2,2]))
         prior <-dbeta(sort(prand),bk.beta[1,2], bk.beta[2,2]) #><>HW now pdf
@@ -4107,8 +4108,8 @@ for (stk in stks) { #loop through stock picking
         
         # bk3
         pp.lab=paste0("B/k ",yr[length(yr)])
-        post = all.bk.cmsy[,length(yr)]
-        rpr = seq(0.5*endbio[1],endbio[2]*1.5,0.005)
+        post = all.bk.cmsy[,length(yr)]; bk_final_post<- sample(post,6000,replace = T)
+        rpr = seq(0.5*endbio[1],endbio[2]*1.5,0.005); bk_final_prior<-sample(rpr,6000,replace = T)
         pdf = stats::density(post,adjust=2)
         prand <- sort(rbeta(2000,bk.beta[1,3], bk.beta[2,3]))
         prior <-dbeta(sort(prand),bk.beta[1,3], bk.beta[2,3]) #><>HW now pdf
@@ -4891,23 +4892,32 @@ for (stk in stks) { #loop through stock picking
   #----------------------------------------------------------------
   
   #-----------------------------------------------
-  # Priors for r and k
+  # Priors for r and k, B/k, BMSY, MSY
   #-----------------------------------------------
   rk <- exp(mvn(n = length(rs),
                 mean.log.r = mean.log.r,
                 sd.log.r = sd.log.r,
                 mean.log.k = mean.log.k,
                 sd.log.k = sd.log.k))
-  
+  #prior-posterior r & k
   priorr <- rk[, 1]
   priork <- rk[, 2]
   postr  <- rs
   postk  <- ks
+  #prior-posterior MSY
+  priormsy<- msy_prior
+  postmsy <-msy_post
+  #prior-posterior b/k
+  priorintbk<-bk_int_prior
+  postintbk<- bk_int_post
+  priorfinalbk<-bk_final_prior
+  postfinalbk <- bk_final_post
   
   rk_dat<- data.frame(
     stock_id= stock_id,stock_base=stock_base,category=category, region= region,source=source,
     name= name, type_data= type_data, scenario= scenario, r_method=r_method, bk_method= bk_method,
-    priorr=priorr,priork=priork,postr=postr,postk=postk)
+    priorr=priorr,priork=priork,postr=postr,postk=postk,priormsy=priormsy,postmsy=postmsy,
+    priorintbk=priorintbk,postintbk=postintbk,priorfinalbk=priorfinalbk,postfinalbk=postfinalbk)
   rk_out= rbind(rk_out,rk_dat)
   
   #-----------------------------------------------
@@ -5150,6 +5160,8 @@ cmsy_out<-read.csv("cmsy_out_macarellus_cmsy.csv",dec=".",sep=",")
 kobe_out<-read.csv("kobe_out_macarellus_cmsy.csv",dec=".",sep=",")
 ct_out<- read.csv("cdat_macarellus_cmsy.csv",dec=".",sep=",")
 cinfo<- read.csv("cinfo_macarellus_cmsy.csv",dec=".",sep=",")
+### lendo os dados de capturas novamente... ###
+ct<- read.csv("Catch_Luz and Vieira.csv",sep = ",",dec = ".")
 
 
 # ====================================================
@@ -5679,6 +5691,300 @@ ggsave("Bk_priors_by_region_all_scenarios_macarellus_cmsy.png",
        plot = p7, device = "png",  units = "cm", width = 22, height = 20)
 
 
+
+# =====================================================================
+# Comparacao entre cenarios (CMSY++) -- posteriores de r, k, MSY e Bt/K
+# do ultimo ano, em boxplots separados por cenario
+# =====================================================================
+stopifnot(exists("rk_out"))
+stopifnot(all(c("scenario", "bk_method", "r_method",
+                "postr", "postk", "postmsy", "postfinalbk") %in% names(rk_out)))
+
+## ---------------------------------------------------------------------
+## Ordem dos cenarios (mesma logica dos outros scripts: bk_method depois
+## r_method)
+## ---------------------------------------------------------------------
+
+ordem_ids <- {
+  meta <- unique(rk_out[, c("scenario", "bk_method", "r_method")])
+  meta$scenario[order(meta$bk_method, meta$r_method)]
+}
+
+extrair <- function(id, var) {
+  rk_out[[var]][rk_out$scenario == id]
+}
+
+## ---------------------------------------------------------------------
+## Grade 2x2 -- r, k, MSY, Bt/K (ultimo ano)
+## ---------------------------------------------------------------------
+
+vars <- c(postr = "r", postk = "k", postmsy = "MSY", postfinalbk = "Bt/K (ultimo ano)")
+
+png("comparacao_cenarios_cmsy.png", width = 28, height = 20,
+    res = 300, antialias = "cleartype", units = "cm")
+op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1), bty = "l", cex = 0.8, cex.main = 0.9)
+
+for (v in names(vars)) {
+  lst <- lapply(ordem_ids, extrair, var = v)
+  boxplot(lst, names = ordem_ids, main = vars[[v]], col = "#8FAADC",
+          cex.axis = 0.65, ylab = vars[[v]], lwd = 1, bty = "l", xaxt = "n")
+  axis(1, at = seq_along(ordem_ids), labels = FALSE)
+  text(x = seq_along(ordem_ids), y = par("usr")[3],
+       labels = ordem_ids, srt = 45, adj = 1, xpd = TRUE, cex = 0.8)
+}
+
+par(op)
+dev.off()
+cat("PNG salvo: comparacao_cenarios_cmsy.png\n")
+
+
+
+# =====================================================================
+# Priori x Posteriori por cenario -- CMSY++ (r, k, MSY, Bt/K do ultimo ano)
+# =====================================================================
+
+stopifnot(exists("rk_out"))
+stopifnot(all(c("scenario", "priorr", "postr", "priork", "postk",
+                "priormsy", "postmsy", "priorfinalbk", "postfinalbk") %in% names(rk_out)))
+
+## ---------------------------------------------------------------------
+## nome de arquivo seguro (evita barras, parenteses etc. no nome do PNG)
+## ---------------------------------------------------------------------
+arquivo_seguro <- function(x) {
+  x <- gsub("[/\\\\]", "-", x)
+  x <- gsub("[()]", "", x)
+  x <- gsub("[^A-Za-z0-9_.-]", "_", x)
+  x
+}
+
+## ---------------------------------------------------------------------
+## Sobrepõe densidade da priori (amostrada) e da posteriori
+## ---------------------------------------------------------------------
+plot_prior_post_emp <- function(prior_values, post_values, xlab, col_post, main) {
+  vals <- c(prior_values, post_values)
+  vals <- vals[is.finite(vals)]
+  pad <- diff(range(vals)) * 0.05
+  xlim <- range(vals) + c(-pad, pad)
+  
+  pd    <- density(prior_values, from = xlim[1], to = xlim[2], na.rm = TRUE)
+  pdens <- density(post_values,  from = xlim[1], to = xlim[2], na.rm = TRUE)
+  
+  plot(pd$x, pd$y / max(pd$y), type = "l", col = "grey45", lwd = 3, lty = 2,
+       xlab = xlab, ylab = "densidade (normalizada ao pico)", main = main,
+       ylim = c(0, 1.05), bty = "l")
+  lines(pdens$x, pdens$y / max(pdens$y), col = col_post, lwd = 2.5)
+  legend("topright", c("Priori (amostrada)", "Posteriori"),
+         col = c("grey45", col_post), lty = c(2, 1), lwd = 2, bty = "n", cex = 0.8)
+}
+
+## ---------------------------------------------------------------------
+## Gera o painel 2x2 pra 1 cenario
+## ---------------------------------------------------------------------
+gerar_priori_posteriori_cmsy <- function(cenario_id) {
+  d <- rk_out[rk_out$scenario == cenario_id, ]
+  
+  nome_arquivo <- arquivo_seguro(cenario_id)
+  png(sprintf("priori_posteriori_cmsy_%s.png", nome_arquivo), width = 28, height = 20,
+      res = 300, antialias = "cleartype", units = "cm")
+  op <- par(mfrow = c(2, 2), mar = c(4, 4, 3, 1), cex.main = 0.9)
+  
+  plot_prior_post_emp(d$priorr, d$postr, xlab = "r",
+                      col_post = "#1F4E79", main = paste("r -", cenario_id))
+  
+  plot_prior_post_emp(d$priork, d$postk, xlab = "k",
+                      col_post = "#C00000", main = paste("k -", cenario_id))
+  
+  plot_prior_post_emp(d$priormsy, d$postmsy, xlab = "MSY",
+                      col_post = "#548235", main = paste("MSY -", cenario_id))
+  
+  plot_prior_post_emp(d$priorfinalbk, d$postfinalbk, xlab = "Bt/K (ultimo ano)",
+                      col_post = "#7030A0", main = paste("Bt/K final -", cenario_id))
+  
+  par(op)
+  dev.off()
+  cat(sprintf("PNG salvo: priori_posteriori_cmsy_%s.png  (n = %d)\n", nome_arquivo, nrow(d)))
+}
+
+## ---------------------------------------------------------------------
+## Roda pra todos os cenarios (ou troque pelos que quiser detalhar)
+## ---------------------------------------------------------------------
+cenarios_para_detalhar <- unique(rk_out$scenario)
+
+for (id in cenarios_para_detalhar) {
+  gerar_priori_posteriori_cmsy(id)
+}
+
+cat("\nPriori x posteriori (CMSY++) concluido.\n")
+
+
+# =====================================================================
+# Densidade conjunta do MSY -- todos os cenários do CMSY++ combinados
+# num só pool
+# =====================================================================
+
+stopifnot(exists("rk_out"))
+stopifnot(all(c("scenario", "postmsy") %in% names(rk_out)))
+
+## ---------------------------------------------------------------------
+## 1) Pool único com o MSY de todas as simulações, de todos os cenários
+##    (ignora de qual cenário veio -- é a distribuição conjunta)
+## ---------------------------------------------------------------------
+
+msy_todos <- rk_out$postmsy*1000
+msy_todos <- msy_todos[is.finite(msy_todos) & msy_todos > 0]
+
+cat(sprintf("MSY combinado: %d simulacoes, de %d cenarios.\n",
+            length(msy_todos), length(unique(rk_out$scenario))))
+
+## ---------------------------------------------------------------------
+## 2) Quantis de incerteza
+## ---------------------------------------------------------------------
+
+probs <- c(0.025, 0.25, 0.50, 0.75, 0.975)
+q <- quantile(msy_todos, probs)
+
+quantis_msy <- data.frame(
+  quantil = c("2.5%", "25%", "mediana (50%)", "75%", "97.5%"),
+  MSY     = as.numeric(q)
+)
+cat("\n===== Quantis do MSY (pool conjunto, CMSY++) =====\n")
+print(quantis_msy)
+write.csv(quantis_msy, "quantis_msy_conjunto_cmsy.csv", row.names = FALSE)
+cat("CSV salvo: quantis_msy_conjunto_cmsy.csv\n")
+
+## ---------------------------------------------------------------------
+## 3) Gráfico de densidade, com a faixa de 95% sombreada e os quantis
+##    marcados por linhas verticais
+## ---------------------------------------------------------------------
+# Mesma lógica do script do DB-SRA: um pool que mistura cenários bem
+# restritos (posterior estreita) com cenários pouco informativos (ex.:
+# Uninformative, com bk quase livre) produz uma mistura de escalas muito
+# diferentes -- uma densidade "ingênua" (escala linear, bw padrão) sai
+# com cara de agulha. Por isso:
+#  a) suavização um pouco mais larga (adjust > 1)
+#  b) densidade calculada em log10(MSY) e transformada de volta pra
+#     escala de MSY (mudança de variável: f_X(x) = f_U(u)/(x*ln10), com
+#     u=log10(x)) -- estatisticamente correto pra uma quantidade
+#     estritamente positiva e assimétrica num eixo log.
+suavizacao <- 2
+
+dl <- density(log10(msy_todos), adjust = suavizacao)
+x_msy <- 10^dl$x
+y_msy <- dl$y / (x_msy * log(10))
+
+marcas_x <- pretty(log10(msy_todos), n = 8)
+marcas_x <- marcas_x[10^marcas_x >= min(x_msy) & 10^marcas_x <= max(x_msy)]
+
+png("msy_densidade_conjunta_cmsy.png", width = 25, height = 16,
+    res = 300, antialias = "cleartype", units = "cm")
+op <- par(mar = c(4.5, 5, 3, 1), bty = "l", cex.main = 0.9)
+
+plot(x_msy, y_msy, type = "l", log = "x",
+     main = "Distribuição conjunta de MSY -- todos os cenários (CMSY++)",
+     xlab = "MSY (t)", ylab = "Densidade", col = "#1F4E79", lwd = 2.4,
+     xaxt = "n")
+axis(1, at = 10^marcas_x, labels = format(round(10^marcas_x), big.mark = ".", decimal.mark = ",", scientific = FALSE))
+
+faixa <- x_msy >= q["2.5%"] & x_msy <= q["97.5%"]
+polygon(c(x_msy[faixa], rev(x_msy[faixa])), c(y_msy[faixa], rep(0, sum(faixa))),
+        col = adjustcolor("#1F4E79", alpha.f = 0.18), border = NA)
+
+lines(x_msy, y_msy, col = "#1F4E79", lwd = 2.4)
+
+cores_q <- c("2.5%" = "#C00000", "25%" = "#7F7F7F", "mediana (50%)" = "#1F4E79",
+             "75%" = "#7F7F7F", "97.5%" = "#C00000")
+lty_q   <- c("2.5%" = 2, "25%" = 3, "mediana (50%)" = 1, "75%" = 3, "97.5%" = 2)
+for (nm in names(q)) {
+  key <- if (nm == "50%") "mediana (50%)" else nm
+  abline(v = q[nm], col = cores_q[key], lty = lty_q[key], lwd = 1.8)
+}
+
+y_lab <- max(y_msy) * 0.05
+text(q["2.5%"],  y_lab, sprintf("2,5%%\n%.0f", q["2.5%"]),  col = "#C00000", cex = 0.68, pos = 2, offset = 0.3)
+text(q["97.5%"], y_lab, sprintf("97,5%%\n%.0f", q["97.5%"]), col = "#C00000", cex = 0.68, pos = 4, offset = 0.3)
+text(q["50%"], max(y_msy) * 0.97, sprintf("mediana: %.0f t", q["50%"]),
+     col = "#1F4E79", cex = 0.78, pos = 4, offset = 0.3, font = 2)
+
+legend("topright", legend = c("Densidade conjunta do MSY", "Faixa de 95% (IC)", "Mediana"),
+       col = c("#1F4E79", adjustcolor("#1F4E79", alpha.f = 0.4), "#1F4E79"),
+       lwd = c(2.4, 8, 1.8), lty = c(1, 1, 1), bty = "n", cex = 0.75)
+
+par(op)
+dev.off()
+cat("\nPNG salvo: msy_densidade_conjunta_cmsy.png\n")
+
+
+# =====================================================================
+# Posteriores de MSY por cenário (CMSY++), reunidas num data.frame e
+# plotadas junto com a série histórica de captura, num painel só.
+# =====================================================================
+stopifnot(exists("rk_out"), exists("ct"))
+stopifnot(all(c("scenario", "postmsy") %in% names(rk_out)))
+
+msy_posteriores <- do.call(rbind, lapply(unique(rk_out$scenario), function(id) {
+  data.frame(cenario_id = id, MSY = rk_out$postmsy[rk_out$scenario == id]*1000, stringsAsFactors = FALSE)
+}))
+
+meta_cols <- intersect(c("scenario", "bk_method", "r_method"), names(rk_out))
+if (length(meta_cols) > 1) {
+  meta <- unique(rk_out[, meta_cols])
+  names(meta)[names(meta) == "scenario"] <- "cenario_id"
+  msy_posteriores <- merge(meta, msy_posteriores, by = "cenario_id")
+}
+write.csv(msy_posteriores, "msy_posteriores_cenarios_cmsy.csv", row.names = FALSE)
+
+msy_resumo <- do.call(rbind, lapply(split(msy_posteriores, msy_posteriores$cenario_id), function(d) {
+  data.frame(cenario_id = d$cenario_id[1], mediana = median(d$MSY),
+             p2.5 = as.numeric(quantile(d$MSY, 0.025)), p97.5 = as.numeric(quantile(d$MSY, 0.975)),
+             n_simulacoes = nrow(d))
+}))
+if (length(meta_cols) > 1) {
+  msy_resumo <- merge(meta, msy_resumo, by = "cenario_id")
+}
+rownames(msy_resumo) <- NULL
+write.csv(msy_resumo, "msy_resumo_cenarios_cmsy.csv", row.names = FALSE)
+
+ordem_ids <- if (all(c("bk_method", "r_method") %in% names(msy_resumo))) {
+  msy_resumo$cenario_id[order(msy_resumo$bk_method, msy_resumo$r_method)]
+} else {
+  msy_resumo$cenario_id
+}
+cores <- setNames(grDevices::hcl.colors(length(ordem_ids), palette = "Dark 3"), ordem_ids)
+
+anos    <- ct$Year
+catches <- ct$Catch
+xlim_plot <- c(min(anos), max(anos) + diff(range(anos)) * 0.45)
+ylim_max  <- max(catches, msy_resumo$p97.5) * 1.08
+
+png("msy_posteriores_serie_captura_cmsy.png",  width = 25, height = 16,
+    res = 300,antialias = "cleartype", units = "cm")
+op <- par(mar = c(4.5, 5, 3, 1),bty="l",cex.main=0.7)
+
+plot(NA, xlim = xlim_plot, ylim = c(0, ylim_max),
+     xlab = "Ano", ylab = "Captura (t)",
+     main = "Série de captura e posteriores de MSY por cenário (CMSY++)")
+
+x0 <- min(anos); x1 <- max(anos)
+for (id in ordem_ids) {
+  r <- msy_resumo[msy_resumo$cenario_id == id, ]
+  rect(x0, r$p2.5, x1, r$p97.5, col = adjustcolor(cores[id], alpha.f = 0.14), border = NA)
+}
+for (id in ordem_ids) {
+  r <- msy_resumo[msy_resumo$cenario_id == id, ]
+  segments(x0, r$mediana, x1, r$mediana, col = cores[id], lwd = 2.4)
+}
+lines(anos, catches, type = "o", col = "grey25", pch = 16, cex = 0.8, lwd = 2)
+
+legend("topright", inset = c(0, 0), xpd = NA,
+       legend = ordem_ids, col = cores, lwd = 2.4, bty = "n", cex = 0.8,
+       title = "MSY (mediana, faixa = IC 95%)", title.cex = 0.66)
+legend("topleft", legend = "Captura observada", col = "grey25", lwd = 2.4, pch = 16,
+       pt.cex = 0.8, bty = "n", cex = 0.8)
+par(op)
+dev.off()
+cat("PNG salvo: msy_posteriores_serie_captura_cmsy.png\n")
+
+
 #----------------------------------------------
 # Biomass series (B/Bmsy) for all scenarios.. 
 #----------------------------------------------
@@ -5767,6 +6073,189 @@ legend("topright", legend = ordem_ids, col = cores, lwd = 3.2, bty = "n", cex = 
 par(op)
 dev.off()
 cat("PNG salvo: trajetorias_biomassa_macarellus_cmsy.png\n")
+
+
+# =====================================================================
+# Gráfico tornado -- sensibilidade de uma quantidade de manejo do
+# CMSY++ aos dois eixos de cenário testados: método de r (crescimento)
+# e método de bk (hipótese de depleção).
+# =====================================================================
+
+stopifnot(exists("rk_out"))
+stopifnot(all(c("scenario", "bk_method", "r_method") %in% names(rk_out)))
+
+## ---------------------------------------------------------------------
+## 0) CONFIGURAÇÃO -- ajuste aqui
+## ---------------------------------------------------------------------
+
+metrica      <- "postmsy"   # coluna de rk_out (postmsy, postr, postk, postfinalbk, ...)
+metrica_nome <- "MSY"       # rótulo pro eixo/título/nome de arquivo
+
+# cenário BASE: a combinação de bk/r que vocês tratam como referência
+bk_base <- "Target_switch"
+r_base  <- "Euler-lotka methods"
+
+stopifnot(metrica %in% names(rk_out))
+
+## ---------------------------------------------------------------------
+## 1) Mediana da métrica escolhida, por cenário (todas as linhas de
+##    rk_out já são posteriores viáveis -- não há coluna de aceite tipo
+##    "ll" como no dbsra(), então aqui não se filtra nada)
+## ---------------------------------------------------------------------
+
+cenarios_rk <- unique(rk_out[, c("scenario", "bk_method", "r_method")])
+
+medianas <- sapply(cenarios_rk$scenario, function(id) {
+  median(rk_out[[metrica]][rk_out$scenario == id])
+})
+names(medianas) <- cenarios_rk$scenario
+
+id_base <- cenarios_rk$scenario[cenarios_rk$bk_method == bk_base & cenarios_rk$r_method == r_base]
+if (length(id_base) != 1) {
+  stop("Nao encontrei (ou encontrei mais de um) cenario BASE com bk_method='", bk_base,
+       "' e r_method='", r_base, "'. Confira os valores em rk_out$bk_method / rk_out$r_method.")
+}
+valor_base <- medianas[[id_base]]
+cat(sprintf("Cenario BASE: %s  |  mediana de %s = %.2f\n", id_base, metrica_nome, valor_base))
+
+## ---------------------------------------------------------------------
+## 2) Variação de cada fator, mantendo o outro fator fixo no nível BASE
+## ---------------------------------------------------------------------
+
+niveis_r <- unique(cenarios_rk$r_method)
+tab_r <- do.call(rbind, lapply(setdiff(niveis_r, r_base), function(r_alt) {
+  id <- cenarios_rk$scenario[cenarios_rk$bk_method == bk_base & cenarios_rk$r_method == r_alt]
+  data.frame(fator = "Método de r (resiliência)", nivel = r_alt,
+             cenario_id = id, valor = medianas[[id]], stringsAsFactors = FALSE)
+}))
+
+niveis_bk <- unique(cenarios_rk$bk_method)
+tab_bk <- do.call(rbind, lapply(setdiff(niveis_bk, bk_base), function(bk_alt) {
+  id <- cenarios_rk$scenario[cenarios_rk$bk_method == bk_alt & cenarios_rk$r_method == r_base]
+  data.frame(fator = "Método Bt/K (depleção)", nivel = bk_alt,
+             cenario_id = id, valor = medianas[[id]], stringsAsFactors = FALSE)
+}))
+
+tab <- rbind(tab_r, tab_bk)
+tab$delta_pct <- 100 * (tab$valor - valor_base) / valor_base
+
+cat("\n===== Variação em relação ao cenário BASE =====\n")
+print(tab[, c("fator", "nivel", "valor", "delta_pct")])
+write.csv(tab, sprintf("tornado_sensibilidade_%s_cmsy.csv", tolower(metrica_nome)), row.names = FALSE)
+cat(sprintf("\nCSV salvo: tornado_sensibilidade_%s_cmsy.csv\n", tolower(metrica_nome)))
+
+## ---------------------------------------------------------------------
+## 3) Empilha os níveis de cada fator dos dois lados do zero (negativos
+##    à esquerda, positivos à direita), do menor para o maior módulo --
+##    é só uma convenção de leiaute para caber vários níveis numa única
+##    barra por fator, igual ao gráfico do DB-SRA; não representa soma
+##    real de efeitos (cada cenário é uma rodada independente do CMSY++).
+## ---------------------------------------------------------------------
+
+empilhar <- function(df) {
+  df <- df[order(abs(df$delta_pct)), ]
+  neg <- df[df$delta_pct < 0, , drop = FALSE]
+  pos <- df[df$delta_pct >= 0, , drop = FALSE]
+  if (nrow(neg) > 0) {
+    cum <- 0
+    for (i in seq_len(nrow(neg))) {
+      neg$xmax[i] <- cum
+      cum <- cum + neg$delta_pct[i]
+      neg$xmin[i] <- cum
+    }
+  }
+  if (nrow(pos) > 0) {
+    cum <- 0
+    for (i in seq_len(nrow(pos))) {
+      pos$xmin[i] <- cum
+      cum <- cum + pos$delta_pct[i]
+      pos$xmax[i] <- cum
+    }
+  }
+  rbind(neg, pos)
+}
+
+tab_emp <- do.call(rbind, lapply(split(tab, tab$fator), empilhar))
+
+# ordena os fatores pela amplitude total (maior impacto primeiro, no topo)
+amplitude <- sapply(split(tab_emp, tab_emp$fator), function(d) max(d$xmax) - min(d$xmin))
+ordem_fatores <- names(sort(amplitude, decreasing = TRUE))
+tab_emp$y <- match(tab_emp$fator, rev(ordem_fatores))  # fator de maior impacto no topo
+
+## ---------------------------------------------------------------------
+## 4) Gráfico tornado
+## ---------------------------------------------------------------------
+
+niveis_unicos <- unique(tab_emp$nivel)
+cores <- setNames(grDevices::hcl.colors(length(niveis_unicos), palette = "Dynamic"), niveis_unicos)
+
+xlim_plot <- range(c(tab_emp$xmin, tab_emp$xmax, 0)) * 1.15
+altura_barra <- 0.32
+
+png(sprintf("tornado_sensibilidade_%s_cmsy.png", tolower(metrica_nome)),  width = 32, height = 20,
+    res = 300,antialias = "cleartype", units = "cm")
+op <- par(mar = c(4.5, 13, 4.5, 12), xpd = FALSE, bty="l",cex.main=0.6)
+
+plot(NA, xlim = xlim_plot, ylim = c(0.5, length(ordem_fatores) + 0.5),
+     yaxt = "n", ylab = "", xlab = sprintf("Variação da mediana de %s em relação ao cenário Base (%%)", metrica_nome),
+     main = "")
+mtext(sprintf("Gráfico tornado — sensibilidade da mediana de %s (CMSY++)", metrica_nome), side = 3, line = 2.3, cex = 1.15, font = 2, adj = 0)
+mtext(sprintf("Referência (cenário BASE: %s): mediana de %s = %.1f", id_base, metrica_nome, valor_base),
+      side = 3, line = 0.8, cex = 0.85, adj = 0)
+
+abline(v = 0, col = "black", lwd = 1.4)
+abline(v = pretty(xlim_plot), col = "grey90", lty = 1)
+abline(v = 0, col = "black", lwd = 1.4)
+
+for (i in seq_len(nrow(tab_emp))) {
+  r <- tab_emp[i, ]
+  rect(r$xmin, r$y - altura_barra, r$xmax, r$y + altura_barra,
+       col = cores[r$nivel], border = "white")
+}
+
+axis(2, at = seq_along(ordem_fatores), labels = rev(ordem_fatores), las = 1, tick = FALSE, cex.axis = 0.85)
+
+legend(x = xlim_plot[2] * 1.1, y = length(ordem_fatores) + 0.5, xpd = NA,
+       legend = niveis_unicos, fill = cores[niveis_unicos], bty = "n", cex = 0.95,
+       title = "Nível testado", xjust = 0)
+
+par(op)
+dev.off()
+cat(sprintf("\nPNG salvo: tornado_sensibilidade_%s_cmsy.png\n", tolower(metrica_nome)))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
