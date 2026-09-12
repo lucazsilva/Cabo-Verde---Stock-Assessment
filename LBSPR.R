@@ -476,6 +476,64 @@ res_mk <- bind_rows(
                BinWidth = BinWidth_base, Lengths = MyLengths_base)
 )
 
+run_lbspr_df("MK_Vieira_2019", "M_K", vieira_MK,
+             Linf = base_Linf, MK = vieira_MK, L50 = base_L50, L95 = base_L95,
+             BinWidth = BinWidth_base, Lengths = MyLengths_base)
+
+## -- 11e. Tabela unica com TODOS os parametros usados em cada sensibilidade ---
+tabela_sensibilidades <- bind_rows(
+  tibble(eixo = "crescimento", cenario = "Crescimento_PrePolitica",
+         fonte = "da Cruz Delgado et al. (2024), pre-politica",
+         parametro = "Linf_cm", valor = alt_Linf, confiabilidade = "Alta (artigo-base)"),
+  tibble(eixo = "crescimento", cenario = "Crescimento_Jardim_1996_1999",
+         fonte = "Jardim (1996/1999)", parametro = "Linf_cm", valor = jardim_Linf, confiabilidade = "Alta"),
+  tibble(eixo = "crescimento", cenario = "Crescimento_CarvalhoCaramelo",
+         fonte = "Carvalho & Caramelo (1996/1999)", parametro = "Linf_cm", valor = carvalho_caramelo_Linf, confiabilidade = "Média"),
+  tibble(eixo = "crescimento", cenario = "Crescimento_Santos_2018",
+         fonte = "Santos (2018)", parametro = "Linf_cm", valor = santos_Linf, confiabilidade = "Média"),
+  tibble(eixo = "crescimento", cenario = "Crescimento_Almada_1997",
+         fonte = "Almada (1997)", parametro = "Linf_cm", valor = almada_Linf, confiabilidade = "Média"),
+  tibble(eixo = "crescimento", cenario = "Crescimento_daLuzVieira_2020",
+         fonte = "da Luz & Vieira (2020)", parametro = "Linf_cm", valor = da_luz_vieira_Linf, confiabilidade = "Média"),
+  tibble(eixo = "crescimento", cenario = "Crescimento_Vieira_2019",
+         fonte = "Vieira (2019)", parametro = "Linf_cm", valor = vieira_Linf, confiabilidade = "Média"),
+  
+  tabela_MK %>% filter(cenario != "Base_PosPolitica") %>%
+    transmute(eixo = "M_K", cenario, fonte, parametro = "M_K", valor = MK, confiabilidade),
+  
+  tibble(eixo = "maturidade", cenario = "Maturidade_PrePolitica",
+         fonte = "da Cruz Delgado et al. (2024), pre-politica",
+         parametro = c("L50_cm", "L95_cm"), valor = c(alt_L50, alt_L95), confiabilidade = "Alta (artigo-base)"),
+  tibble(eixo = "maturidade", cenario = "Maturidade_Costa_2020_Femea",
+         fonte = "Costa et al. (2020)", parametro = c("L50_cm", "L95_cm"),
+         valor = c(costa_L50, costa_L95), confiabilidade = "Alta"),
+  tibble(eixo = "maturidade", cenario = "Maturidade_Santos_2018",
+         fonte = "Santos (2018)", parametro = c("L50_cm", "L95_cm"),
+         valor = c(santos_L50, santos_L95), confiabilidade = "Média"),
+  tibble(eixo = "maturidade", cenario = "Maturidade_Almada_1997_Femea",
+         fonte = "Almada (1997)", parametro = c("L50_cm", "L95_cm"),
+         valor = c(almada_L50, almada_L95), confiabilidade = "Média"),
+  tibble(eixo = "maturidade", cenario = "Maturidade_Vieira_2019",
+         fonte = "Vieira (2019)", parametro = c("L50_cm", "L95_cm"),
+         valor = c(vieira_L50, vieira_L95), confiabilidade = "Média"),
+  
+  tibble(eixo = "largura_classe", cenario = paste0("LarguraClasse_", BinWidths_alt, "cm"),
+         fonte = "metodologico (nao vem da literatura)",
+         parametro = "BinWidth_cm", valor = BinWidths_alt, confiabilidade = NA_character_),
+  
+  tibble(eixo = "base", cenario = "Base_PosPolitica",
+         fonte = "da Cruz Delgado et al. (2024), pos-politica",
+         parametro = c("Linf_cm", "M_K", "L50_cm", "L95_cm"),
+         valor = c(base_Linf, base_MK, base_L50, base_L95),
+         confiabilidade = "Alta (artigo-base)")
+)
+
+write.csv(tabela_sensibilidades, file.path(output_dir, "tabela_todos_parametros_sensibilidade.csv"), row.names = FALSE)
+cat("Tabela consolidada de todos os parametros de sensibilidade salva em:\n")
+cat(" ", file.path(output_dir, "tabela_todos_parametros_sensibilidade.csv"), "\n\n")
+print(tabela_sensibilidades, n = Inf)
+cat("\n")
+
 # =============================================================================
 # ---- 12. CONSOLIDAR E EXPORTAR -----------------------------------------------
 # =============================================================================
