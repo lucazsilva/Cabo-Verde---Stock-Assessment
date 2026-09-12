@@ -911,7 +911,7 @@ run_depletion_hypotheses <- function(
           "a produtividade conseguem restringir a solução."
         ),
       
-      bk_lo = 0.00,
+      bk_lo = 0.01,
       
       bk_hi = 1.00,
       
@@ -1265,7 +1265,7 @@ r_macarellus <- bind_rows(
       fonte     = "Independente",
       racional  = paste("Sem informação prévia: toda a faixa biologicamente",
                          "plausível de r entre 0 e 1.5 é considerada."),
-      r_lo = 0,
+      r_lo = 0.01,
       r_hi = 1.5,
       r    = NA_real_
     )
