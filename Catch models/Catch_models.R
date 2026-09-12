@@ -2230,23 +2230,8 @@ cat(sprintf("\nPNG salvo: tornado_sensibilidade_%s_dbsra.png\n", tolower(metrica
 
 
 #Primeiro, criar os objetos de entrada (cdat e cinfo)
-
-#----------------------------------
-# criando cdat 
-# data frame de captura de entrada
-#----------------------------------
-#--------------------------------
-# (CMSY format)
-cdat <- data.frame(
-    Stock = "D. macarellus",        # stock names (scenario + bk_method + r_method)
-    yr = ct$year,               # year vector
-    ct = ct$ct,              # catches
-    bt = NA                  # biomass index (optional, keep as NA)
-  )
-#--------------------------------------------------
-glimpse(cdat)
-
-#antes de criar o cinfo combinar os cenarios possiveis de r e b/k
+#Antes de criar o cinfo e o cdat combinar os cenarios possiveis de r e b/k
+# para criar a hipotese (cenario principal testado de combinação r e b/k)
 
 library(dplyr)
 
@@ -2259,6 +2244,30 @@ cenarios_macarellus_cmsy <- merge(
 ) %>%
   mutate(hipotese= paste(hipotese_bk,hipotese_r,sep="_"))
 
+#----------------------------------
+# criando cdat 
+# data frame de captura de entrada
+#----------------------------------
+#--------------------------------
+# (Formato CMSY )
+# Criar o nome de cada cenário
+stocks_macarellus <- cenarios_macarellus_cmsy %>%
+  mutate(
+    Stock = paste(especie, hipotese, sep = "_")
+  ) %>%
+  pull(Stock)
+
+# Repetir a série de captura para cada cenário
+cdat <- crossing(
+  Stock = stocks_macarellus,
+  yr = ct$year) %>%
+  left_join(
+    ct %>% select(year, ct),
+    by = c("yr" = "year") ) %>%
+  mutate( bt = NA_real_ ) %>%
+  select(Stock, yr, ct, bt)
+#--------------------------------------------------
+glimpse(cdat)
 
 ##------------------------------------------------------------
 # Criando o data frame cinfo 
