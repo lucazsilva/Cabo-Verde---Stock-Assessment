@@ -42,6 +42,42 @@ library(future.apply)
 #install.packages("pak")
 #pak::pak("cfree14/datalimited2")
 library(datalimited2)
+#------------------------------------
+#pacotes necessarios para o CMSY++
+list.of.packages <- c("R2jags","coda","parallel","foreach","doParallel","gplots","mvtnorm","neuralnet","conicfit")
+new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+if(length(new.packages)) install.packages(new.packages)
+library(devtools)
+library(datalimited2)
+library(mgcv)
+library(dplyr)
+library(tidyr)
+library(plyr)
+library(tibble)
+library(keras)
+library(furrr)
+library(future)
+library(purrr)
+library(readr)
+library(ggplot2)
+library(R2jags)#*Interface with JAGS (download also: https://sourceforge.net/projects/mcmc-jags/)
+library(coda)
+library(gplots)
+library(mvtnorm)
+#library(snpar)
+library(neuralnet)
+library(conicfit)
+library(geobr)
+library(sf)
+library(rnaturalearth)
+library(caret)
+library(foreach)
+library(doParallel)
+library(rlang)   # Helpers (e.g., %||%)
+library(stringr)
+library(patchwork)
+library(stringr)
+library(scales)
 #-----------------------------------
 
 # definindo diretorio de trabalho..
@@ -2358,23 +2394,10 @@ library(stringr)
 library(patchwork)
 library(stringr)
 library(scales)
+#--------------------------------------
 
-
-#defining workspace......
-#rm(list = ls())
-graphics.off()
-#dir="C:/Matheus/Universidade/Doutorado/Avaliação Shrimp_CMSY"
-#setwd(dir)
-
-library(R2jags)  # Interface with JAGS
-library(coda)
-library(gplots)
-library(mvtnorm)
-#library(snpar)
-library(neuralnet)
-library(conicfit)
 #-----------------------------------------
-# Some general settings ----
+# Configurações gerais
 #-----------------------------------------
 # set.seed(999) # use for comparing results between runs
 #rm(list=ls(all=FALSE)) # clear previous variables etc
@@ -2382,14 +2405,13 @@ options(digits=3) # displays all numbers with three significant digits as defaul
 graphics.off() # close graphics windows from previous sessions
 FullSchaefer <- F    # initialize variable; automatically set to TRUE if enough abundance data are available
 n.chains     <- 2 # number of chains to be used in JAGS, default = 2
-#setwd("C:/Matheus/Universidade/Doutorado/Avaliação Shrimp_CMSY") # set working directory to source file location
 
-#-----------------------------------------
-# Required settings, File names ----
-#-----------------------------------------
-catch_file  <- "cdat_shrimp.csv" #"Stocks_Catch_2020CMSYrun2_v5_RS - Copy.csv"  #"CombStocks_Catch_2020CMSYrun3_v4.csv"  # "SAUP_Catch_1.csv"  #"SimCatchCPUE_4.csv"  # "Stocks_Catch_Aust_2.csv" #"STECF_Catch_2020_2.csv" #"tRFMO_Catch_2020.csv" #"ICES_Catch_2020.csv" #"Global_Stocks_Catch.csv" #"SimCatchCPUE_4.csv" #"Stocks_Catch_Test.csv"  #"Stock_Catch_forRainer.csv" # "SimCatchCPUE_3.csv" #  name of file containing "Stock", "yr", "ct", and optional "bt"
-id_file     <- "cinfo_shrimp.csv" #"Stocks_ID_forDeng_RSb - Copy.csv" # "CombStocks_ID_2020CMSYrun3_v3_RF3.csv"   #    "SAUP_ID_2.csv"    #"SimSpecCPUE_4_NA_int_end.csv"  #"Train_ID_7j.csv" # "Stocks_ID_Aust_4.csv"  #"STECF_ID_2020_2.csv" #tRFMO_ID_2020_2.csv" #"ICES_ID_2020_4.csv" #"Robust_Stocks_ID_10_allNA.csv" #"SimSpecCPUE_4.csv"#"Stocks_ID_R_7.csv"  #"Stock_ID_forRainer.csv"  #  "NCod_ID_4.csv" #"SimSpecCPUE_3.csv" #  name of file containing stock-specific info and settings for the analysis
-nn_file     <-  "ffnn.bin" # file containing neural networks trained to estimate B/k priors
+#---------------------------------------------
+# Arquivos de entrada (cdat, cinfo e ffnn.bin
+#---------------------------------------------
+catch_file  <- "cdat_macarellus_cmsy.csv" #"Stocks_Catch_2020CMSYrun2_v5_RS - Copy.csv"  #"CombStocks_Catch_2020CMSYrun3_v4.csv"  # "SAUP_Catch_1.csv"  #"SimCatchCPUE_4.csv"  # "Stocks_Catch_Aust_2.csv" #"STECF_Catch_2020_2.csv" #"tRFMO_Catch_2020.csv" #"ICES_Catch_2020.csv" #"Global_Stocks_Catch.csv" #"SimCatchCPUE_4.csv" #"Stocks_Catch_Test.csv"  #"Stock_Catch_forRainer.csv" # "SimCatchCPUE_3.csv" #  name of file containing "Stock", "yr", "ct", and optional "bt"
+id_file     <- "cinfo_macarellus_cmsy.csv" #"Stocks_ID_forDeng_RSb - Copy.csv" # "CombStocks_ID_2020CMSYrun3_v3_RF3.csv"   #    "SAUP_ID_2.csv"    #"SimSpecCPUE_4_NA_int_end.csv"  #"Train_ID_7j.csv" # "Stocks_ID_Aust_4.csv"  #"STECF_ID_2020_2.csv" #tRFMO_ID_2020_2.csv" #"ICES_ID_2020_4.csv" #"Robust_Stocks_ID_10_allNA.csv" #"SimSpecCPUE_4.csv"#"Stocks_ID_R_7.csv"  #"Stock_ID_forRainer.csv"  #  "NCod_ID_4.csv" #"SimSpecCPUE_3.csv" #  name of file containing stock-specific info and settings for the analysis
+nn_file     <- "ffnn.bin" # file containing neural networks trained to estimate B/k priors
 outfile     <- paste("Out_",format(Sys.Date(),format="%B%d%Y_"),id_file,sep="") # default name for output file
 out_list    <- list()
 
@@ -4842,15 +4864,15 @@ for (stk in stks) { #loop through stock picking
   
   # general complete ID
   stock_id = scen_info$Stock
-  # stock base (ex: brown_N_Silva)
+  # stock base 
   stock_base = scen_info$stock_base
-  #categpry (brown, seabob...)
+  #categpry 
   category   = scen_info$category
-  #region (N,NE, SE, S)
+  #region 
   region    = scen_info$region
-  # Silva or Freire
+  # fonte
   source    = scen_info$source
-  # seabob, white... pink..
+  # 
   name      = scen_info$Name
   # reconstructed or projected
   type_data = scen_info$type_data
@@ -5103,19 +5125,19 @@ for (stk in stks) { #loop through stock picking
 #             dec=".",sep=",",row.names = FALSE)
 
 #write kobe out with f/fmsy and b/bmsy series
-write.table(bio_out, file = "bio_out.csv", 
+write.table(bio_out, file = "bio_out_macarellus_cmsy.csv", 
             dec=".",sep = ",", row.names = FALSE) 
 
 #write r-k samples priors/posteriors
-write.table(rk_out, file = "rk_out.csv", 
+write.table(rk_out, file = "rk_out_macarellus_cmsy.csv", 
             dec=".",sep = ",", row.names = FALSE) 
 
 #write the prior posterior data intervals
-write.table(cmsy_out, file = "cmsy_out.csv", 
+write.table(cmsy_out, file = "cmsy_out_macarellus_cmsy.csv", 
             dec=".",sep = ",", row.names = FALSE) 
 
 #write kobe out with f/fmsy and b/bmsy series
-write.table(kobe_out, file = "kobe_out.csv", 
+write.table(kobe_out, file = "kobe_out_macarellus_cmsy.csv", 
             dec=".",sep = ",", row.names = FALSE) 
 #---------------------------------------------------------------
 
@@ -5130,12 +5152,12 @@ write.table(kobe_out, file = "kobe_out.csv",
 #-------------------------------------------------------------------
 
 # reading the output data
-bio_out<- read.csv("bio_out.csv",dec=".",sep=",")
-rk_out<- read.csv("rk_out.csv",dec=".",sep=",")
-cmsy_out<-read.csv("cmsy_out.csv",dec=".",sep=",")
-kobe_out<-read.csv("kobe_out.csv",dec=".",sep=",")
-ct_out<- read.csv("cdat_shrimp.csv",dec=".",sep=",")
-cinfo<- read.csv("cinfo_shrimp.csv",dec=".",sep=",")
+bio_out<- read.csv("bio_out_macarellus_cmsy.csv",dec=".",sep=",")
+rk_out<- read.csv("rk_out_macarellus_cmsy.csv",dec=".",sep=",")
+cmsy_out<-read.csv("cmsy_out_macarellus_cmsy.csv",dec=".",sep=",")
+kobe_out<-read.csv("kobe_out_macarellus_cmsy.csv",dec=".",sep=",")
+ct_out<- read.csv("cdat_macarellus_cmsy.csv",dec=".",sep=",")
+cinfo<- read.csv("cinfo_macarellus_cmsy.csv",dec=".",sep=",")
 
 
 # ====================================================
