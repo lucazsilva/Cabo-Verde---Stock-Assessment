@@ -2166,12 +2166,233 @@ cat(sprintf("\nPNG salvo: tornado_sensibilidade_%s_dbsra.png\n", tolower(metrica
 #===========================================================================================================================#
 
 
-aaa
 
 
 
 
+#x#X#X#x#X#X#x#X#X#x#X#x#X#X#x#X#X#x#X#X#x#X#x#X#X#x#X#X#x#X#X#x#X#X#X#X#X#X#X#X#X#X#X#X#X#X#X#X
+#--------------------- Avaliação D. Macarellus via CMSY++ (Froese et al., 2023)----------------#                      
+# Modificado por Silva, MLS - CMSY++ 16 (Setembro 2026)- Institudo do Mar- IMar (Mindelo)                     
+## CMSY and BSM analysis ----
+## Developed by Rainer Froese, Gianpaolo Coro and Henning Winker in 2016, version of January 2021
+## PDF creation added by Gordon Tsui and Gianpaolo Coro
+## Time series within 1950-2030 are stored in csv file
+## Correction for effort creep added by RF
+## Multivariate normal r-k priors added to CMSY by HW, RF and GP in October 2019
+## Multivariate normal plus observation error on catch added to BSM by HW in November 2019
+## Retrospective analysis added by GP in November 2019
+## Bayesian implementation of CMSY added by RF and HW in May 2020
+## Slight improvements to NA rules for prior B/k done by RF in June 2020
+## RF added on-screen proposal to set start.year to medium catch if high or low biomass is unclear at low catch
+## Alling notation and posterior compuations between CMSY++ and BSM done by HW in June 2020
+## RF fixed a bug where some CMSY instead of BSM results were wrongly reported for management, October 2020
+## RF updated cor.log.rk to -0.76 based and MSY.prior based om max.ct, based on a analysis of 240+ global stocks
+## HW added use of MSY.prior to predict k.prior in JAGS
+## RF and GP reviewed and improved B/k default priors, adding neural network
+## HW added beta distribution for B/k priors
+## GP added ellipse estimation (lower right focus) of most likely r-k pair for CMSY
+##---------------------------------------------------------------------------------------------
 
+
+
+
+#------------------------------- 
+# creating the cdat data frame
+# catch input file for CMSY++ 
+#-------------------------------
+# Ensure that ct_full has clear names
+ct_full <- ct_full %>%
+  mutate(catch = ct) %>%
+  select(-ct)
+
+# 1. Create stock_id in scenarios_dat (if it doesn't already exist)
+scenarios_dat <- scenarios_dat %>%
+  mutate(stock_id = paste(stock, type_data, scenario, r_method, bk_method, sep = "_"))
+
+#2. Separate the capture data into historical data (up to 2015, excluding projections) and projections.
+historic <- ct_full %>%
+  filter(source != "projection", year <= 2015) %>%
+  select(stock, year, catch)
+
+projection <- ct_full %>%
+  filter(source == "projection") %>%
+  select(stock, year, catch)
+
+#3. Function to obtain the capture series of a specific scenario.
+get_catch_per_scenario <- function(stock_name, type_data) {
+  if (type_data == "reconstructed") {
+    base <- historic %>% filter(stock == stock_name)
+  } else if (type_data == "projected") {
+    base <- bind_rows(
+      historic %>% filter(stock == stock_name),
+      projection %>% filter(stock == stock_name)
+    ) %>% distinct(year, .keep_all = TRUE)
+  } else {
+    base <- tibble()
+  }
+  return(base)
+}
+
+#4. Apply to all rows of scenarios_dat and stack, preserving metadata.
+cdat_list <- list()
+for (i in 1:nrow(scenarios_dat)) {
+  line <- scenarios_dat[i, ]
+  catch_df <- get_catch_per_scenario(line$stock, line$type_data)
+  if (nrow(catch_df) > 0) {
+    catch_df <- catch_df %>%
+      mutate(
+        stock_id = line$stock_id,
+        stock = line$stock,
+        type_data = line$type_data,
+        scenario = line$scenario,
+        r_method = line$r_method,
+        bk_method = line$bk_method
+      )
+    cdat_list[[i]] <- catch_df
+  }
+}
+
+#5. Combine everything into a single data frame
+cdat <- bind_rows(cdat_list)
+
+#Reorder columns for easier reading.
+cdat <- cdat %>%
+  select(stock_id, stock, type_data, scenario, r_method, bk_method, year, catch)
+
+# Quick Verification
+glimpse(cdat)
+head(cdat)
+
+#-------------------------------------------------
+# Ct data for base case scenarios (CMSY format)
+cdat <- cdat %>%
+  mutate(
+    Stock = stock_id,        # stock names (scenario + bk_method + r_method)
+    stock_base = stock,
+    type_data = type_data,
+    scenario = scenario,
+    r_method = r_method,
+    bk_method = bk_method,
+    yr = year,               # year vector
+    ct = catch,              # catches
+    bt = NA                  # biomass index (optional, keep as NA)
+  ) %>%
+  select(Stock, stock_base, type_data, scenario,
+         r_method, bk_method, yr, ct, bt)
+#--------------------------------------------------
+glimpse(cdat)
+
+
+#------------------------------------------------------------
+# Creating the cinfo data frame (metadata for CMSY runs)
+# Each row corresponds to one stock-scenario combination
+# Derived from the Stock IDs in cdat
+#------------------------------------------------------------
+cinfo <- scenarios_dat %>%
+  dplyr::select(stock_id,stock,category,region,source,init_yr,end_yr,type_data,scenario,r_method,bk_method,
+                r_min,r_max,bk_min,bk_max) %>%
+  mutate(
+    # stock ID (all stock+type_data+scenario+r_method+bk_method)
+    Stock     = stock_id,
+    #Base stock 
+    stock_base= stock,
+    #category (brown, pink, seabob, white)
+    category  = category,
+    #region (N, NE, SE, S)
+    region    = region,
+    # source (Silva, Freire)
+    source    = source,
+    #initial year
+    init_yr   = init_yr,
+    #final year
+    end_yr    = end_yr,
+    #type data (reconstructed or projected)
+    type_data = type_data,
+    # scenario (Baseline ...Informed...Economic....Literature....Uninformative ...Forecast
+    scenario  = scenario,
+    # r method
+    r_method  = r_method,
+    #b/k method
+    bk_method = bk_method,
+    # Fixed attributes describing geographical origin
+    Continent = "South America",
+    # Extract region (North, Northeast, Southeast, South)
+    Region    = region, #cmsy atribute
+    Subregion = Region,   # same value for simplicity (cmsy atribute)
+    # Broad taxonomic or fishery group
+    Group     = "Shrimp",
+    # Extract common species name
+    Name      = str_extract(stock_base, "brown|pink|seabob|white"),
+    # Assign scientific names based on species and region
+    ScientificName = case_when(
+      Name == "brown" & Region %in% c("N", "NE") ~ "F. subtilis",
+      Name == "pink"  & Region == "SE" ~ "F. brasiliensis",
+      Name == "pink"  & Region == "S"  ~ "F. paulensis",
+      Name == "white" ~ "L. schmitti",
+      Name == "seabob" ~ "X. kroyeri",
+      TRUE ~ NA_character_
+    ),
+    # Create a simplified species code (e.g., seabob_NE)
+    SpecCode  = paste(Name, Region, sep = "_"),
+    # Extract the data source (Freire or Silva)
+    Source    = str_extract(stock_base, "Freire|Silva"),
+    #------------------------------------------------------------
+    # Temporal coverage of the catch data for each stock
+    #------------------------------------------------------------
+    MinOfYear = init_yr,
+    MaxOfYear = end_yr,
+    StartYear = init_yr,
+    EndYear   = end_yr,
+    #------------------------------------------------------------
+    # Reference management fields (not used in CMSY but kept for structure)
+    #------------------------------------------------------------
+    Flim=NA, Fpa=NA, Blim=NA, Bpa=NA, Bmsy=NA, MSYBtrigger=NA, Fmsy=NA, last_F=NA,
+    #------------------------------------------------------------
+    # Biological priors and resilience information
+    #------------------------------------------------------------
+    Resilience= "Medium",   # ignored if r limits are explicitly set below
+    # Lower and upper bounds of r (only for Base scenarios)
+    r.low     = r_min,
+    r.hi      = r_max,
+    #--------------------------------------
+    # Prior depletion levels (B/k ratios)
+    #--------------------------------------
+    # Starting biomass (assumed near virgin state)
+    stb.low   = 0.7,
+    stb.hi    = 1,
+    # Intermediate year for mid-period depletion
+    int.yr    = NA, 
+    # Lower and upper bounds for intermediate depletion (B/k)
+    intb.low  = NA, 
+    intb.hi   = NA, 
+    # Lower and upper bounds for final depletion (B/k in 2015 or 2025)
+    endb.low  = bk_min,
+    endb.hi   = bk_max,
+    #----------------------------------
+    # Additional CMSY input parameters
+    #----------------------------------
+    btype     = "None",        # no external biomass time series
+    e.creep   = NA,          # no effort creep adjustment
+    force.cmsy= TRUE,     # ensures CMSY accepts input even without bt
+    Comments  = NA          # optional notes placeholder
+  ) %>%
+  dplyr::select(Stock, stock_base, category, region, source, init_yr, 
+                end_yr, type_data, scenario, r_method, bk_method, Continent, Region, 
+                Subregion, Group, Name, ScientificName, SpecCode, Source, 
+                MinOfYear, MaxOfYear, StartYear,EndYear,Flim,Fpa, Blim, Bpa,
+                Bmsy, MSYBtrigger, Fmsy, last_F, Resilience,
+                r.low, r.hi, stb.low, stb.hi, int.yr, intb.low, intb.hi, endb.low, 
+                endb.hi, btype, e.creep, force.cmsy, Comments) 
+
+#----------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#write input files for CMSY++ (cdat and cinfo)
+file1  <- "cdat_shrimp.csv"
+write.table(cdat, file = file1, append =FALSE,dec=".",sep = ",",
+            row.names = FALSE) 
+file2  <- "cinfo_shrimp.csv"
+write.table(cinfo, file = file2, append =FALSE,dec=".",sep = ",",
+            row.names = FALSE) 
+#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X
 
 
 
