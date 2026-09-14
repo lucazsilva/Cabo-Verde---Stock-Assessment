@@ -42,6 +42,8 @@ library(future.apply)
 #install.packages("pak")
 #pak::pak("cfree14/datalimited2")
 library(datalimited2)
+#install.packages("writexl")
+library(writexl)
 #------------------------------------
 #pacotes necessarios para o CMSY++
 list.of.packages <- c("R2jags","coda","parallel","foreach","doParallel","gplots","mvtnorm","neuralnet","conicfit")
@@ -964,11 +966,10 @@ print(
 # ======================
 # 16. SALVAR RESULTADOS
 # ======================
-write.csv(
-  bk_macarellus,
-  "bk_macarellus.csv",
-  row.names = FALSE
-)
+write.csv(bk_macarellus,"bk_macarellus.csv",row.names = FALSE)
+# Salvar como Excel
+write_xlsx( bk_macarellus,  path = "bk_macarellus.xlsx")
+
 
 # Plot de depleção B/K - Decapterus macarellus
 p_bk <- ggplot(bk_macarellus, aes(x = metodo, y = bk, ymin = bk_lo,
@@ -1176,6 +1177,9 @@ res_list <- map(species_list, function(sp) {
 
 r_sims <- map_dfr(res_list, "sims")
 write.csv(r_sims, "r_sims.csv", row.names = FALSE)
+# Salvar como Excel
+write_xlsx( r_sims,  path = "r_sims.xlsx")
+
 
 #-------------------------------------------------
 # 1) Sumários por espécie × método (inalterado)
@@ -1268,6 +1272,9 @@ r_macarellus <- bind_rows(
 
 # Salvar
 write.csv(r_macarellus, "r_macarellus.csv", row.names = FALSE)
+# Salvar como Excel
+write_xlsx( r_macarellus,  path = "r_macarellus.xlsx")
+
 
 #------------------------------------------------------------------
 # Plot (igual)
@@ -1312,7 +1319,7 @@ ggsave("r_priors.png", plot = p_r, device = "png", units = "cm",
 
 
 #================================================================
-# Avaliações baseadas em capturas 
+# Avaliações baseadas em capturas
 # Modelo utilizado : DB-SRA (Dick & MacCall, 2011)
 # Objetivo estimar viabilidade de trajetórias de biomasa compatíveis
 # com a serie de captura e biologia assumida
@@ -1325,14 +1332,89 @@ ggsave("r_priors.png", plot = p_r, device = "png", units = "cm",
 library(fishmethods)
 print(bk_macarellus) #deplecoes já calculadas
 
-# ---- cenários de M, com autor/fonte (da tabela Confiabilidade_Fontes) ----
-m_macarellus <- data.frame(
-  m_hipotese = c("M_Jardim(1996-1999)", "M_Santos(2018)"),
-  m_fonte    = c("Jardim (1996-1999)", "Santos (2018)"),
-  m_metodo   = c("Tanaka", "Tanaka"),
-  M          = c(0.43, 0.60),
-  stringsAsFactors = FALSE
-)
+# ---- extrator genérico: puxa da planilha de história de vida (lh) os
+#      parâmetros de um autor, casando pelo nome (grep no campo "fonte")
+#      e exigindo que os campos pedidos estejam preenchidos. Um mesmo
+#      autor pode ter mais de uma linha em lh reportando o(s) mesmo(s)
+#      parâmetro(s) (ex.: mais de uma estimativa de M, ou de Linf/K/t0)
+#      -- nesse caso a função tira a MÉDIA das linhas encontradas, em
+#      vez de exigir uma única linha. "sexo" é opcional, pra quando o
+#      autor reporta uma linha por sexo (ex.: L50 de fêmeas x machos).
+extrair_lh <- function(lh, autor_regex, campos_obrigatorios, sexo = NULL,
+                       especie_alvo = "Decapterus macarellus") {
+  cand <- lh[lh$especie == especie_alvo & grepl(autor_regex, lh$fonte, ignore.case = TRUE), ]
+  
+  if (!is.null(sexo)) {
+    cand <- cand[!is.na(cand$sex) & grepl(sexo, cand$sex, ignore.case = TRUE), ]
+  }
+  
+  preenchido <- rep(TRUE, nrow(cand))
+  for (campo in campos_obrigatorios) preenchido <- preenchido & !is.na(cand[[campo]])
+  cand <- cand[preenchido, ]
+  
+  if (nrow(cand) == 0) {
+    stop(sprintf(
+      "extrair_lh('%s'%s): nenhuma linha com %s preenchido(s) em lh. Confira a coluna 'fonte' (e 'sex', se pedido) na planilha life history.",
+      autor_regex, if (is.null(sexo)) "" else sprintf(", sexo=%s", sexo),
+      paste(campos_obrigatorios, collapse = ", ")
+    ))
+  }
+  
+  if (nrow(cand) > 1) {
+    cat(sprintf("  [%s%s] %d linhas casaram na lh -- usando a média de %s.\n",
+                autor_regex, if (is.null(sexo)) "" else paste0(", sexo=", sexo),
+                nrow(cand), paste(campos_obrigatorios, collapse = ", ")))
+  }
+  
+  # valor de cada campo pedido: média das linhas encontradas (se só uma
+  # linha casou, a "média" é o próprio valor -- não muda nada nesse caso)
+  valores <- lapply(campos_obrigatorios, function(campo) mean(cand[[campo]], na.rm = TRUE))
+  names(valores) <- campos_obrigatorios
+  resultado <- as.list(valores)
+  
+  # metadados: um valor só se todas as linhas concordarem, senão junta
+  # os valores distintos (ex.: dois métodos diferentes de M do mesmo autor)
+  colapsar <- function(x) {
+    u <- unique(x[!is.na(x)])
+    if (length(u) == 0) NA_character_ else paste(u, collapse = "; ")
+  }
+  resultado$fonte <- colapsar(cand$fonte)
+  resultado$ano_inicial <- suppressWarnings(min(cand$ano_inicial, na.rm = TRUE))
+  resultado$ano_final   <- suppressWarnings(max(cand$ano_final, na.rm = TRUE))
+  if ("metodo_mortalidade_m" %in% names(cand)) {
+    resultado$metodo_mortalidade_m <- colapsar(cand$metodo_mortalidade_m)
+  }
+  resultado
+}
+
+# rótulo de período (ex.: "1996-1999" ou "2019") -- se o autor tiver mais
+# de uma linha, já vem como min(ano_inicial)-max(ano_final) do extrator
+rotulo_periodo <- function(ano_inicial, ano_final) {
+  if (is.na(ano_inicial) || is.na(ano_final)) {
+    as.character(if (is.na(ano_final)) ano_inicial else ano_final)
+  } else if (ano_inicial == ano_final) {
+    as.character(ano_inicial)
+  } else {
+    paste0(ano_inicial, "-", ano_final)
+  }
+}
+
+# ---- cenários de M, puxados da planilha lh (revisão de história de
+#      vida) -- ordem: Vieira, Jardim, Santos ----
+fontes_m <- c("Vieira", "Jardim", "Santos")
+
+m_macarellus <- do.call(rbind, lapply(fontes_m, function(autor) {
+  linha <- extrair_lh(lh, autor, campos_obrigatorios = "m")
+  data.frame(
+    m_hipotese = paste0("M_", autor, "(", rotulo_periodo(linha$ano_inicial, linha$ano_final), ")"),
+    m_fonte    = linha$fonte,
+    m_metodo   = linha$metodo_mortalidade_m,
+    M          = linha$m,
+    stringsAsFactors = FALSE
+  )
+}))
+rownames(m_macarellus) <- NULL
+print(m_macarellus)
 
 # ---- produto cartesiano: cada hipótese de bk x cada hipótese de M ----
 # (via índices -- não depende de nomes de coluna em comum, então é seguro
@@ -1347,11 +1429,11 @@ cenarios_macarellus_dbsra <- cbind(
 rownames(cenarios_macarellus_dbsra) <- NULL
 
 cenarios_macarellus_dbsra$cenario_id <- paste(cenarios_macarellus_dbsra$hipotese,
-                                        cenarios_macarellus_dbsra$m_hipotese, sep = "_")
+                                              cenarios_macarellus_dbsra$m_hipotese, sep = "_")
 
 # reordena pra ficar fácil de ler (hipótese de bk como bloco externo)
 cenarios_macarellus_dbsra <- cenarios_macarellus_dbsra[order(cenarios_macarellus_dbsra$hipotese,
-                                                 cenarios_macarellus_dbsra$m_hipotese), ]
+                                                             cenarios_macarellus_dbsra$m_hipotese), ]
 rownames(cenarios_macarellus_dbsra) <- NULL
 print(cenarios_macarellus_dbsra)
 cat("\nDimensões:", nrow(cenarios_macarellus_dbsra), "linhas x", ncol(cenarios_macarellus_dbsra), "colunas\n")
@@ -1360,13 +1442,17 @@ cat("\nDimensões:", nrow(cenarios_macarellus_dbsra), "linhas x", ncol(cenarios_
 #idade de maturação
 #====================
 # ---- 1) Parâmetros de crescimento -----------------------------------
-# Fonte mais confiável COM TRIO COMPLETO (Linf, K, t0): Jardim (1996/1999)
-# -- nível "Alta" na Confiabilidade_Fontes (nota media 4,0), o único trio
-# completo entre as fontes Alta (Costa et al. 2020 não estima crescimento;
-# da Cruz Delgado et al. 2024, também Alta, não reporta t0).
-Linf <- 315.0   # mm FL
-K    <- 0.43    # /ano
-t0   <- -1.56   # anos
+# Antes usava o trio de Jardim por ser o único trio completo entre as
+# fontes "Alta" -- mas o ajuste de crescimento do Jardim não está sendo
+# considerado confiável, então agora a base pra converter o L50 do Costa
+# em idade é o trio de Vieira, puxado da mesma planilha lh (média, se o
+# Vieira tiver mais de uma linha com Linf/K/t0).
+linha_cresc <- extrair_lh(lh, "Vieira", campos_obrigatorios = c("linf_fl", "k", "t0"))
+Linf <- linha_cresc$linf_fl   # mm FL
+K    <- linha_cresc$k        # /ano
+t0   <- linha_cresc$t0       # anos
+cat(sprintf("\nCrescimento usado (%s): Linf=%.1f mm FL, K=%.3f /ano, t0=%.2f anos\n",
+            linha_cresc$fonte, Linf, K, t0))
 
 vbgf <- function(t, Linf_ = Linf, K_ = K, t0_ = t0) Linf_ * (1 - exp(-K_ * (t - t0_)))
 idade_no_comprimento <- function(L, Linf_ = Linf, K_ = K, t0_ = t0) {
@@ -1374,12 +1460,15 @@ idade_no_comprimento <- function(L, Linf_ = Linf, K_ = K, t0_ = t0) {
 }
 
 # ---- 2) L50 mais confiável -------------------------------------------
-# Fonte mais confiável para maturação: Costa et al. (2020) -- também nível
-# "Alta", e a única fonte Alta com nota máxima (5) em revisão por pares E em
-# consistência interna (sem nenhuma ressalva na verificação). Reporta L50
-# por sexo, sobre amostra de desembarques industriais 2012-2018.
-L50_F <- 241.0; n_F <- 284   # fêmeas
-L50_M <- 266.0; n_M <- 85    # machos
+# Fonte mais confiável para maturação: Costa (nível "Alta", nota máxima
+# em revisão por pares e em consistência interna). Reporta L50 por sexo
+# -- uma linha pra fêmeas, outra pra machos -- puxadas da lh (média, se
+# o Costa tiver mais de uma linha por sexo).
+linha_l50_F <- extrair_lh(lh, "Costa", campos_obrigatorios = c("l50_fl", "n"), sexo = "F")
+linha_l50_M <- extrair_lh(lh, "Costa", campos_obrigatorios = c("l50_fl", "n"), sexo = "M")
+
+L50_F <- linha_l50_F$l50_fl; n_F <- linha_l50_F$n   # fêmeas
+L50_M <- linha_l50_M$l50_fl; n_M <- linha_l50_M$n   # machos
 L50_comb <- (L50_F * n_F + L50_M * n_M) / (n_F + n_M)   # média ponderada por n
 
 idade_maturacao <- data.frame(
@@ -1391,13 +1480,13 @@ idade_maturacao$idade_anos <- sapply(idade_maturacao$L50_mm_FL, idade_no_comprim
 idade_maturacao$idade_meses <- round(idade_maturacao$idade_anos * 12, 1)
 idade_maturacao$idade_anos <- round(idade_maturacao$idade_anos, 3)
 
-print(idade_maturacao)
+print(idade_maturacao) # 2 anos arredondando pq o DB-SRA so aceita numero inteiro
 
 
 
-#=====================
-#rodando o modelo
-#=====================
+#===============================
+#*******Rodando o modelo ******
+#===============================
 library(future.apply)
 plan(multisession, workers = min(nrow(cenarios_macarellus_dbsra), parallel::detectCores() - 1))
 
@@ -1499,6 +1588,9 @@ rownames(tabela_resumo) <- NULL
 cat("\n===== Tabela resumo (primeiras linhas) =====\n")
 print(head(tabela_resumo, 12))
 write.csv(tabela_resumo, "tabela_resumo_dbsra_macarellus.csv", row.names = FALSE)
+# Salvar como Excel
+write_xlsx(tabela_resumo,  path = "tabela_resumo_dbsra_macarellus.xlsx")
+
 
 ## ---------------------------------------------------------------------
 ## 2) TABELA DE ACEITAÇÃO -- 1 linha por cenário
@@ -1511,6 +1603,9 @@ rownames(tabela_aceitacao) <- NULL
 cat("\n===== Tabela de aceitacao por cenario =====\n")
 print(tabela_aceitacao)
 write.csv(tabela_aceitacao, "tabela_aceitacao_dbsra_macarellus.csv", row.names = FALSE)
+# Salvar como Excel
+write_xlsx(tabela_aceitacao,  path = "tabela_aceitacao_dbsra_macarellus.xlsx")
+
 
 # aviso automático se algum cenário tiver aceitação muito baixa (< 5%) ou
 # muito alta (> 90%) -- ambos merecem checagem antes de confiar no resultado
@@ -1541,7 +1636,7 @@ extrair_aceitos <- function(id, var) {
   acc[[var]]
 }
 
-png("comparacao_cenarios_outputs_dbsra.png", width = 28, height = 20,
+png("comparacao_cenarios_outputs_dbsra.png", width = 28, height = 22,
                                 res = 300,antialias = "cleartype", units = "cm")
 op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1), bty="l",cex=0.8,cex.main=0.9)
 for (v in c("OFLT1", "K", "MSY", "Bmsy")) {
@@ -1561,7 +1656,7 @@ cat("\nPNG salvo: comparacao_cenarios_outputs_dbsra.png\n")
 ## 4) COMPARACAO ENTRE CENARIOS -- os 4 parametros estocasticos
 ## ---------------------------------------------------------------------
 
-png("comparacao_cenarios_parametros_dbsra.png", width = 28, height = 20,
+png("comparacao_cenarios_parametros_dbsra.png", width = 28, height = 22,
                           res = 300,antialias = "cleartype", units = "cm")
 op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1), bty="l",cex=0.8,cex.main=0.9)
 for (v in c("FmsyM", "BtK", "BmsyK", "M")) {
@@ -1603,7 +1698,7 @@ gerar_priori_posteriori <- function(cenario_id, cen_row,
   acc <- res$Values
   acc <- acc[acc$ll == 1, ]
   
-  png(sprintf("priori_posteriori_%s.png", cenario_id), width = 28, height = 20, 
+  png(sprintf("priori_posteriori_%s_dbsra.png", cenario_id), width = 28, height = 20, 
                                       res = 300,antialias = "cleartype",units = "cm")
   op <- par(mfrow = c(2, 2), mar = c(4, 4, 3, 1),cex.main=0.9)
   
@@ -1627,7 +1722,7 @@ gerar_priori_posteriori <- function(cenario_id, cen_row,
   
   par(op)
   dev.off()
-  cat(sprintf("PNG salvo: priori_posteriori_%s.png  (aceitos: %d de %d, %.1f%%)\n",
+  cat(sprintf("PNG salvo: priori_posteriori_%s_dbsra.png  (aceitos: %d de %d, %.1f%%)\n",
               cenario_id, nrow(acc), nrow(res$Values), 100 * nrow(acc) / nrow(res$Values)))
 }
 
@@ -1858,6 +1953,9 @@ print(head(msy_posteriores, 8))
 write.csv(msy_posteriores, "msy_posteriores_cenarios_dbsra.csv", row.names = FALSE)
 cat(sprintf("\nCSV salvo: msy_posteriores_cenarios_dbsra.csv (%d linhas, %d cenarios)\n",
             nrow(msy_posteriores), length(unique(msy_posteriores$cenario_id))))
+# Salvar como Excel
+write_xlsx(msy_posteriores,  path = "msy_posteriores_cenarios_dbsra.xlsx")
+
 
 ## ---------------------------------------------------------------------
 ## 2) Resumo por cenário (mediana + IC 95%) -- usado no gráfico
@@ -1881,6 +1979,9 @@ cat("\n===== Resumo do MSY por cenario =====\n")
 print(msy_resumo)
 write.csv(msy_resumo, "msy_resumo_cenarios_dbsra.csv", row.names = FALSE)
 cat("CSV salvo: msy_resumo_cenarios_dbsra.csv\n")
+# Salvar como Excel
+write_xlsx(msy_resumo,  path = "msy_resumo_cenarios_dbsra.xlsx")
+
 
 ## ---------------------------------------------------------------------
 ## 3) Gráfico único -- captura histórica (linha) + faixas de MSY por cenário
@@ -1962,6 +2063,8 @@ cat("\n===== Quantis do MSY (pool conjunto) =====\n")
 print(quantis_msy)
 write.csv(quantis_msy, "quantis_msy_conjunto_dbsra.csv", row.names = FALSE)
 cat("CSV salvo: quantis_msy_conjunto_dbsra.csv\n")
+# Salvar como Excel
+write_xlsx(quantis_msy,  path = "quantis_msy_conjunto_dbsra.xlsx")
 
 ## ---------------------------------------------------------------------
 ## 3) Gráfico de densidade, com a faixa de 95% sombreada e os quantis
@@ -2110,6 +2213,8 @@ cat("\n===== Variação em relação ao cenário BASE =====\n")
 print(tab[, c("fator", "nivel", "valor", "delta_pct")])
 write.csv(tab, sprintf("tornado_sensibilidade_%s_dbsra.csv", tolower(metrica)), row.names = FALSE)
 cat(sprintf("\nCSV salvo: tornado_sensibilidade_%s_dbsra.csv\n", tolower(metrica)))
+# Salvar como Excel
+write_xlsx(tab,  path = sprintf("tornado_sensibilidade_%s_dbsra.xlsx", tolower(metrica)))
 
 ## ---------------------------------------------------------------------
 ## 3) Empilha os níveis de cada fator dos dois lados do zero (negativos
@@ -2354,9 +2459,16 @@ cinfo <- cenarios_macarellus_cmsy %>%
 file1  <- "cdat_macarellus_cmsy.csv"
 write.table(cdat, file = file1, append =FALSE,dec=".",sep = ",",
             row.names = FALSE) 
+# Salvar como Excel
+write_xlsx(cdat,  path = "cdat_macarellus_cmsy.xlsx")
+
+
 file2  <- "cinfo_macarellus_cmsy.csv"
 write.table(cinfo, file = file2, append =FALSE,dec=".",sep = ",",
             row.names = FALSE) 
+# Salvar como Excel
+write_xlsx(cinfo,  path = "cinfo_macarellus_cmsy.xlsx")
+
 #x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X
 
 #@pacotes necessarios para o CMSY++
@@ -5121,18 +5233,30 @@ for (stk in stks) { #loop through stock picking
 #write kobe out with f/fmsy and b/bmsy series
 write.table(bio_out, file = "bio_out_macarellus_cmsy.csv", 
             dec=".",sep = ",", row.names = FALSE) 
+# Salvar como Excel
+write_xlsx(bio_out,  path = "bio_out_macarellus_cmsy.xlsx")
+
 
 #write r-k samples priors/posteriors
 write.table(rk_out, file = "rk_out_macarellus_cmsy.csv", 
             dec=".",sep = ",", row.names = FALSE) 
+# Salvar como Excel
+write_xlsx(rk_out,  path = "rk_out_macarellus_cmsy.xlsx")
+
 
 #write the prior posterior data intervals
 write.table(cmsy_out, file = "cmsy_out_macarellus_cmsy.csv", 
             dec=".",sep = ",", row.names = FALSE) 
+# Salvar como Excel
+write_xlsx(cmsy_out,  path = "cmsy_out_macarellus_cmsy.xlsx")
+
 
 #write kobe out with f/fmsy and b/bmsy series
 write.table(kobe_out, file = "kobe_out_macarellus_cmsy.csv", 
             dec=".",sep = ",", row.names = FALSE) 
+# Salvar como Excel
+write_xlsx(kobe_out,  path = "kobe_out_macarellus_cmsy.xlsx")
+
 #---------------------------------------------------------------
 
 
@@ -5228,6 +5352,9 @@ scenarios_sumarized <- cmsy_out %>%
 
 # Export
 write.csv(scenarios_sumarized, "scenarios_sumarized_macarellus_cmsy.csv", row.names = FALSE, na = "")
+# Salvar como Excel
+write_xlsx(scenarios_sumarized,  path = "scenarios_sumarized_macarellus_cmsy.xlsx")
+
 
 
 # ====================================================
@@ -5334,12 +5461,9 @@ print(scenarios_summarized_by_scenario)
 # --------------------------------------------
 # export
 # --------------------------------------------
-write.csv(
-  scenarios_summarized_by_scenario,
-  "scenarios_summarized_by_scenario_macarellus_cmsy.csv",
-  row.names = FALSE,
-  na = ""
-)
+write.csv(scenarios_summarized_by_scenario,  "scenarios_summarized_by_scenario_macarellus_cmsy.csv",row.names = FALSE,  na = "")
+# Salvar como Excel
+write_xlsx(scenarios_summarized_by_scenario,  path = "scenarios_summarize_by_scenario_macarellus_cmsy.xlsx")
 
 
 # ==============================================================
@@ -5440,12 +5564,9 @@ management_table <- last_bbmsy_ffmsy %>%
 head(management_table)
 
 # export
-write.csv(
-  management_table,
-  "management_table_macarellus_cmsy.csv",
-  row.names = FALSE,
-  na = ""
-)
+write.csv(management_table, "management_table_macarellus_cmsy.csv", row.names = FALSE,na = "")
+# Salvar como Excel
+write_xlsx(management_table,  path = "management_table_macarellus_cmsy.xlsx")
 
 # ==============================================================
 # Consistence table (scenarios agreement to each status)
@@ -5514,6 +5635,8 @@ head(consistence_table)
 
 # export
 write.csv(consistence_table,"consistence_table_macarellus_cmsy.csv",row.names = FALSE,na = "")
+# Salvar como Excel
+write_xlsx(consistence_table,  path = "consistence_table_macarellus_cmsy.xlsx")
 
 
 
@@ -5843,6 +5966,8 @@ cat("\n===== Quantis do MSY (pool conjunto, CMSY++) =====\n")
 print(quantis_msy)
 write.csv(quantis_msy, "quantis_msy_conjunto_cmsy.csv", row.names = FALSE)
 cat("CSV salvo: quantis_msy_conjunto_cmsy.csv\n")
+# Salvar como Excel
+write_xlsx(quantis_msy,  path = "quantis_msy_conjunto_cmsy.xlsx")
 
 ## ---------------------------------------------------------------------
 ## 3) Gráfico de densidade, com a faixa de 95% sombreada e os quantis
@@ -5924,6 +6049,9 @@ if (length(meta_cols) > 1) {
   msy_posteriores <- merge(meta, msy_posteriores, by = "cenario_id")
 }
 write.csv(msy_posteriores, "msy_posteriores_cenarios_cmsy.csv", row.names = FALSE)
+# Salvar como Excel
+write_xlsx(msy_posteriores,  path = "msy_posteriores_cenarios_cmsy.xlsx")
+
 
 msy_resumo <- do.call(rbind, lapply(split(msy_posteriores, msy_posteriores$cenario_id), function(d) {
   data.frame(cenario_id = d$cenario_id[1], mediana = median(d$MSY),
@@ -5935,6 +6063,9 @@ if (length(meta_cols) > 1) {
 }
 rownames(msy_resumo) <- NULL
 write.csv(msy_resumo, "msy_resumo_cenarios_cmsy.csv", row.names = FALSE)
+# Salvar como Excel
+write_xlsx(msy_resumo,  path = "msy_resumo_cenarios_cmsy.xlsx")
+
 
 ordem_ids <- if (all(c("bk_method", "r_method") %in% names(msy_resumo))) {
   msy_resumo$cenario_id[order(msy_resumo$bk_method, msy_resumo$r_method)]
@@ -6135,6 +6266,9 @@ cat("\n===== Variação em relação ao cenário BASE =====\n")
 print(tab[, c("fator", "nivel", "valor", "delta_pct")])
 write.csv(tab, sprintf("tornado_sensibilidade_%s_cmsy.csv", tolower(metrica_nome)), row.names = FALSE)
 cat(sprintf("\nCSV salvo: tornado_sensibilidade_%s_cmsy.csv\n", tolower(metrica_nome)))
+# Salvar como Excel
+write_xlsx(tab,  sprintf("tornado_sensibilidade_%s_cmsy.xlsx", tolower(metrica_nome)))
+
 
 ## ---------------------------------------------------------------------
 ## 3) Empilha os níveis de cada fator dos dois lados do zero (negativos
