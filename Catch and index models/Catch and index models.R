@@ -21,77 +21,21 @@ library(readxl)
 library(ggplot2)
 #install.packages("dplyr")
 library(dplyr)
-#installed.packages("tidyr")
-library(tidyr)
-#install.packages("tidyverse")
-library(tidyverse)
-#install.packages("tibble")
-library(tibble)
-#install.packages("neuralnet")
-library(neuralnet)
-#install.packages("purrr")
-library(purrr)
-#install.packages("fishmethods")
-library(fishmethods)
-#install.packages("future.apply")
-library(future.apply)
-#------------------------------------
-#instalando o datalimited2
-#install.packages("devtools") #pra baixar o datalimited2
-#devtools::install_github("cfree14/datalimited2",force = TRUE) #to run zBRT Zhou method 
-#other option to instal datalimited2
-#install.packages("pak")
-#pak::pak("cfree14/datalimited2")
-library(datalimited2)
 #install.packages("writexl")
 library(writexl)
-#------------------------------------
-#pacotes necessarios para o CMSY++
-list.of.packages <- c("R2jags","coda","parallel","foreach","doParallel","gplots","mvtnorm","neuralnet","conicfit")
-new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
-if(length(new.packages)) install.packages(new.packages)
-library(devtools)
-library(datalimited2)
+#install.packages("mgcv")
 library(mgcv)
-library(dplyr)
-library(tidyr)
-library(plyr)
-library(tibble)
-library(keras)
-library(furrr)
-library(future)
-library(purrr)
-library(readr)
-library(ggplot2)
-library(R2jags)#*Interface with JAGS (download also: https://sourceforge.net/projects/mcmc-jags/)
-library(coda)
-library(gplots)
-library(mvtnorm)
-#library(snpar)
-library(neuralnet)
-library(conicfit)
-library(geobr)
-library(sf)
-library(rnaturalearth)
-library(caret)
-library(foreach)
-library(doParallel)
-library(rlang)   # Helpers (e.g., %||%)
-library(stringr)
-library(patchwork)
-library(stringr)
-library(scales)
-#-----------------------------------
+#------------------------------------
 
 # definindo diretorio de trabalho..
-setwd("C:/Users/mathe/OneDrive/Documents/Cabo-Verde---Stock-Assessment/Catch models")
+setwd("C:/Users/mathe/OneDrive/Documents/Cabo-Verde---Stock-Assessment/Catch and index models")
 
 ### lendo os dados de capturas... ###
 ct<- read.csv("Catch_Luz and Vieira.csv",sep = ",",dec = ".")
 # lendo dados de história de vida... ##
 lh<- read_xlsx("Parametros_Historia_de_vida.xlsx")
-#carregar ffnn.bin (parametros da rede neural do CMSY)
-load("ffnn.bin")
+# lendo dados de esforço.. ##
+ef<- read.csv("Effort_FAO.csv",sep = ",",dec = ".")
 
 
 #---------------------------------------#
