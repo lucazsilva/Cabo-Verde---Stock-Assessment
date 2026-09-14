@@ -1637,8 +1637,8 @@ extrair_aceitos <- function(id, var) {
 }
 
 png("comparacao_cenarios_outputs_dbsra.png", width = 28, height = 22,
-                                res = 300,antialias = "cleartype", units = "cm")
-op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1), bty="l",cex=0.8,cex.main=0.9)
+    res = 300,antialias = "cleartype", units = "cm")
+op <- par(mfrow = c(2, 2), mar = c(6, 4.5, 3, 1), oma = c(6, 0, 0, 0), bty="l",cex=0.8,cex.main=0.9)
 for (v in c("OFLT1", "K", "MSY", "Bmsy")) {
   if (!v %in% names(resultados_dbsra[[1]]$Values)) next
   lst <- lapply(ordem_ids, extrair_aceitos, var = v)
@@ -1646,7 +1646,7 @@ for (v in c("OFLT1", "K", "MSY", "Bmsy")) {
           cex.axis = 0.65, ylab = v, lwd=1, bty="l", xaxt="n")
   axis( 1,at = 1:length(ordem_ids),  labels = FALSE )
   text(x = 1:length(ordem_ids), y = par("usr")[3],
-       labels = ordem_ids, srt = 45,adj = 1,xpd = TRUE,cex=0.8) 
+       labels = ordem_ids, srt = 45,adj = 1,xpd = NA,cex=0.68)
 }
 par(op)
 dev.off()
@@ -1657,20 +1657,21 @@ cat("\nPNG salvo: comparacao_cenarios_outputs_dbsra.png\n")
 ## ---------------------------------------------------------------------
 
 png("comparacao_cenarios_parametros_dbsra.png", width = 28, height = 22,
-                          res = 300,antialias = "cleartype", units = "cm")
-op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1), bty="l",cex=0.8,cex.main=0.9)
+    res = 300,antialias = "cleartype", units = "cm")
+op <- par(mfrow = c(2, 2), mar = c(6, 4.5, 3, 1), oma = c(6, 0, 0, 0), bty="l",cex=0.8,cex.main=0.9)
 for (v in c("FmsyM", "BtK", "BmsyK", "M")) {
   if (!v %in% names(resultados_dbsra[[1]]$Values)) next
   lst <- lapply(ordem_ids, extrair_aceitos, var = v)
   boxplot(lst, names = ordem_ids, las = 2, main = v, lwd=1,col = "#74C476" ,
           cex.axis = 0.65, ylab = v, bty="l", xaxt="n")
   axis( 1,at = 1:length(ordem_ids),  labels = FALSE )
-  text(x = 1:length(ordem_ids), y = par("usr")[3],labels = ordem_ids, 
-       srt = 45,adj = 1,xpd = TRUE,cex=0.8) 
+  text(x = 1:length(ordem_ids), y = par("usr")[3],labels = ordem_ids,
+       srt = 45,adj = 1,xpd = NA,cex=0.68)
 }
 par(op)
 dev.off()
 cat("PNG salvo: comparacao_cenarios_parametros_dbsra.png\n")
+
 
 ## ---------------------------------------------------------------------
 ## 5) PRIORI x POSTERIORI por cenario (generaliza o script anterior,
@@ -1869,7 +1870,7 @@ ordem_ids <- if (all(c("hipotese", "m_hipotese") %in% names(cenarios_macarellus_
 }
 cores <- setNames(grDevices::hcl.colors(length(ordem_ids), palette = "Dark 3"), ordem_ids)
 
-png("trajetorias_biomassa_cenarios.png", width = 32, height = 16,
+png("trajetorias_biomassa_cenarios_dbsra.png", width = 32, height = 16,
                           res = 300,antialias = "cleartype", units = "cm")
 op <- par(mfrow = c(1, 2), mar = c(4.5, 4.5, 3, 1), xpd = FALSE, bty="l",cex.main=0.9)
 
@@ -1905,7 +1906,7 @@ legend("topright", legend = ordem_ids, col = cores, lwd = 3.2, bty = "n", cex = 
 
 par(op)
 dev.off()
-cat("PNG salvo: trajetorias_biomassa_cenarios.png\n")
+cat("PNG salvo: trajetorias_biomassa_cenarios_dbsra.png\n")
 
 
 # =====================================================================
@@ -2013,6 +2014,7 @@ plot(NA, xlim = xlim_plot, ylim = c(0, ylim_max),
 # ---- faixas horizontais (IC95%) + linha (mediana) de MSY, por cenário ----
 x0 <- min(anos)
 x1 <- max(anos)
+
 for (id in ordem_ids) {
   r <- msy_resumo[msy_resumo$cenario_id == id, ]
   rect(x0, r$p2.5, x1, r$p97.5, col = adjustcolor(cores[id], alpha.f = 0.14), border = NA)
@@ -2140,6 +2142,106 @@ dev.off()
 cat("\nPNG salvo: msy_densidade_conjunta_dbsra.png\n")
 
 
+
+# =====================================================================
+# Densidade conjunta do Bt/K (status de depleção) -- todos os cenários
+# do DB-SRA combinados num só pool
+# =====================================================================
+stopifnot(exists("resultados_dbsra"))
+
+## ---------------------------------------------------------------------
+## 1) Pool único com o Bt/K de todas as simulações aceitas, de todos os
+##    cenários (ignora de qual cenário veio -- é a distribuição conjunta)
+## ---------------------------------------------------------------------
+
+btk_todos <- unlist(lapply(resultados_dbsra, function(res) {
+  vals <- res$Values
+  vals$BtK[vals$ll == 1]
+}), use.names = FALSE)
+
+cat(sprintf("Bt/K combinado: %d simulacoes aceitas, de %d cenarios.\n",
+            length(btk_todos), length(resultados_dbsra)))
+
+## ---------------------------------------------------------------------
+## 2) Quantis de incerteza
+## ---------------------------------------------------------------------
+
+probs <- c(0.025, 0.25, 0.50, 0.75, 0.975)
+q <- quantile(btk_todos, probs)
+
+quantis_btk <- data.frame(
+  quantil = c("2.5%", "25%", "mediana (50%)", "75%", "97.5%"),
+  BtK     = as.numeric(q)
+)
+cat("\n===== Quantis do Bt/K (pool conjunto) =====\n")
+print(quantis_btk)
+write.csv(quantis_btk, "quantis_btk_conjunto_dbsra.csv", row.names = FALSE)
+cat("CSV salvo: quantis_btk_conjunto_dbsra.csv\n")
+# Salvar como Excel
+write_xlsx(quantis_btk, path = "quantis_btk_conjunto_dbsra.xlsx")
+
+## ---------------------------------------------------------------------
+## 3) Gráfico de densidade, com a faixa de 95% sombreada e os quantis
+##    marcados por linhas verticais
+## ---------------------------------------------------------------------
+# IMPORTANTE -- diferença em relação ao script do MSY: lá o pool
+# misturava escalas muito diferentes (cenários com MSY na casa de
+# milhares de t + a cauda do "Uninformative" esticando pra dezenas de
+# milhares), o que exigia calcular a densidade em log10(MSY) pra não
+# sair com cara de agulha. Bt/K não tem esse problema: é uma proporção
+# limitada entre 0 e 1 pra QUALQUER cenário (até o "Uninformative", que
+# só é largo dentro desse mesmo intervalo) -- não há mistura de ordens
+# de grandeza. Por isso aqui a densidade é calculada direto na escala
+# natural do Bt/K (linear, sem log), com from=0/to=1 pra não deixar a
+# suavização "vazar" pra fora do intervalo fisicamente possível.
+suavizacao <- 2   # >1 = mais suave; ajuste se ainda parecer serrilhado
+
+dl <- density(btk_todos, adjust = suavizacao, from = 0, to = 1)
+x_btk <- dl$x
+y_btk <- dl$y
+
+png("btk_densidade_conjunta_dbsra.png", width = 28, height = 20,
+    res = 300,antialias = "cleartype", units = "cm")
+op <- par(mar = c(4.5, 4.5, 3, 1),bty="l",cex.main=0.9)
+
+plot(x_btk, y_btk, type = "l",
+     main = "Distribuição conjunta de Bt/K (todos os cenários combinados)",
+     xlab = "Bt/K (fração da capacidade de suporte)", ylab = "Densidade",
+     col = "#1F4E79", lwd = 2.2, xlim = c(0, 1))
+
+# sombreia a faixa de 95% (entre os quantis 2.5% e 97.5%) sob a curva
+faixa <- x_btk >= q["2.5%"] & x_btk <= q["97.5%"]
+polygon(c(x_btk[faixa], rev(x_btk[faixa])), c(y_btk[faixa], rep(0, sum(faixa))),
+        col = adjustcolor("#1F4E79", alpha.f = 0.18), border = NA)
+
+# curva por cima da faixa sombreada
+lines(x_btk, y_btk, col = "#1F4E79", lwd = 2.2)
+
+# linhas verticais nos quantis
+cores_q <- c("2.5%" = "#C00000", "25%" = "#7F7F7F", "mediana (50%)" = "#1F4E79",
+             "75%" = "#7F7F7F", "97.5%" = "#C00000")
+lty_q   <- c("2.5%" = 2, "25%" = 3, "mediana (50%)" = 1, "75%" = 3, "97.5%" = 2)
+for (nm in names(q)) {
+  key <- if (nm == "50%") "mediana (50%)" else nm
+  abline(v = q[nm], col = cores_q[key], lty = lty_q[key], lwd = 1.8)
+}
+
+# rótulos dos quantis, perto do eixo x
+y_lab <- max(y_btk) * 0.05
+text(q["2.5%"],  y_lab, sprintf("2,5%%\n%.2f", q["2.5%"]),  col = "#C00000", cex = 0.8, pos = 2, offset = 0.3)
+text(q["97.5%"], y_lab, sprintf("97,5%%\n%.2f", q["97.5%"]), col = "#C00000", cex = 0.8, pos = 4, offset = 0.3)
+text(q["50%"], max(y_btk) * 0.97, sprintf("mediana: %.2f", q["50%"]),
+     col = "#1F4E79", cex = 0.8, pos = 4, offset = 0.3, font = 2)
+
+legend("topright", legend = c("Densidade conjunta do Bt/K", "Faixa de 95% (IC)", "Mediana"),
+       col = c("#1F4E79", adjustcolor("#1F4E79", alpha.f = 0.4), "#1F4E79"),
+       lwd = c(2.2, 8, 1.8), lty = c(1, 1, 1), bty = "n", cex = 0.8)
+
+par(op)
+dev.off()
+cat("\nPNG salvo: btk_densidade_conjunta_dbsra.png\n")
+
+
 # =====================================================================
 # Gráfico tornado -- sensibilidade de uma quantidade de manejo do DB-SRA
 # aos dois eixos de cenário testados: M (fonte da mortalidade natural) e
@@ -2163,7 +2265,7 @@ metrica <- "MSY"   # troque para "OFLT1", "Bmsy", "Fmsy", "Umsy", "K", etc.
 # cenário BASE: a combinação de bk/M que vocês tratam como referência
 # (ex.: a hipótese de bk mais defensável e a fonte de M mais confiável)
 bk_base <- "Target_switch"
-m_base  <- "M_Jardim(1996-1999)"
+m_base  <- "M_Jardim(1981-1994)"
 
 ## ---------------------------------------------------------------------
 ## 1) Mediana da métrica escolhida, por cenário (só simulações aceitas)
@@ -2297,7 +2399,6 @@ cat(sprintf("\nPNG salvo: tornado_sensibilidade_%s_dbsra.png\n", tolower(metrica
 #===========================================================================================================================#
 # -----------------------------------------------  Fim do DB-SRA -----------------------------------------------------------#                
 #===========================================================================================================================#
-
 
 
 
@@ -6029,6 +6130,108 @@ legend("topright", legend = c("Densidade conjunta do MSY", "Faixa de 95% (IC)", 
 par(op)
 dev.off()
 cat("\nPNG salvo: msy_densidade_conjunta_cmsy.png\n")
+
+
+
+# =====================================================================
+# Densidade conjunta do Bt/K do último ano -- todos os cenários do
+# CMSY++ combinados num só pool
+#   1) quantis_btk_conjunto_cmsy.csv/.xlsx -- quantis de incerteza
+#      (2,5%, 25%, mediana, 75%, 97,5%) do Bt/K final combinando TODAS
+#      as simulações de TODOS os cenários num único pool
+#   2) btk_densidade_conjunta_cmsy.png -- densidade dessa distribuição
+#      conjunta, com a faixa de 95% sombreada e os quantis marcados
+# =====================================================================
+
+stopifnot(exists("rk_out"))
+stopifnot(all(c("scenario", "postfinalbk") %in% names(rk_out)))
+
+## ---------------------------------------------------------------------
+## 1) Pool único com o Bt/K final de todas as simulações, de todos os
+##    cenários (ignora de qual cenário veio -- é a distribuição conjunta)
+## ---------------------------------------------------------------------
+
+btk_todos <- rk_out$postfinalbk
+btk_todos <- btk_todos[is.finite(btk_todos)]
+
+cat(sprintf("Bt/K final combinado: %d simulacoes, de %d cenarios.\n",
+            length(btk_todos), length(unique(rk_out$scenario))))
+
+## ---------------------------------------------------------------------
+## 2) Quantis de incerteza
+## ---------------------------------------------------------------------
+
+probs <- c(0.025, 0.25, 0.50, 0.75, 0.975)
+q <- quantile(btk_todos, probs)
+
+quantis_btk <- data.frame(
+  quantil = c("2.5%", "25%", "mediana (50%)", "75%", "97.5%"),
+  BtK     = as.numeric(q)
+)
+cat("\n===== Quantis do Bt/K final (pool conjunto, CMSY++) =====\n")
+print(quantis_btk)
+write.csv(quantis_btk, "quantis_btk_conjunto_cmsy.csv", row.names = FALSE)
+cat("CSV salvo: quantis_btk_conjunto_cmsy.csv\n")
+# Salvar como Excel
+write_xlsx(quantis_btk, path = "quantis_btk_conjunto_cmsy.xlsx")
+
+## ---------------------------------------------------------------------
+## 3) Gráfico de densidade, com a faixa de 95% sombreada e os quantis
+##    marcados por linhas verticais
+## ---------------------------------------------------------------------
+# Mesma lógica do script equivalente do DB-SRA: Bt/K é uma proporção
+# entre 0 e 1 pra QUALQUER cenário (inclusive o "Uninformative"/bk_method
+# pouco informativo, que só é mais largo dentro desse mesmo intervalo)
+# -- não há mistura de ordens de grandeza como acontecia com o MSY. Por
+# isso a densidade aqui é calculada direto na escala natural (linear,
+# sem log), com from=0/to=1 pra não deixar a suavização vazar pra fora
+# do intervalo fisicamente possível.
+suavizacao <- 2   # >1 = mais suave; ajuste se ainda parecer serrilhado
+
+dl <- density(btk_todos, adjust = suavizacao, from = 0, to = 1)
+x_btk <- dl$x
+y_btk <- dl$y
+
+png("btk_densidade_conjunta_cmsy.png", width = 25, height = 16,
+    res = 300, antialias = "cleartype", units = "cm")
+op <- par(mar = c(4.5, 5, 3, 1), bty = "l", cex.main = 0.9)
+
+plot(x_btk, y_btk, type = "l",
+     main = "Distribuição conjunta de Bt/K final -- todos os cenários (CMSY++)",
+     xlab = "Bt/K no último ano (fração da capacidade de suporte)", ylab = "Densidade",
+     col = "#1F4E79", lwd = 2.4, xlim = c(0, 1))
+
+# sombreia a faixa de 95% (entre os quantis 2.5% e 97.5%) sob a curva
+faixa <- x_btk >= q["2.5%"] & x_btk <= q["97.5%"]
+polygon(c(x_btk[faixa], rev(x_btk[faixa])), c(y_btk[faixa], rep(0, sum(faixa))),
+        col = adjustcolor("#1F4E79", alpha.f = 0.18), border = NA)
+
+# curva por cima da faixa sombreada
+lines(x_btk, y_btk, col = "#1F4E79", lwd = 2.4)
+
+# linhas verticais nos quantis
+cores_q <- c("2.5%" = "#C00000", "25%" = "#7F7F7F", "mediana (50%)" = "#1F4E79",
+             "75%" = "#7F7F7F", "97.5%" = "#C00000")
+lty_q   <- c("2.5%" = 2, "25%" = 3, "mediana (50%)" = 1, "75%" = 3, "97.5%" = 2)
+for (nm in names(q)) {
+  key <- if (nm == "50%") "mediana (50%)" else nm
+  abline(v = q[nm], col = cores_q[key], lty = lty_q[key], lwd = 1.8)
+}
+
+# rótulos dos quantis, perto do eixo x
+y_lab <- max(y_btk) * 0.05
+text(q["2.5%"],  y_lab, sprintf("2,5%%\n%.2f", q["2.5%"]),  col = "#C00000", cex = 0.8, pos = 2, offset = 0.3)
+text(q["97.5%"], y_lab, sprintf("97,5%%\n%.2f", q["97.5%"]), col = "#C00000", cex = 0.8, pos = 4, offset = 0.3)
+text(q["50%"], max(y_btk) * 0.97, sprintf("mediana: %.2f", q["50%"]),
+     col = "#1F4E79", cex = 0.8, pos = 4, offset = 0.3, font = 2)
+
+legend("topright", legend = c("Densidade conjunta do Bt/K final", "Faixa de 95% (IC)", "Mediana"),
+       col = c("#1F4E79", adjustcolor("#1F4E79", alpha.f = 0.4), "#1F4E79"),
+       lwd = c(2.4, 8, 1.8), lty = c(1, 1, 1), bty = "n", cex = 0.8)
+
+par(op)
+dev.off()
+cat("\nPNG salvo: btk_densidade_conjunta_cmsy.png\n")
 
 
 # =====================================================================
