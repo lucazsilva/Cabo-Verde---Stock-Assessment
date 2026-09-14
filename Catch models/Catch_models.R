@@ -99,7 +99,7 @@ load("ffnn.bin")
 
 p_ct <- ggplot(ct, aes(x = Year, y = Catch)) +
   # Captura observada
-  geom_line(linewidth = 1.5) +
+  geom_line(linewidth = 1.2) +
   # Tendência suavizada
   geom_smooth(
     method = "loess",
@@ -136,18 +136,10 @@ ggsave(
 # ==============================================================================
 # Hipoteses de depleção (B/k) final da série para Decapterus macarellus
 # ==============================================================================
-## Objetivo:
-# Construir hipóteses de depleção B/K para Decapterus macarellus
-# utilizando:
-#
 #   1. Neural Network do CMSY++
 #   2. zBRT
 #   3. Hipótese independente de mudança de alvo (target switching)
 #   4. Hipótese não informativa
-#
-# IMPORTANTE:
-# Para cada ano-alvo, somente os dados até aquele ano são utilizados.
-# Isso evita usar informação futura para estimar a depleção histórica.
 #
 # ==============================================================================
 # 1. PACOTES
@@ -1549,7 +1541,7 @@ extrair_aceitos <- function(id, var) {
   acc[[var]]
 }
 
-png("comparacao_cenarios_outputs.png", width = 28, height = 20,
+png("comparacao_cenarios_outputs_dbsra.png", width = 28, height = 20,
                                 res = 300,antialias = "cleartype", units = "cm")
 op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1), bty="l",cex=0.8,cex.main=0.9)
 for (v in c("OFLT1", "K", "MSY", "Bmsy")) {
@@ -1563,13 +1555,13 @@ for (v in c("OFLT1", "K", "MSY", "Bmsy")) {
 }
 par(op)
 dev.off()
-cat("\nPNG salvo: comparacao_cenarios_outputs.png\n")
+cat("\nPNG salvo: comparacao_cenarios_outputs_dbsra.png\n")
 
 ## ---------------------------------------------------------------------
 ## 4) COMPARACAO ENTRE CENARIOS -- os 4 parametros estocasticos
 ## ---------------------------------------------------------------------
 
-png("comparacao_cenarios_parametros.png", width = 28, height = 20,
+png("comparacao_cenarios_parametros_dbsra.png", width = 28, height = 20,
                           res = 300,antialias = "cleartype", units = "cm")
 op <- par(mfrow = c(2, 2), mar = c(8, 4.5, 3, 1), bty="l",cex=0.8,cex.main=0.9)
 for (v in c("FmsyM", "BtK", "BmsyK", "M")) {
@@ -1583,7 +1575,7 @@ for (v in c("FmsyM", "BtK", "BmsyK", "M")) {
 }
 par(op)
 dev.off()
-cat("PNG salvo: comparacao_cenarios_parametros.png\n")
+cat("PNG salvo: comparacao_cenarios_parametros_dbsra.png\n")
 
 ## ---------------------------------------------------------------------
 ## 5) PRIORI x POSTERIORI por cenario (generaliza o script anterior,
@@ -4109,9 +4101,9 @@ for (stk in stks) { #loop through stock picking
         # bk3
         pp.lab=paste0("B/k ",yr[length(yr)])
         post = all.bk.cmsy[,length(yr)]; bk_final_post<- sample(post,6000,replace = T)
-        rpr = seq(0.5*endbio[1],endbio[2]*1.5,0.005); bk_final_prior<-sample(rpr,6000,replace = T)
+        rpr = seq(0.5*endbio[1],endbio[2]*1.5,0.005)
         pdf = stats::density(post,adjust=2)
-        prand <- sort(rbeta(2000,bk.beta[1,3], bk.beta[2,3]))
+        prand <- sort(rbeta(2000,bk.beta[1,3], bk.beta[2,3])); bk_final_prior <- sample(prand, 6000, replace = TRUE)
         prior <-dbeta(sort(prand),bk.beta[1,3], bk.beta[2,3]) #><>HW now pdf
         #prior.height<-1/(prior[2]-prior[1])	# modification by GP 03/12/2019
         plot(pdf,type="l",ylim=range(c(pdf$y,0,prior)),xlim=range(c(pdf$x,prand,min(1.7*rpr[2],1.05),max(pdf$x,rpr)*1.1)),yaxt="n",xlab=pp.lab,ylab="",xaxs="i",yaxs="i",main="",bty="l",cex.lab = 1.55, cex.axis = 1.5)
@@ -6223,230 +6215,6 @@ par(op)
 dev.off()
 cat(sprintf("\nPNG salvo: tornado_sensibilidade_%s_cmsy.png\n", tolower(metrica_nome)))
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## interquartile range across the two catch reconstructions
-## The IQR below matches the Methods and produces much
-## narrower, readable bands. Swap the probs if the wider band is the
-biomass_summary <- bio_out |>
-  dplyr::group_by(stock_group, yr, scenario) |>
-  dplyr::summarise(
-    B_median = median(B.Bmsy, na.rm = TRUE),
-    B_lcl    = quantile(lcl.B.Bmsy, 0.25, na.rm = TRUE),   # interquartile ranges
-    B_ucl    = quantile(ucl.B.Bmsy, 0.75, na.rm = TRUE),   # interquartile ranges
-    .groups  = "drop"
-  )
-
-## ---- 2. Factors, palette --------------------------------------
-stock_levels <- c("brown_N",  "brown_NE",  "pink_S",   "pink_SE",
-                  "seabob_N", "seabob_NE", "seabob_S", "seabob_SE",
-                  "white_N",  "white_NE",  "white_S",  "white_SE")
-
-## "Forecast" renamed to "Projected catches" 
-scen_levels <- c("Baseline (CMSY-default)",
-                 "Economic hypothesis (High B/k)",
-                 "Informed (Biological + Statistical)",
-                 "Literature hypothesis",
-                 "Uninformative (Fixed B/k / Flexible r)",
-                 "Uninformative (Fixed r / Flexible B/k)",
-                 "Uninformative (Wide priors)",
-                 "Projected catches (neural network)")
-
-## validated colourblind-safe palette (passes lightness band, chroma
-## floor, deutan/protan/tritan and normal-vision separation on all
-## adjacent pairs)
-scen_cols <- setNames(c("#0072B2", "#D55E00", "#009E73", "#7B3294",
-                        "#E69F00", "#56B4E9", "#CC79A7", "#A6761D"),
-                      scen_levels)
-
-## secondary encoding, so identity survives greyscale printing
-scen_lty <- setNames(c("solid", "solid", "solid", "solid",
-                       "22", "42", "4212", "dotdash"),
-                     scen_levels)
-
-bs <- biomass_summary |>
-  mutate(
-    stock_group = factor(stock_group, levels = stock_levels),
-    scenario = recode(scenario,
-                      "Forecast (Projected catches via neural network)" =
-                        "Projected catches (neural network)"),
-    scenario = factor(scenario, levels = scen_levels)
-  )
-
-## ----------  Biomass series -----------#
-p8 <- ggplot(bs, aes(x = yr)) +
-  ## reference lines first, so nothing is drawn over the data
-  geom_hline(yintercept = 1, linetype = "dashed",
-             colour = "grey55", linewidth = 0.4) +
-  geom_vline(xintercept = 2015, linetype = "dotted",
-             colour = "grey55", linewidth = 0.4) +
-  ## ribbons BELOW the medians, light enough to stack
-  geom_ribbon(aes(ymin = B_lcl, ymax = B_ucl, fill = scenario),
-              alpha = 0.10, colour = NA) +
-  ## medians on top
-  geom_line(aes(y = B_median, colour = scenario, linetype = scenario),
-            linewidth = 0.75) +
-  scale_colour_manual(values = scen_cols) +
-  scale_fill_manual(values = scen_cols) +
-  scale_linetype_manual(values = scen_lty) +
-  facet_wrap(~ stock_group, ncol = 4) +   # common y-axis: panels comparable
-  coord_cartesian(ylim = c(0, 2.4)) +
-  labs(x = "Year", y = expression(B/B[MSY])) +
-  guides(colour   = guide_legend(ncol = 4),
-         fill    = guide_legend(ncol = 4),
-         linetype = guide_legend(ncol = 4)) +
-  theme_classic(base_size = 10) +
-  theme(
-    strip.background = element_blank(),
-    strip.text.x = element_text(size = 10, margin = margin(b = 1)),
-    axis.text = element_text(size = 9),
-    panel.spacing = unit(0.6, "lines"),
-    legend.position = "bottom",
-    legend.title = element_blank(),
-    legend.text = element_text(size = 8.5),
-    legend.key.width = unit(1.5, "lines"),
-    legend.box.margin = margin(t = -6),
-    
-  )
-p8
-ggsave("Biomass_series_all_scenarios.png", p8,  width = 32, height = 20, units = "cm", dpi = 400)
-
-
-
-#-------------- 
-# Priors plots
-#--------------
-#plot depletions Bk
-p9 <- ggplot(filter(bk_all, year == 2015), aes(
-  x = method, y = bk,
-  ymin = bk_lo, ymax = bk_hi,
-  color = method,
-  shape = stock_ind,
-  group = interaction(category, region, method, source)
-)) +
-  geom_linerange(position = position_dodge(width = 0.85), linewidth = 1.2) +
-  geom_point(position = position_dodge(width = 0.85), size = 3.5,stroke = 1.5) +
-  geom_hline(yintercept = 0.5, linetype = "dashed", color = "grey50", linewidth = 0.4) +
-  scale_shape_manual(values = 0:11) +
-  scale_colour_viridis_d()+
-  scale_y_continuous(breaks = seq(0.1,0.8,0.1))+
-  labs(
-    x = "Estimation method", 
-    y =  expression("Biomass depletion (B/k"[2015]*")"), 
-    color = "",
-    shape = ""
-  ) +
-  theme_bw(base_size = 15) +
-  theme(
-    legend.position = "bottom",
-    plot.margin = unit(c(0.05, 0.05, 0.05, 0.05), "mm"),
-    strip.text.x = element_text(margin = margin(b = 1), size = 11),
-    axis.text.y = element_text(size = 15),
-    axis.text.x = element_text(size = 15, face = "italic"),
-    legend.text = element_text(size=14),
-    legend.box.margin = margin(t = -10),
-    legend.spacing.y = unit(0.1, "cm")
-  )
-
-p9
-
-#save png..
-ggsave("bk_priors.png", plot = p9, device = "png",  units = "cm", width = 30, height = 17)
-
-# Violin plot (Intrinsic growth rate)
-p10<- ggplot(all_sims_long, aes(x = specie, y = r,col=method, fill = method)) +
-  geom_boxplot(aes(fill=method,col = method), alpha = 0.4,width = 0.3, position = position_dodge(width = 0.8))+
-  geom_violin(aes(col = method),trim = TRUE, alpha = 0.5,width = 1.5, position = position_dodge(width = 0.8)) +
-  geom_jitter(aes(col = method),
-              position = position_jitterdodge(jitter.width = 0.15, dodge.width = 0.8),
-              size = 1, alpha = 0.3) +
-  labs(x = "Species", y = "Intrinsic growth rate (r)",
-       fill = "", color = "") +
-  scale_y_continuous(limits = c(0,1.5), breaks = seq(0,1.5,0.1))+
-  scale_color_viridis_d()+
-  scale_fill_viridis_d()+
-  theme_classic(base_size = 15) %+replace%
-  theme(
-    strip.background = element_blank(), 
-    plot.margin = unit(c(0.05, 0.05, 0.05, 0.05), "mm"),
-    strip.text.x = element_text(margin = margin(b = 1), size = 15),
-    axis.text.y = element_text(size=15),
-    axis.text.x = element_text(size = 15,  face = "italic"),
-    legend.text = element_text(size=15),
-    legend.box.margin = margin(t = -10),
-    legend.spacing.y = unit(0.1, "cm"),
-    legend.position = "bottom"
-  )
-p10
-
-#save png..
-ggsave("r_priors.png", plot = p10, device = "png",  units = "cm", width = 32, height = 17)
-
-
 ##################################################################################################################
 #End of assessments
 ##################################################################################################################
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
