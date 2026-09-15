@@ -25,6 +25,12 @@ library(dplyr)
 library(writexl)
 #install.packages("mgcv")
 library(mgcv)
+#-----------------------------
+#instalando o JABBA (Just Another Bayesian Biomass Assessment (Winker et al., 2018) )
+#install.packages("pak")
+library(pak)
+#pak::pak("jabbamodel/JABBA")
+library(JABBA)
 #------------------------------------
 
 # definindo diretorio de trabalho..
