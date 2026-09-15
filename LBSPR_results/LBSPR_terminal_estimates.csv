@@ -1,0 +1,4 @@
+year,SL50,SL95,FM,SPR,estimate_type,scenario,set,Linf,MK,L50_input,L95_input,BinWidth,source,rationale,maturity_definition
+2024,29.73,34.21,2.98,0.59,smoothed,BASE,core,40.6,2.0444444444444443,21.068058595591573,23.928403002115303,1,Vieira (2019) + current maturity data,Reference model using local growth/mortality and observed maturity,II-VII adults
+2024,29.7,34.36,4.01,0.47,smoothed,S_MK_1.59,core,40.6,1.59,21.068058595591573,23.928403002115303,1,da Luz & Vieira (2020),Tests sensitivity to a lower published M/K estimate,II-VII adults
+2024,29.49,33.98,2.97,0.62,smoothed,S_bin_2cm,core,40.6,2.0444444444444443,21.068058595591573,23.928403002115303,2,Current length data,Tests sensitivity to aggregation of the original 1-cm length classes,II-VII adults

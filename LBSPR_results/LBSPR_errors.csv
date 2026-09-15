@@ -1,0 +1,3 @@
+scenario,error
+S_Linf_high,"Maximum length bin (45.5) can't be smaller than asymptotic size
+                (46). Increase size of maximum length class ['maxL']"

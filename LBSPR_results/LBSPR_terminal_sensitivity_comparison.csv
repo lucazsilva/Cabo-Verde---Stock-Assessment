@@ -1,0 +1,4 @@
+scenario,year,SPR,delta_SPR,delta_SPR_pct,FM,SL50,SL95,Linf,MK,L50_input,L95_input,BinWidth,maturity_definition,source,rationale
+BASE,2024,0.59,0,0,2.98,29.73,34.21,40.6,2.0444444444444443,21.068058595591573,23.928403002115303,1,II-VII adults,Vieira (2019) + current maturity data,Reference model using local growth/mortality and observed maturity
+S_MK_1.59,2024,0.47,-0.12,-20.33898305084746,4.01,29.7,34.36,40.6,1.59,21.068058595591573,23.928403002115303,1,II-VII adults,da Luz & Vieira (2020),Tests sensitivity to a lower published M/K estimate
+S_bin_2cm,2024,0.62,0.030000000000000027,5.0847457627118695,2.97,29.49,33.98,40.6,2.0444444444444443,21.068058595591573,23.928403002115303,2,II-VII adults,Current length data,Tests sensitivity to aggregation of the original 1-cm length classes
