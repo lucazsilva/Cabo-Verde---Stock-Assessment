@@ -67,7 +67,7 @@
 #     em todas as versoes). Se algo falhar, rode slotNames() no objeto
 #     envolvido e confira contra a documentacao da sua versao instalada.
 # =============================================================================
-
+setwd("C:/Users/lucas/OneDrive/Desktop/Consultorias/Brasil - Sustentamares/Cabo Verde/Análises/Cabo-Verde---Stock-Assessment/LBSPR_Hordyk2015")   # onde está o .xlsx
 # ---- 1. Pacotes -------------------------------------------------------------
 required_pkgs <- c("LBSPR", "readxl", "dplyr", "tidyr", "ggplot2", "stringr", "purrr")
 new_pkgs <- required_pkgs[!(required_pkgs %in% installed.packages()[, "Package"])]
