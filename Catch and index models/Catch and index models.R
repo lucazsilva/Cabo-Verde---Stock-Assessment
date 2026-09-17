@@ -104,35 +104,27 @@ lh<- read_xlsx("Parametros_Historia_de_vida.xlsx")
 # e precisa estar no modelo. Mas 12 níveis de mês, cruzados com 7 anos e dezenas de bancos, deixam
 #     muitas células quase vazias e o coeficiente vira ruído. Trimestre mantém a forma sazonal 
 # com 4 níveis bem povoados.
-# L10. TRIPULAÇÃO em CLASSES, não contínua. `Numero_pescadores` é proxy
-#     de poder de pesca. Entrar como contínua impõe relação monotônica e
-#     linear na escala do log, o que não há motivo para supor; e a cauda
-#     (1-9 e 44-50 pescadores) puxa a reta. Classes deixam a forma
-#     aparecer e são robustas a esses extremos. Cortes em <=12 / 13-15 /
-#     16-17 / >=18 (quartis aproximados, ~19/29/30/23% das viagens).
-# L11. EMBARCAÇÃO = CÓDIGO (`Embarcacao`), não nome. Na varredura, 21
-#     nomes aparecem com 2-3 códigos diferentes e as séries se
-#     SOBREPÕEM no tempo (ex.: "BARBARA" código 18 de 2019-2025 e código
-#     3413 de 2020-2025, simultâneos). São barcos distintos com o mesmo
-#     nome. Usar o nome fundiria históricos de barcos diferentes; o
-#     código é 1:1 com o nome (nenhum código tem dois nomes).
-# L12. `Tipo_embarcacao` (I / S) NÃO É USADO. Parecia um estrato de
-#     frota, mas a varredura mostrou três coisas: (a) 30 dos 34 barcos
-#     que aparecem como "S" também aparecem como "I" — é o MESMO barco
-#     com dois códigos em viagens diferentes; (b) "S" praticamente só
-#     existe em 2019 (452 viagens) e some depois (12, 7, 1, 0, 0, 0), ou
-#     seja, está quase perfeitamente confundido com o ano — justo o ano
-#     de maior captura de cavala; (c) os perfis de I e S em 2019 são
-#     iguais (mesmos dias no mar, mesma tripulação, mesma captura
-#     média). É um código administrativo de registro, não um tipo de
-#     embarcação. Usá-lo como covariável roubaria sinal do efeito de ano.
-# L13. Viagens com MAIS DE UMA ARTE (43 viagens) são descartadas: os
-#     dias de mar delas cobrem também o que foi pescado com outra arte,
-#     então o esforço atribuído ao cerco ficaria inflado.
+# L10. TRIPULAÇÃO em CLASSES, não contínua. `Numero_pescadores` é proxy de poder de pesca. Entrar 
+# como contínua impõe relação monotônica e linear na escala do log, o que não há motivo para supor; 
+# e a cauda (1-9 e 44-50 pescadores) puxa a reta. Classes deixam a forma aparecer e são robustas 
+# a esses extremos. Cortes em <=12 / 13-15 /16-17 / >=18 (quartis aproximados, ~19/29/30/23% das viagens).
+# L11. EMBARCAÇÃO = CÓDIGO (`Embarcacao`), não nome. Na varredura, 21  nomes aparecem com 2-3 códigos diferentes 
+# e as séries se SOBREPÕEM no tempo (ex.: "BARBARA" código 18 de 2019-2025 e código
+#     3413 de 2020-2025, simultâneos). São barcos distintos com o mesmo nome. Usar o nome fundiria 
+# históricos de barcos diferentes; o código é 1:1 com o nome (nenhum código tem dois nomes).
+# L12. `Tipo_embarcacao` (I / S) NÃO É USADO. Parecia um estrato de frota, mas a varredura 
+# mostrou três coisas: (a) 30 dos 34 barcos que aparecem como "S" também aparecem como "I" — é o MESMO barco
+#   com dois códigos em viagens diferentes; (b) "S" praticamente só existe em 2019 (452 viagens) e 
+# some depois (12, 7, 1, 0, 0, 0), ou seja, está quase perfeitamente confundido com o ano — justo o ano
+# de maior captura de cavala; (c) os perfis de I e S em 2019 são iguais (mesmos dias no mar, 
+#mesma tripulação, mesma captura média). É um código administrativo de registro, não um tipo de embarcação.
+#Usá-lo como covariável roubaria sinal do efeito de ano.
+# L13. Viagens com MAIS DE UMA ARTE (43 viagens) são descartadas: os dias de mar delas cobrem também 
+#o que foi pescado com outra arte, então o esforço atribuído ao cerco ficaria inflado.
 #======================================================================
 
 ## =====================================================================
-## 0) PARÂMETROS QUE VOCÊ PODE QUERER MEXER
+## 0) PARÂMETROS 
 ## =====================================================================
 ARQUIVO        <- "INDUSTRIAL_2019_2025_atualizado_17.09.2026.csv"
 ARTE_ALVO      <- "REDE DE CERCO"        # decisão L5
