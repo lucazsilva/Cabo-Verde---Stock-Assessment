@@ -312,10 +312,10 @@ cat(sprintf("\nBancos de pesca: %d distintos; %d com < %d viagens agrupados em '
             length(tb_banco), length(raros), MIN_VIAG_BANCO))
 cat(sprintf("  -> %d níveis usados no modelo\n", length(unique(viagens$banco_gr))))
 
-## L8 — tipo de embarcação: I = industrial; A e R são minoria. Mantemos I
-## e A como níveis e mandamos o resto para "outro".
+## L8 — tipo de embarcação: I = industrial; A e R são minoria. Mantemos Industrial
+## e Artesanal como níveis e mandamos o resto para "outro".
 cat("\nTipo de embarcação (viagens):\n"); print(table(viagens$tipo_emb))
-viagens$tipo_emb[!viagens$tipo_emb %in% c("I", "A")] <- "outro" #Industrial mantida, o resto= Outros
+viagens$tipo_emb[!viagens$tipo_emb %in% c("I", "A")] <- "outro" 
 
 ## Tripulação — proxy de poder de pesca. É a única variável operacional
 ## contínua disponível além da profundidade, então é valiosa: é ela que
@@ -444,7 +444,7 @@ COR_MAC <- "#1F4E79"; COR_AUX <- "#C0501B"; COR_NEU <- "#7F7F7F"
 ## modelo (lá o esforço entra como offset); servem para a exploratória e
 ## para o cenário S1, que reproduz o que a FAO (2026) fez.
 ## =====================================================================
-viagens$cpue_dia  <- viagens$cap_macarellus / viagens$dias
+viagens$cpue_dia  <- viagens$cap_macarellus / viagens$dias #cap macarellus/esforco total
 viagens$cpue_hora <- viagens$cap_macarellus / pmax(viagens$horas, 1)
 viagens$pos_mac   <- as.integer(viagens$cap_macarellus > 0)
 
