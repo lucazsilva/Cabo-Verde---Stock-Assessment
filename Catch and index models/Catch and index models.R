@@ -483,7 +483,627 @@ cat("\nEstrutura da tabela:\n"); str(viagens, give.attr = FALSE)
 
 
 
+#===================================================================================================
+# PADRONIZAÇÃO DE CPUE — Decapterus macarellus (cavala preta), Cabo Verde
+# Parte 2
+# A análise inteira gira em torno de uma variável que NÃO existe no banco: a espécie que o mestre
+#pretendia pescar. Ninguém registra intenção. O que existe é a COMPOSIÇÃO DA CAPTURA, que funciona 
+# como impressão digital da tática usada. Este script transforma essa composição em covariável 
+# utilizável, de duas formas CONCORRENTES:
+#
+#   (a) DISCRETA  — agrupa as unidades de esforço por similaridade de composição 
+#                   (k-means, conferido com Ward) e usa o rótulo do grupo como FATOR `alvo`.
+#                   É o padrão nos grupos do ICCAT (Sant'Ana et al. 2020).
+#   (b) CONTÍNUA  — usa os escores dos primeiros eixos de uma PCA dacomposição (PC1..PCn) como 
+#                   preditores contínuos. É o "DPC" de Winker et al. (2013), que em estudos
+#                   independentes ajustou melhor que o cluster.
+#
+#   * a PCA não agrupa. Ela reescreve a matriz de composição em eixos novos, ortogonais,
+#     ordenados por variância explicada. Cada unidade recebe uma NOTA CONTÍNUA em cada eixo. 
+#     É um gradiente.
+#   * o k-means agrupa. Ele parte os pontos em k grupos discretos. Aquiele opera SOBRE OS 
+#     ESCORES DA PCA (não sobre a composição bruta), porque a PCA já filtrou ruído e dimensões 
+#     redundantes.
+#   * logo: PCA -> k-means é sequencial NA CONSTRUÇÃO; mas os dois PRODUTOS (o fator `alvo` 
+#     e os escores PC1..PCn) entram na parte 03 como representações ALTERNATIVAS da mesma 
+#     coisa, comparadas por AIC/BIC. É a hipótese H2.
+#
+# POR QUE AGREGAR POR BARCO-MÊS ANTES DE AGRUPAR
+# ----------------------------------------------
+# ~59% das viagens de cerco registram UMA única espécie. Uma viagem com uma espécie só tem composição
+# degenerada (100% daquela espécie) e não distingue "tática dirigida" de "sorte num lance". 
+# Hoyle et al. (2018) recomendam agregar por barco-mês exatamente por isso: a agregação
+# dilui o encontro fortuito com o cardume e deixa o padrão de estratégia aparecer.
+#==================================================================================================
 
+stopifnot(exists("viagens"))
+
+## =====================================================================
+## 0) FATOR TEMPORAL
+## ---------------------------------------------------------------------
+## O índice de abundância É o efeito do fator temporal. Com a série
+## 2019-2025 completa, esse fator é o ANO. O código continua detectando
+## sozinho o caso de um ano só (que cairia para mês) para não quebrar se
+## alguém rodar um recorte.
+## =====================================================================
+UM_ANO_SO    <- length(unique(viagens$ano)) == 1
+fator_tempo  <- if (UM_ANO_SO) "fmes" else "fano"
+rotulo_tempo <- if (UM_ANO_SO) "Mês" else "Ano"
+cat(sprintf("\n>> Fator temporal desta rodada: `%s` (%s)\n", fator_tempo,
+            if (UM_ANO_SO) "DEMONSTRAÇÃO — um ano só" else
+              sprintf("série %s", paste(range(viagens$ano), collapse = "-"))))
+
+cols_cap <- setdiff(grep("^cap_", names(viagens), value = TRUE), "cap_total")
+sp_nomes <- c(cap_macarellus = "D. macarellus", cap_katsuwonus = "K. pelamis",
+              cap_selar      = "S. crumenoph.", cap_carangideo = "C. crysos",
+              cap_punctatus  = "D. punctatus",  cap_sardinella = "S. maderensis",
+              cap_thunnus    = "T. albacares",  cap_spicara    = "S. melanurus",
+              cap_elagatis   = "E. bipinnulata", cap_apsilus   = "A. fuscus",
+              cap_auxis      = "Auxis spp.",    cap_outras     = "Outras")
+sp_nomes <- sp_nomes[cols_cap]
+
+## Antialiasing dos PNG: "cleartype" só existe no Windows; em Linux/Mac
+## o R para com erro. Esta linha deixa o script rodar nos dois.
+AA <- if (.Platform$OS.type == "windows") "cleartype" else "default"
+
+cor_sp  <- hcl.colors(length(cols_cap), palette = "Dark 3")
+COR_MAC <- "#1F4E79"; COR_AUX <- "#C0501B"; COR_NEU <- "#7F7F7F"
+
+## =====================================================================
+## 1) VARIÁVEIS DERIVADAS
+## ---------------------------------------------------------------------
+## As CPUE nominais NÃO entram no modelo (lá o esforço entra como
+## offset); servem para a exploratória e para o cenário S1, que
+## reproduz o que a FAO (2026) fez.
+## =====================================================================
+viagens$cpue_dia  <- viagens$cap_macarellus / viagens$dias
+viagens$cpue_hora <- viagens$cap_macarellus / pmax(viagens$horas, 1)
+viagens$pos_mac   <- as.integer(viagens$cap_macarellus > 0)
+
+# composição proporcional DA VIAGEM (só para descrever; o cluster usa a
+# composição por barco-mês, ver seção 5)
+for (cc in cols_cap)
+  viagens[[sub("cap_", "prop_", cc)]] <-
+  ifelse(viagens$cap_total > 0, viagens[[cc]] / viagens$cap_total, 0)
+
+## Fatores. TUDO que vai ser marginalizado depois precisa ser fator — é
+## assim que o emmeans consegue tirar a média sobre os níveis e devolver
+## o efeito do tempo "limpo" dos demais.
+## Note o que NÃO está aqui: `tipo_emb` (decisão L12 da parte 01) e
+## `ilha_desemb` (decisão L7) — ambos confundidos com o ano.
+viagens$fano   <- factor(viagens$ano)
+viagens$fmes   <- factor(viagens$mes, levels = 1:12)
+viagens$ftri   <- factor(viagens$trimestre, levels = 1:4,
+                         labels = c("T1", "T2", "T3", "T4"))
+viagens$fbanco <- factor(viagens$banco_gr)
+viagens$fbarco <- factor(viagens$barco_id)          # código, não nome (L11)
+viagens$barco_mes <- paste(viagens$barco_id, viagens$ano, viagens$mes, sep = "_")
+
+## =====================================================================
+## 2) FILTROS — cada um registrado, com o que custou
+## ---------------------------------------------------------------------
+## Filtro é decisão analítica, não faxina: muda a população amostrada e
+## precisa ser reportado no texto. Por isso o log fica num data.frame.
+## =====================================================================
+MIN_VIAG_BARCO  <- 10   # com 7 anos dá para exigir mais que antes
+MIN_POR_ESTRATO <- 3
+
+n0 <- nrow(viagens)
+filtro_log <- data.frame(regra = character(), removidas = integer(),
+                         restantes = integer(), stringsAsFactors = FALSE)
+reg <- function(regra, antes)
+  filtro_log[nrow(filtro_log) + 1, ] <<- list(regra, antes - nrow(viagens),
+                                              nrow(viagens))
+
+## (i) esforço válido. `dias` é a medida principal; `horas` só é exigida
+## porque a parte 03 compara os dois offsets por AIC e a comparação só
+## vale se as LINHAS forem as mesmas nos dois modelos.
+a <- nrow(viagens); viagens <- viagens[!is.na(viagens$dias) & viagens$dias > 0, ]
+reg("esforço (dias) válido e > 0", a)
+a <- nrow(viagens); viagens <- viagens[!is.na(viagens$horas) & viagens$horas > 0, ]
+reg("esforço (horas) válido e > 0", a)
+
+## (ii) viagem sem captura nenhuma não tem composição e, portanto, não
+## tem tática atribuível. (Não confundir com viagem sem CAVALA: essas
+## são a informação central e ficam.)
+a <- nrow(viagens); viagens <- viagens[viagens$cap_total > 0, ]
+reg("alguma captura registrada na viagem", a)
+
+## (iii) embarcações com pouquíssimas viagens não sustentam efeito
+## aleatório e desequilibram o cruzamento com o fator temporal.
+tb <- table(viagens$barco_id)
+a <- nrow(viagens)
+viagens <- viagens[viagens$barco_id %in% names(tb[tb >= MIN_VIAG_BARCO]), ]
+reg(sprintf("embarcações com >= %d viagens", MIN_VIAG_BARCO), a)
+
+## (iv) estratos tempo x banco muito ralos geram coeficientes instáveis
+## (e, no limite, níveis que só existem em um ano — que o modelo
+## confundiria com efeito de ano).
+te <- table(paste(viagens$ano, viagens$banco_gr))
+a <- nrow(viagens)
+viagens <- viagens[paste(viagens$ano, viagens$banco_gr) %in%
+                     names(te[te >= MIN_POR_ESTRATO]), ]
+reg(sprintf("estratos ano x banco com >= %d viagens", MIN_POR_ESTRATO), a)
+
+for (f in c("fano", "fmes", "ftri", "fbanco", "fbarco"))
+  viagens[[f]] <- droplevels(viagens[[f]])
+
+cat("\n================== FILTROS ================\n"); print(filtro_log, row.names = FALSE)
+cat(sprintf("Retidas %d de %d viagens (%.1f%%)\n", nrow(viagens), n0,
+            100 * nrow(viagens) / n0))
+cat(sprintf("Após filtros: %d anos, %d bancos, %d embarcações\n",
+            nlevels(viagens$fano), nlevels(viagens$fbanco),
+            nlevels(viagens$fbarco)))
+cat("Viagens por ano após filtros:\n"); print(table(viagens$ano))
+
+## =====================================================================
+## 3) SÉRIE NOMINAL (cenário S1) — captura da espécie / esforço TOTAL
+## ---------------------------------------------------------------------
+## Este é o índice que a FAO usou e o que queremos submeter à prova: o
+## denominador é o esforço de TODA a frota de cerco, inclusive as viagens
+## que estavam atrás de Auxis. É justamente por isso que ele é suspeito.
+## =====================================================================
+viagens$tempo <- viagens[[sub("^f", "", fator_tempo)]]
+
+ser <- aggregate(viagens[, c(cols_cap, "dias", "horas")],
+                 by = list(tempo = viagens$tempo), FUN = sum)
+ser$cpue_nom_dia  <- ser$cap_macarellus / ser$dias
+ser$cpue_nom_hora <- ser$cap_macarellus / ser$horas
+ser$prop_zero <- tapply(viagens$pos_mac == 0, viagens$tempo, mean)[as.character(ser$tempo)]
+ser$n_viagens <- as.numeric(table(viagens$tempo)[as.character(ser$tempo)])
+
+cat(sprintf("\n===== SÉRIE POR %s =====\n", toupper(rotulo_tempo)))
+print(data.frame(tempo = ser$tempo,
+                 cavala_t = round(ser$cap_macarellus, 1),
+                 auxis_t  = round(ser$cap_auxis, 1),
+                 dias = ser$dias,
+                 cpue_t_dia = round(ser$cpue_nom_dia, 3),
+                 zeros = sprintf("%.0f%%", 100 * ser$prop_zero),
+                 n = ser$n_viagens), row.names = FALSE)
+
+## =====================================================================
+## 4) FIGURAS EXPLORATÓRIAS
+## =====================================================================
+
+## --- Fig 1: captura por espécie e esforço ------------------------------
+png("exp1_capturas_esforco.png", width = 26, height = 13, res = 300,
+    antialias = AA, units = "cm")
+op <- par(mfrow = c(1, 2), mar = c(4.2, 4.6, 3, 1), bty = "l",
+          cex.main = 0.95, cex = 0.85)
+matplot(ser$tempo, ser[, cols_cap], type = "l", lty = 1, lwd = 2.2,
+        col = cor_sp, xlab = rotulo_tempo, ylab = "Captura (t)",
+        main = "A. Captura por especie")
+legend("topleft", sp_nomes, col = cor_sp, lwd = 2.2, bty = "n", cex = 0.6)
+plot(ser$tempo, ser$dias, type = "b", pch = 19, lwd = 2.4, col = COR_NEU,
+     xlab = rotulo_tempo, ylab = "Esforco (dias de pesca)",
+     main = "B. Esforco amostrado da frota de cerco",
+     ylim = c(0, max(ser$dias) * 1.05))
+par(op); dev.off()
+cat("\nPNG salvo: exp1_capturas_esforco.png\n")
+
+## --- Fig 2: composição da captura --------------------------------------
+## É a figura que conta a história central: a fração da cavala encolhe e
+## a do Auxis cresce. Isso é compatível COM TROCA DE ALVO e TAMBÉM com
+## queda real de abundância — a figura levanta a questão, não a resolve.
+comp <- as.matrix(ser[, cols_cap]); comp <- comp / rowSums(comp)
+png("exp2_composicao.png", width = 24, height = 12, res = 300,
+    antialias = AA, units = "cm")
+op <- par(mar = c(4.2, 4.6, 3, 9), bty = "l", cex.main = 0.95, cex = 0.85)
+acum <- t(apply(comp, 1, cumsum))
+plot(NA, xlim = range(ser$tempo), ylim = c(0, 1), xlab = rotulo_tempo,
+     ylab = "Proporcao da captura",
+     main = "Composicao da captura da frota de cerco")
+for (k in ncol(acum):1)
+  polygon(c(ser$tempo, rev(ser$tempo)), c(acum[, k], rep(0, nrow(acum))),
+          col = cor_sp[k], border = NA)
+par(xpd = TRUE)
+legend(max(ser$tempo) + diff(range(ser$tempo)) * 0.03, 0.95, sp_nomes,
+       fill = cor_sp, border = NA, bty = "n", cex = 0.66)
+par(op); dev.off()
+cat("PNG salvo: exp2_composicao.png\n")
+
+## --- Fig 3: CPUE nominal e zeros ---------------------------------------
+## O painel B é o diagnóstico mais importante desta figura: com ~88% de
+## viagens sem cavala, qualquer modelo que não trate os zeros direito
+## (Tweedie ou hurdle) vai dar resultado errado.
+png("exp3_cpue_nominal.png", width = 26, height = 13, res = 300,
+    antialias = AA, units = "cm")
+op <- par(mfrow = c(1, 2), mar = c(4.2, 4.6, 3, 1), bty = "l",
+          cex.main = 0.95, cex = 0.85)
+plot(ser$tempo, ser$cpue_nom_dia, type = "b", pch = 19, lwd = 2.4, col = COR_MAC,
+     xlab = rotulo_tempo, ylab = "CPUE nominal da cavala (t/dia)",
+     main = "A. CPUE nominal", ylim = c(0, max(ser$cpue_nom_dia) * 1.05))
+plot(ser$tempo, 100 * ser$prop_zero, type = "b", pch = 19, lwd = 2.4, col = COR_AUX,
+     xlab = rotulo_tempo, ylab = "% de viagens sem cavala",
+     main = "B. Zeros de direcionamento", ylim = c(0, 100))
+par(op); dev.off()
+cat("PNG salvo: exp3_cpue_nominal.png\n")
+
+## --- Fig 4: as covariáveis operacionais valem a pena? -------------------
+## COMO LER: com ~88% de viagens sem cavala, gráfico de CPUE contra
+## covariável vira uma parede de zeros e não informa nada. A leitura
+## correta para dado assim é DECOMPOR, que é exatamente o que o modelo
+## hurdle faz: (i) a PROBABILIDADE de a viagem pegar cavala e (ii) QUANTO
+## ela pega, dado que pegou. Uma covariável pode atuar só na primeira
+## (tem a ver com onde/como se procura), só na segunda (tem a ver com
+## capacidade de captura) ou nas duas. Estes painéis são a justificativa
+## empírica de cada termo do modelo.
+## `n_vertical = TRUE` escreve o n de pé: com muitas barras de altura
+## parecida os rótulos deitados se sobrepõem e viram borrão.
+barra_prop <- function(prop, n, titulo, xlab, cex_nome = 0.7,
+                       cor = "#8FAADC", n_vertical = FALSE) {
+  bp <- barplot(100 * prop, col = cor, border = NA, names.arg = NA,
+                ylab = "% de viagens com cavala",
+                xlab = xlab, main = titulo,
+                ylim = c(0, max(100 * prop, na.rm = TRUE) * 1.3))
+  text(bp, par("usr")[3], labels = names(prop), srt = 45, adj = 1,
+       xpd = NA, cex = cex_nome)
+  text(bp, 100 * prop, labels = paste0("n=", n), pos = 3, cex = 0.55,
+       col = "#52514E", xpd = NA, srt = if (n_vertical) 90 else 0,
+       offset = if (n_vertical) 0.9 else 0.5)
+  invisible(bp)
+}
+png("exp4_covariaveis.png", width = 26, height = 20, res = 300,
+    antialias = AA, units = "cm")
+op <- par(mfrow = c(2, 2), mar = c(7.5, 4.6, 3, 1), bty = "l",
+          cex.main = 0.95, cex = 0.85)
+
+## A — ONDE se pega cavala (componente de presença, por banco de pesca).
+##     Só os 20 bancos com mais viagens, senão o eixo fica ilegível.
+pr_b <- tapply(viagens$pos_mac, viagens$fbanco, mean)
+n_b  <- table(viagens$fbanco)
+top_b <- names(sort(n_b, decreasing = TRUE))[1:min(20, length(n_b))]
+ord  <- top_b[order(pr_b[top_b], decreasing = TRUE)]
+barra_prop(pr_b[ord], n_b[ord], "A. Presenca de cavala (20 maiores bancos)",
+           "", cex_nome = 0.55, n_vertical = TRUE)
+
+## B — QUANTO se pega, dado que pegou (componente de magnitude).
+pos <- viagens[viagens$pos_mac == 1, ]
+## Só os 15 bancos com mais viagens POSITIVAS: abaixo disso a caixa é
+## desenhada sobre 3-4 pontos e não descreve distribuição nenhuma.
+n_pos_b <- sort(table(pos$fbanco), decreasing = TRUE)
+bancos_ok <- names(n_pos_b[n_pos_b >= 10])[1:min(15, sum(n_pos_b >= 10))]
+pos_b <- pos[pos$fbanco %in% bancos_ok, ]
+if (nrow(pos_b) > 0) {
+  pos_b$fbanco <- droplevels(pos_b$fbanco)
+  bx <- boxplot(cpue_dia ~ fbanco, data = pos_b, outline = FALSE, plot = FALSE)
+  boxplot(cpue_dia ~ fbanco, data = pos_b, outline = FALSE, col = "#74C476",
+          xaxt = "n", xlab = "", ylab = "CPUE (t/dia) entre as positivas",
+          lwd = 1, main = "B. Magnitude, so nas viagens com cavala")
+  axis(1, at = seq_along(bx$names), labels = FALSE)
+  text(seq_along(bx$names), par("usr")[3], labels = bx$names, srt = 45,
+       adj = 1, xpd = NA, cex = 0.6)
+}
+
+## C — tripulação em classes (decisão L10). Se as barras forem
+##     praticamente iguais, a covariável não está medindo poder de pesca
+##     e isso também é resultado.
+barra_prop(tapply(viagens$pos_mac, viagens$npesc_cat, mean),
+           table(viagens$npesc_cat),
+           "C. Tripulacao (proxy de poder de pesca)", "Numero de pescadores",
+           cor = "#B497D6")
+
+## D — trimestre (decisão L9). É a variável sazonal que vai para o modelo.
+barra_prop(tapply(viagens$pos_mac, viagens$ftri, mean), table(viagens$ftri),
+           "D. Trimestre (sazonalidade)", "Trimestre", cor = "#E8A33D")
+par(op); dev.off()
+cat("PNG salvo: exp4_covariaveis.png\n")
+
+## --- Fig 5: CPUE no tempo, na frota e na sazonalidade fina -------------
+## Esta figura existe para responder quatro perguntas que a exploratória
+## precisa responder ANTES de modelar:
+##   A. o padrão sazonal é o mesmo em todos os anos? (se não for, um
+##      efeito aditivo de trimestre não basta e seria preciso interação)
+##   B. a sazonalidade mensal tem forma que 4 níveis descrevem bem?
+##   C. a captura de cavala está concentrada em poucos barcos? (se
+##      estiver, o efeito aleatório de embarcação é indispensável)
+##   D. a frota mudou ao longo da série? (é o problema P5: composição de
+##      frota variando no tempo contamina o efeito de ano)
+png("exp5_cpue_frota_tempo.png", width = 26, height = 20, res = 300,
+    antialias = AA, units = "cm")
+op <- par(mfrow = c(2, 2), mar = c(4.6, 4.6, 3, 1), bty = "l",
+          cex.main = 0.95, cex = 0.85)
+
+## A — CPUE nominal por ano, separada por trimestre
+cpue_at <- tapply(viagens$cap_macarellus, list(viagens$ano, viagens$ftri), sum) /
+  tapply(viagens$dias,           list(viagens$ano, viagens$ftri), sum)
+cor_tri <- hcl.colors(4, palette = "Zissou 1")
+matplot(as.numeric(rownames(cpue_at)), cpue_at, type = "b", pch = 19, lty = 1,
+        lwd = 2, col = cor_tri, xlab = "Ano", ylab = "CPUE (t/dia)",
+        main = "A. CPUE nominal por ano e trimestre")
+legend("topright", colnames(cpue_at), col = cor_tri, lwd = 2, pch = 19,
+       bty = "n", cex = 0.72)
+
+## B — sazonalidade mensal: presença e magnitude na mesma figura
+pr_m <- tapply(viagens$pos_mac, viagens$mes, mean)
+cp_m <- tapply(viagens$cap_macarellus, viagens$mes, sum) /
+  tapply(viagens$dias, viagens$mes, sum)
+plot(as.numeric(names(pr_m)), 100 * pr_m, type = "b", pch = 19, lwd = 2.2,
+     col = COR_MAC, xlab = "Mes", ylab = "% de viagens com cavala",
+     main = "B. Sazonalidade mensal", xaxt = "n",
+     ylim = c(0, max(100 * pr_m) * 1.15))
+axis(1, at = 1:12)
+abline(v = c(3.5, 6.5, 9.5), lty = 3, col = COR_NEU)   # limites de trimestre
+par(new = TRUE)
+plot(as.numeric(names(cp_m)), cp_m, type = "b", pch = 17, lty = 2, lwd = 2,
+     col = COR_AUX, axes = FALSE, xlab = "", ylab = "",
+     ylim = c(0, max(cp_m) * 1.15))
+axis(4, col.axis = COR_AUX)
+mtext("CPUE (t/dia)", side = 4, line = 2.2, cex = 0.75, col = COR_AUX)
+legend("topright", c("% com cavala", "CPUE (eixo dir.)"),
+       col = c(COR_MAC, COR_AUX), lwd = 2, pch = c(19, 17), lty = c(1, 2),
+       bty = "n", cex = 0.7)
+
+## C — CPUE por embarcação (só as com >= 30 viagens, ordenadas).
+##     A dispersão entre barcos é a justificativa do termo (1 | fbarco).
+nb <- table(viagens$fbarco)
+bok <- names(nb[nb >= 30])
+cp_b <- tapply(viagens$cap_macarellus[viagens$fbarco %in% bok],
+               droplevels(viagens$fbarco[viagens$fbarco %in% bok]), sum) /
+  tapply(viagens$dias[viagens$fbarco %in% bok],
+         droplevels(viagens$fbarco[viagens$fbarco %in% bok]), sum)
+cp_b <- sort(cp_b, decreasing = TRUE)
+## Sem rótulo por barra: o código do barco individual não informa nada a
+## quem lê; o que importa é a FORMA do perfil (quão desigual é a frota).
+barplot(cp_b, col = COR_MAC, border = NA, names.arg = rep("", length(cp_b)),
+        ylim = c(0, max(cp_b) * 1.12),
+        ylab = "CPUE de cavala (t/dia)",
+        xlab = sprintf("Embarcacoes ordenadas (n = %d)", length(cp_b)),
+        main = "C. CPUE por embarcacao (>=30 viagens)")
+media_frota <- sum(viagens$cap_macarellus) / sum(viagens$dias)
+abline(h = media_frota, lty = 2, col = COR_AUX, lwd = 2)
+text(par("usr")[2], media_frota+0.15*media_frota, "media da frota", 
+     pos = 2,adj = c(1, -5), offset = 0.5, cex = 0.9, col = COR_AUX)
+
+## D — a frota muda? barcos ativos por ano e concentração do esforço
+nb_ano <- tapply(viagens$barco_id, viagens$ano, function(x) length(unique(x)))
+plot(as.numeric(names(nb_ano)), nb_ano, type = "b", pch = 19, lwd = 2.2,
+     col = COR_MAC, xlab = "Ano", ylab = "Embarcacoes ativas",
+     main = "D. Composicao da frota ao longo da serie",
+     ylim = c(0, max(nb_ano) * 1.15))
+par(new = TRUE)
+vpb <- as.numeric(table(viagens$ano)) / nb_ano
+plot(as.numeric(names(nb_ano)), vpb, type = "b", pch = 17, lty = 2, lwd = 2,
+     col = COR_AUX, axes = FALSE, xlab = "", ylab = "",
+     ylim = c(0, max(vpb) * 1.15))
+axis(4, col.axis = COR_AUX)
+mtext("Viagens por embarcacao", side = 4, line = 2.2, cex = 0.75, col = COR_AUX)
+legend("bottomright", c("barcos ativos", "viagens/barco (dir.)"),
+       col = c(COR_MAC, COR_AUX), lwd = 2, pch = c(19, 17), lty = c(1, 2),
+       bty = "n", cex = 0.7)
+par(op); dev.off()
+cat("PNG salvo: exp5_cpue_frota_tempo.png\n")
+
+## Tabelas que acompanham a figura 5 (números exatos para o texto)
+cat("\n--- CPUE nominal (t/dia) por ano e trimestre ---\n")
+print(round(cpue_at, 3))
+cat("\n--- presença de cavala por classe de tripulação ---\n")
+print(round(cbind(n = as.numeric(table(viagens$npesc_cat)),
+                  prop_com_cavala = tapply(viagens$pos_mac, viagens$npesc_cat, mean),
+                  cpue_media = tapply(viagens$cpue_dia, viagens$npesc_cat, mean)), 3))
+
+
+## =====================================================================
+## 5) INFERÊNCIA DA TÁTICA — composição por barco-mês
+## =====================================================================
+
+## 5.1 matriz de composição agregada por BARCO-MÊS (ver justificativa no
+##     cabeçalho). Proporções em peso; transformação raiz quadrada para
+##     que espécies menos abundantes também pesem na similaridade, como
+##     em Winker et al. (2013). Sem a raiz, a distância entre unidades
+##     seria decidida quase só pelo Auxis, que domina o peso.
+agg <- aggregate(viagens[, cols_cap],
+                 by = list(barco_mes = viagens$barco_mes), FUN = sum)
+tot <- rowSums(agg[, cols_cap])
+comp_bm <- as.matrix(agg[, cols_cap][tot > 0, , drop = FALSE] / tot[tot > 0])
+rownames(comp_bm) <- agg$barco_mes[tot > 0]
+comp_sqrt <- sqrt(comp_bm)
+
+n_sp_bm <- rowSums(comp_bm > 0)
+cat(sprintf("\nComposição: %d barcos-mês x %d espécies\n",
+            nrow(comp_sqrt), ncol(comp_sqrt)))
+cat(sprintf("Barcos-mês com uma só espécie: %.1f%% (era %.1f%% por viagem)\n",
+            100 * mean(n_sp_bm == 1),
+            100 * mean(rowSums(viagens[, cols_cap] > 0) == 1)))
+cat("  ^ a agregação por barco-mês reduz a degeneração da composição;\n")
+cat("    se ainda assim a maioria tiver uma espécie só, o cluster fica\n")
+cat("    fraco pois depende de agrupamento de viagens semelhantes\n")
+cat(" Então a representação contínua (PCA) pode ser a mais defensável.\n")
+
+## 5.2 PCA. Sem `scale.` porque as colunas já estão na mesma unidade
+##     (proporções transformadas) — escalonar daria peso igual a
+##     espécies raras e dominantes, que não é o que queremos.
+pca <- prcomp(comp_sqrt, center = TRUE, scale. = FALSE)
+var_exp <- 100 * pca$sdev^2 / sum(pca$sdev^2)
+cat("\nVariância explicada pelos eixos da PCA: ",
+    paste(sprintf("PC%d=%.1f%%", 1:min(4, length(var_exp)),
+                  var_exp[1:min(4, length(var_exp))]), collapse = "  "), "\n")
+cat("Cargas de PC1 (o que este eixo separa — negativo x positivo):\n")
+print(round(sort(pca$rotation[, 1]), 3))
+cat("Cargas de PC2:\n")
+print(round(sort(pca$rotation[, 2]), 3))
+
+## Quantos eixos levar para o modelo? Guardamos os primeiros PCs até
+## acumular ~70% da variação da composição (teto de 4, para não inflar o
+## modelo). Numa pescaria com composição realmente multidimensional,
+## usar apenas PC1/PC2 jogaria fora a maior parte do sinal de tática.
+cum_var <- cumsum(var_exp)
+n_pc <- min(4, max(2, which(cum_var >= 70)[1]), ncol(pca$x))
+if (is.na(n_pc)) n_pc <- min(4, ncol(pca$x))
+cat(sprintf("Eixos retidos para o modelo: %d (%.0f%% da variação)\n",
+            n_pc, cum_var[n_pc]))
+
+## 5.3 Número de grupos pela silhueta média.
+##     Implementada em R base para não exigir o pacote `cluster`.
+##     ATENÇÃO à leitura: a silhueta favorece sistematicamente k pequeno.
+##     Ela responde "os grupos estão separados?", não "quantas táticas
+##     existem?". Se o gráfico de PC1xPC2 mostrar uma nuvem contínua, a
+##     resposta honesta é que não há grupos — há um gradiente, e a
+##     representação contínua (PCs) é a mais fiel.
+silhueta_media <- function(X, cl, n_sub = 1200) {
+  idx <- if (nrow(X) > n_sub) sample(nrow(X), n_sub) else seq_len(nrow(X))
+  Xs <- X[idx, , drop = FALSE]; cs <- cl[idx]
+  D <- as.matrix(dist(Xs)); gr <- unique(cs)
+  if (length(gr) < 2) return(NA_real_)
+  mean(vapply(seq_along(cs), function(i) {
+    mesmo <- cs == cs[i]; mesmo[i] <- FALSE
+    if (!any(mesmo)) return(0)
+    ai <- mean(D[i, mesmo])
+    bi <- min(vapply(setdiff(gr, cs[i]), function(g) mean(D[i, cs == g]), numeric(1)))
+    (bi - ai) / max(ai, bi)
+  }, numeric(1)))
+}
+
+k_forcado <- NA          # preencha para fixar k por conhecimento da pescaria
+esc <- pca$x[, 1:min(3, ncol(pca$x)), drop = FALSE]
+set.seed(42)
+ks  <- 2:6
+sil <- vapply(ks, function(k)
+  silhueta_media(esc, kmeans(esc, centers = k, nstart = 25, iter.max = 50)$cluster),
+  numeric(1))
+k_otimo <- if (is.na(k_forcado)) ks[which.max(sil)] else k_forcado
+cat("\nSilhueta média: ",
+    paste(sprintf("k=%d: %.3f", ks, sil), collapse = "  "), "\n")
+cat(sprintf("k adotado: %d%s\n", k_otimo,
+            if (is.na(k_forcado)) " (silhueta)" else " (fixado)"))
+
+## 5.4 k-means (partição) e Ward (hierárquico) — dois algoritmos com
+##     lógicas diferentes. Se discordarem, o agrupamento não é estável e
+##     isso é informação, não contratempo: é mais um argumento a favor
+##     da representação contínua.
+km  <- kmeans(esc, centers = k_otimo, nstart = 50, iter.max = 100)
+sub <- sample(nrow(esc), min(2500, nrow(esc)))
+ward <- cutree(hclust(dist(esc[sub, , drop = FALSE]), method = "ward.D2"), k = k_otimo)
+tb_kw <- table(kmeans = km$cluster[sub], ward = ward)
+conc_kw <- sum(apply(tb_kw, 1, max)) / sum(tb_kw)
+cat(sprintf("Concordância k-means x Ward: %.1f%%%s\n", 100 * conc_kw,
+            if (conc_kw < 0.80) "  <- baixa: agrupamento instável" else ""))
+
+## 5.5 Nomear cada grupo pela espécie dominante do seu centróide, para
+##     que o fator `alvo` seja legível no output do modelo.
+cent <- t(vapply(seq_len(k_otimo), function(g)
+  colMeans(comp_bm[km$cluster == g, , drop = FALSE]), numeric(ncol(comp_bm))))
+colnames(cent) <- sub("cap_", "", colnames(comp_bm))
+nome_cl <- make.unique(colnames(cent)[apply(cent, 1, which.max)], sep = "_")
+cat("\nComposição média de cada tática inferida:\n")
+print(round(cbind(cent, n = as.numeric(table(km$cluster))), 3))
+
+## Qual dessas táticas é a "da cavala"? NÃO se identifica pelo nome do
+## grupo: o nome vem da espécie dominante do centróide, e a cavala pode
+## não dominar nenhum grupo. A tática relevante é aquela com a MAIOR
+## proporção de cavala no centróide, seja qual for o nome dela. Isso é
+## guardado para o cenário S3 (esforço dirigido) da parte 03.
+alvo_cavala <- nome_cl[which.max(cent[, "macarellus"])]
+frac_cavala <- max(cent[, "macarellus"])
+cat(sprintf("\nTática com maior fração de cavala no centróide: '%s' (%.1f%% da captura)\n",
+            alvo_cavala, 100 * frac_cavala))
+if (frac_cavala < 0.30) {
+  cat("  [NOTA] Nenhuma tática é dominada pela cavala. Ela é capturada\n")
+  cat("         acompanhando outras espécies, não como alvo exclusivo —\n")
+  cat("         o que enfraquece o cenário de 'esforço dirigido' (S3) e\n")
+  cat("         reforça o uso da composição como covariável (H1/H2).\n")
+} else {
+  cat("  [OK] Existe uma tática em que a cavala domina a composição: o\n")
+  cat("       cenário de esforço dirigido (S3) tem base empírica.\n")
+}
+
+## 5.6 Levar o rótulo e os escores de volta para cada VIAGEM.
+##     Repare que as DUAS coisas vão juntas: `alvo` (discreto, do
+##     k-means) e PC1..PCn (contínuos, da PCA). Elas NÃO são usadas ao
+##     mesmo tempo no mesmo modelo — são alternativas comparadas na
+##     parte 03 (estruturas E3/E4 contra E5).
+mapa <- data.frame(barco_mes = rownames(comp_bm),
+                   alvo = factor(nome_cl[km$cluster], levels = unique(nome_cl)),
+                   stringsAsFactors = FALSE)
+PCs <- paste0("PC", seq_len(n_pc))
+for (i in seq_len(n_pc)) mapa[[PCs[i]]] <- pca$x[, i]
+viagens <- merge(viagens, mapa, by = "barco_mes", all.x = TRUE, sort = FALSE)
+viagens <- viagens[!is.na(viagens$alvo), ]
+viagens$alvo <- droplevels(viagens$alvo)
+cat(sprintf("\nViagens com tática atribuída: %d\n", nrow(viagens)))
+print(table(viagens$alvo))
+
+## 5.7 Validação possível SEM gabarito: a tática inferida tem de separar
+##     a captura de cavala. Se não separar, ela não está medindo alvo —
+##     e aí o termo `alvo` não vai sobreviver à seleção da parte 03.
+cat("\nCPUE média da cavala por tática inferida (t/dia):\n")
+print(round(tapply(viagens$cpue_dia, viagens$alvo, mean), 3))
+cat("Proporção de viagens com cavala, por tática:\n")
+print(round(tapply(viagens$pos_mac, viagens$alvo, mean), 3))
+
+## A tática mudou ao longo da série? Esta tabela é o coração da hipótese
+## H1: se a mistura de táticas mudou, a CPUE nominal mistura mudança de
+## comportamento com mudança de abundância.
+cat("\nDistribuição das táticas por ano (proporção das viagens):\n")
+print(round(prop.table(table(viagens$ano, viagens$alvo), margin = 1), 3))
+
+## --- Fig 6: PCA, silhueta e composição das táticas ---------------------
+cor_cl <- hcl.colors(k_otimo, palette = "Dark 3")
+png("exp6_taticas.png", width = 27, height = 10.5, res = 300,
+    antialias = AA, units = "cm")
+op <- par(mfrow = c(1, 3), mar = c(4.6, 4.4, 3, 1), oma = c(0, 0, 0, 5),
+          bty = "l", cex.main = 0.95, cex = 0.85)
+plot(ks, sil, type = "b", pch = 19, lwd = 2, col = COR_MAC,
+     xlab = "Numero de grupos (k)", ylab = "Silhueta media", main = "A. Escolha de k")
+points(k_otimo, sil[ks == k_otimo], pch = 21, bg = COR_AUX, cex = 1.9)
+plot(pca$x[, 1], pca$x[, 2], col = adjustcolor(cor_cl[km$cluster], 0.6),
+     pch = 16, cex = 0.7, xlab = sprintf("PC1 (%.0f%%)", var_exp[1]),
+     ylab = sprintf("PC2 (%.0f%%)", var_exp[2]),
+     main = "B. Taticas no espaco de composicao")
+points(km$centers[, 1], km$centers[, 2], pch = 21, bg = cor_cl, cex = 2, lwd = 1.5)
+legend("topright", nome_cl, col = cor_cl, pch = 16, bty = "n", cex = 0.7)
+bp <- barplot(t(cent), col = cor_sp, border = NA, names.arg = nome_cl,
+              las = 2, cex.names = 0.65, ylab = "Proporcao media da captura",
+              main = "C. Composicao de cada tatica")
+legend(max(bp) + 0.8, 1, rev(sp_nomes), fill = rev(cor_sp), border = NA,
+       bty = "n", cex = 0.6, xpd = NA)
+par(op); dev.off()
+cat("PNG salvo: exp6_taticas.png\n")
+
+## =====================================================================
+## 6) ESFORÇO DIRIGIDO (insumo do cenário S3 na parte 03)
+## ---------------------------------------------------------------------
+## Reparte os dias de pesca de cada estrato entre as táticas, na
+## proporção dos dias das viagens de cada uma. É isto que converte
+## "esforço total da frota" em "esforço dirigido à cavala" — o campo que
+## o IMar não tem e que a composição da captura permite reconstruir.
+## RESSALVA: se nenhuma tática for dominada pela cavala (ver 5.5), este
+## cenário mede "esforço da tática que mais encontra cavala", que é
+## menos do que "esforço dirigido à cavala". A diferença tem de estar no
+## texto.
+## =====================================================================
+esforco_dirigido <- aggregate(cbind(dias, horas) ~ tempo + banco_gr + alvo,
+                              data = viagens, FUN = sum)
+dias_alvo <- aggregate(dias ~ tempo + alvo, data = esforco_dirigido, FUN = sum)
+
+png("exp7_esforco_dirigido.png", width = 26, height = 12, res = 300,
+    antialias = AA, units = "cm")
+op <- par(mfrow = c(1, 2), mar = c(4.2, 4.6, 3, 1), bty = "l",
+          cex.main = 0.95, cex = 0.85)
+tat <- prop.table(table(viagens$tempo, viagens$alvo), margin = 1)
+matplot(as.numeric(rownames(tat)), tat, type = "b", pch = 19, lty = 1, lwd = 2.2,
+        col = cor_cl, ylim = c(0, 1), xlab = rotulo_tempo,
+        ylab = "Proporcao das viagens", main = "A. Mistura de taticas")
+legend("topleft", nome_cl, col = cor_cl, lwd = 2.2, pch = 19, bty = "n", cex = 0.68)
+mat_d <- sapply(levels(viagens$alvo), function(g) {
+  x <- dias_alvo[dias_alvo$alvo == g, ]
+  v <- setNames(rep(0, nrow(ser)), ser$tempo)
+  v[as.character(x$tempo)] <- x$dias; v
+})
+matplot(ser$tempo, mat_d, type = "l", lty = 1, lwd = 2.4, col = cor_cl,
+        ylim = c(0, max(c(mat_d, ser$dias)) * 1.05), xlab = rotulo_tempo,
+        ylab = "Dias de pesca", main = "B. Esforco dirigido por tatica")
+lines(ser$tempo, ser$dias, lwd = 2, lty = 2, col = COR_NEU)
+legend("topleft", c(levels(viagens$alvo), "esforco total"),
+       col = c(cor_cl, COR_NEU), lwd = 2.2,
+       lty = c(rep(1, nlevels(viagens$alvo)), 2), bty = "n", cex = 0.68)
+par(op); dev.off()
+cat("PNG salvo: exp7_esforco_dirigido.png\n")
+
+cat("\n===== PARTE 02 CONCLUÍDA =====\n")
+cat("Objetos para a parte 03: `viagens` (com alvo, PC1..PCn, tempo),\n")
+cat("`ser`, `esforco_dirigido`, `fator_tempo`, `rotulo_tempo`, `PCs`,\n")
+cat("`alvo_cavala`, `frac_cavala`.\n")
 
 
 
