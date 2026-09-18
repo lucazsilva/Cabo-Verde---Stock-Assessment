@@ -128,7 +128,7 @@ lh<- read_xlsx("Parametros_Historia_de_vida.xlsx")
 ## =====================================================================
 ARQUIVO        <- "INDUSTRIAL_2019_2025_atualizado_17.09.2026.csv"
 ARTE_ALVO      <- "REDE DE CERCO"        # decisão L5
-MIN_VIAG_BANCO <- 30                     # decisão L8 (45 bancos + "OUTROS")
+MIN_VIAG_BANCO <- 100                    # decisão L8 (45 bancos + "OUTROS")
 ESPECIE_FOCO   <- "DECAPTERUS MACARELLUS"
 CORTES_NPESC   <- c(0, 12, 15, 17, Inf)  # decisão L10
 
@@ -1107,6 +1107,794 @@ cat("`alvo_cavala`, `frac_cavala`.\n")
 
 
 
+#====================================================================================================
+# PADRONIZAÇÃO DE CPUE — Decapterus macarellus (cavala preta), Cabo Verde Produzir índices 
+# alternativos de abundância relativa da cavala preta para entrar no JABBA como CENÁRIOS CONCORRENTES:
+#   S1 nominal   — captura da cavala / esforço total da frota de cerco
+#                  (o que a FAO 2026 fez)
+#   S2 corrigida — efeito do fator temporal num modelo que controla
+#                  banco de pesca, trimestre, tripulação, embarcação e
+#                  TÁTICA DE PESCA
+# A distância entre as duas É a medida do viés de direcionamento.
+#
+# ================= PROBLEMAS DESTA CPUE (resumo) ===================================================
+# P1 esforço não é específico da espécie (denominador multiespecífico)
+# P2 troca de alvo ao longo do tempo (Schirripa & Goodyear 2010). A parte 02 mostrou que isso É REAL 
+#    nesta série: a proporção de viagens da tática "selar" (a que mais encontra cavala) vai de ~42%
+#    em 2019 a ~18% em 2021, volta a ~36% em 2023-24 e cai a ~17% em2025 — e a CPUE nominal da 
+#    cavala acompanha esse movimento.
+# P3 zeros de direcionamento — ~88% das viagens de cerco não registram cavala. Excluí-los ou somar 
+#    constante enviesa o índice.
+# P4 poucas variáveis operacionais, mas o arquivo do IMar tem mais do que era esperado: tripulação,
+#    banco de pesca e identidade da embarcação. Profundidade e tipo de embarcação foram descartados
+#    na parte 01 (decisões L6 e L12) — ver lá o porquê.
+# P5 composição da frota muda ao longo do tempo
+# P6 desbalanceamento espacial e sazonal
+#
+# ========================== HIPÓTESES ========================================================
+# H0 a CPUE nominal é aceitável (o índice não muda ao controlar o resto)
+# H1 parte da variação da CPUE nominal é troca de alvo, não abundância
+# H2 tática contínua (PCA) ajusta melhor que tática discreta (cluster)
+# H3 usar só o esforço dirigido reproduz H1 (sensibilidade; tende a gerar hiperestabilidade, 
+#    então nunca é o cenário principal)
+#
+# ===================== MODELOS QUE SERÃO TESTADOS ============================================
+# ESTRUTURAS (o fator temporal NUNCA entra na seleção — ele É o índice):
+#   E0  tempo
+#   E1  tempo + banco
+#   E2  tempo + banco + trimestre + tripulação(classes)
+#   E3  E2 + alvo                                   (tática DISCRETA)
+#   E4  E3 + (1 | barco)                            [GLMM]
+#   E5  E2 + PC1..PCn + (1 | barco)                 (tática CONTÍNUA)
+# OFFSET: log(dias) contra log(horas).
+# DISTRIBUIÇÕES (resposta = toneladas, contínua, com ~88% de zeros):
+#   D1 Tweedie            D2 Hurdle-Gamma
+#
+# Duas famílias que modelam a captura inteira, zeros incluídos, nas MESMAS linhas:
+#   D1 Tweedie      — Poisson composta com Gamma; massa em zero e cauda contínua positiva 
+#                     num modelo só.
+#   D2 Hurdle-Gamma — dois processos explícitos: um binomial para a presença e um Gamma para 
+#                     a magnitude. Em glmmTMB,`ziGamma` + `ziformula` é literalmente um hurdle
+#                     (a Gamma não tem massa em zero).
+# Como as duas usam a MESMA resposta e as MESMAS linhas, AIC e BIC são diretamente comparáveis 
+# entre elas. 
+#
+# ---------------------------------------------------------------------------------
+# Sem LRT ; Diagnóstico e seleção de modelos
+# ---------------------------------------------------------------------------------
+# A seleção é por AIC/BIC + diagnóstico de resíduos (DHARMa). O LRT foi retirado 
+# por três motivos: (i) com ~6 mil viagens ele acusa significância em efeito 
+# irrelevante, o que empurra o modelo a comer sinal de abundância (o dilema de 
+# Hinton & Maunder 2003); (ii) ele só vale entre modelos aninhados, enquanto 
+# o AIC compara também os não aninhados que aparecem aqui (tática discreta 
+# contra contínua); (iii) AIC e BIC já dão a ordenação, e quem decide adequação 
+# é o resíduo, não o p-valor.
+# Princípio que continua valendo: AIC/BIC medem AJUSTE, não ADEQUAÇÃO Um modelo 
+# pode ganhar no AIC e ter resíduo ruim — nesse caso ele não é o escolhido.
+# A tabela de diagnóstico é parte da decisão, não um anexo.
+#==================================================================================
+
+stopifnot(exists("viagens"), exists("ser"), exists("fator_tempo"))
+suppressPackageStartupMessages({
+  library(glmmTMB); library(emmeans); library(DHARMa)
+})
+tem_writexl <- requireNamespace("writexl", quietly = TRUE)
+
+AA <- if (.Platform$OS.type == "windows") "cleartype" else "default"
+COR_MAC <- "#1F4E79"; COR_AUX <- "#C0501B"; COR_NEU <- "#7F7F7F"
+COR_S2  <- "#2E8B57"; COR_S3 <- "#7030A0"; COR_S2D <- "#00A0B0"
+
+## =====================================================================
+## 0) PREPARO DA RESPOSTA E DO ESFORÇO
+## ---------------------------------------------------------------------
+## A resposta é a CAPTURA em toneladas, não a CPUE. O esforço entra como
+## OFFSET (coeficiente fixo em 1 na escala log), o que é equivalente a
+## modelar a taxa mas preserva a estrutura de erro da captura — inclusive
+## os zeros, que desapareceriam se dividíssemos.
+## =====================================================================
+viagens$captura <- viagens$cap_macarellus     # toneladas
+viagens$ldias   <- log(viagens$dias)
+viagens$lhoras  <- log(viagens$horas)
+
+cat("\n===== DADOS PARA A MODELAGEM =====\n")
+cat(sprintf("Viagens: %d | níveis de %s: %d | bancos: %d | barcos: %d | táticas: %d\n",
+            nrow(viagens), fator_tempo, nlevels(viagens[[fator_tempo]]),
+            nlevels(viagens$fbanco), nlevels(viagens$fbarco),
+            nlevels(viagens$alvo)))
+cat(sprintf("Zeros na resposta: %.1f%%  (P3 — decisivo para a escolha da distribuição)\n",
+            100 * mean(viagens$captura == 0)))
+cat(sprintf("Captura da cavala: %.1f t em %.0f dias de pesca\n",
+            sum(viagens$captura), sum(viagens$dias)))
+
+## Covariáveis que NÃO entram, e por quê (fica registrado no output para
+## quem for ler o log do script sem ler a parte 01):
+cat("\nCovariáveis descartadas na parte 01:\n")
+cat("  profundidade   — 28% de ausentes codificados como 0 (decisão L6)\n")
+cat("  tipo_embarcacao— mesmo barco com dois códigos e código quase\n")
+cat("                   restrito a 2019 => confundido com ano (decisão L12)\n")
+cat("  ilha/porto de desembarque — cobertura muda ao longo da série (L7)\n")
+
+## =====================================================================
+## 1) CONSTRUTOR DE FÓRMULAS
+## ---------------------------------------------------------------------
+## Montar a fórmula como string para evitar perder termos nos testes
+## =====================================================================
+monta_formula <- function(resposta, termos, aleatorio = TRUE,
+                          offset_var = "ldias") {
+  rhs <- paste(c(fator_tempo, termos,
+                 if (aleatorio) "(1 | fbarco)",
+                 if (!is.null(offset_var)) sprintf("offset(%s)", offset_var)),
+               collapse = " + ")
+  stats::as.formula(paste(resposta, "~", rhs))
+}
+
+## Guarda contra modelo mais complexo do que os dados sustentam: um termo
+## categórico só entra se houver pelo menos MIN_POR_NIVEL observações por
+## nível. Importa nos subconjuntos (cenário S3), onde `fbanco` tem
+## dezenas de níveis e sobram poucas centenas de viagens.
+MIN_POR_NIVEL <- 10
+termos_viaveis <- function(dados, termos, min_por_nivel = MIN_POR_NIVEL) {
+  manter <- vapply(termos, function(tm) {
+    x <- dados[[tm]]
+    if (is.factor(x) || is.character(x)) {
+      k <- length(unique(as.character(x[!is.na(x)])))
+      nrow(dados) >= min_por_nivel * k
+    } else TRUE
+  }, logical(1))
+  if (any(!manter))
+    cat(sprintf("  [ajuste] termos retirados por amostra insuficiente: %s\n",
+                paste(termos[!manter], collapse = ", ")))
+  termos[manter]
+}
+
+## ==================================================================================
+## 2) ESTRUTURAS CANDIDATAS (E0-E5), todas com família Tweedie
+## ----------------------------------------------------------------------------------
+## A Tweedie é a distribuição de TRABALHO nesta etapa: fixamos a distribuição para 
+# comparar estruturas e só depois, já na melhor estrutura, comparamos as duas 
+# distribuições. Comparar tudo contra tudo multiplicaria ajustes sem necessidade 
+# e tornaria o resultado dependente da ordem em que se olha.
+##
+## As seis estruturas são uma escada: cada degrau acrescenta um tipo deexplicação 
+#alternativa à abundância.
+##   E0 só o tempo         -> o índice "cru" do modelo
+##   E1 + banco            -> onde se pescou (P6, desbalanceamento espacial)
+##   E2 + trimestre + trip.-> quando se pescou e com que poder de pesca
+##   E3 + alvo             -> o que se estava tentando pescar (P2)
+##   E4 + (1|barco)        -> quem pescou (P5, composição de frota)
+##   E5 tática contínua    -> a alternativa da H2
+## Todas ajustadas às MESMAS linhas e à MESMA resposta => AIC comparável.
+## ===============================================================================
+termos_E <- list(
+  E0 = character(0),
+  E1 = c("fbanco"),
+  E2 = c("fbanco", "ftri", "npesc_cat"),
+  E3 = c("fbanco", "ftri", "npesc_cat", "alvo"),
+  E4 = c("fbanco", "ftri", "npesc_cat", "alvo"),
+  E5 = c("fbanco", "ftri", "npesc_cat", PCs)
+)
+aleat_E <- c(E0 = FALSE, E1 = FALSE, E2 = FALSE, E3 = FALSE, E4 = TRUE, E5 = TRUE)
+
+cat("\n===== 1) ESTRUTURAS (Tweedie, offset = log dias) =====\n")
+fits <- list()
+for (nm in names(termos_E)) {
+  t0 <- Sys.time()
+  f  <- monta_formula("captura", termos_E[[nm]], aleatorio = aleat_E[[nm]])
+  fits[[nm]] <- try(glmmTMB(f, family = tweedie(link = "log"), data = viagens),
+                    silent = FALSE)
+  ok <- !inherits(fits[[nm]], "try-error")
+  cat(sprintf("  %-3s %-64s %s (%.1f min)\n", nm,
+              paste(deparse(f), collapse = ""),
+              if (ok) sprintf("AIC=%.1f", AIC(fits[[nm]])) else "FALHOU",
+              as.numeric(difftime(Sys.time(), t0, units = "mins"))))
+}
+fits <- fits[!vapply(fits, inherits, logical(1), "try-error")]
+stopifnot(length(fits) > 0)
+
+# ---------------------------------------------------------------------
+# Teste rápido de convergência dos modelos Tweedie em `fits`.
+# Verifica pdHess (Hessiana definida positiva no ótimo) e o maior
+# |gradiente| em valor absoluto — os dois sinais que realmente importam
+# quando o otimizador solta avisos tipo "singular convergence".
+# ---------------------------------------------------------------------
+LIMIAR_GRADIENTE <- 1e-2  # acima disso, vale desconfiar do ajuste
+
+cat("\n=== Checagem de convergencia (Tweedie) ===\n")
+for (nome in names(fits)) {
+  m      <- fits[[nome]]
+  sdr    <- m$sdr
+  pdhess <- isTRUE(sdr$pdHess)
+  grad   <- sdr$gradient.fixed
+  grad_max <- if (is.null(grad)) NA_real_ else max(abs(grad))
+  msg_otim <- m$fit$message
+  ok <- pdhess && !is.na(grad_max) && grad_max < LIMIAR_GRADIENTE
+  
+  cat(sprintf(
+    "%-4s | pdHess=%-5s | max|grad|=%.2e | %-28s | %s\n",
+    nome, pdhess, grad_max, msg_otim,
+    if (ok) "OK" else "VERIFICAR"
+  ))
+}
+cat("===========================================\n")
+
+#*** O modelo E3 tem direção plana longa no otimizador .Isso sugere que a superfície 
+#de verossimilhança do E3 tem alguma direção quase plana — bem possivelmente colinearidade 
+#parcial entre alvo (que vem da composição de espécies) e fbanco/fano 
+#(já que a composição de espécies varia sistematicamente por banco e por ano) — 
+#e que adicionar o efeito aleatório de embarcação (1 | fbarco) ajuda a "resolver" 
+#essa direção achatada, absorvendo parte dessa variação compartilhada
+#--------------------------------------------------------------------
+
+#tabela comparativa dos modelos com índices de ajuste
+tab_est <- data.frame(
+  modelo = names(fits),
+  df     = vapply(fits, function(m) attr(logLik(m), "df"), numeric(1)),
+  logLik = round(vapply(fits, function(m) as.numeric(logLik(m)), numeric(1)), 1),
+  AIC    = round(vapply(fits, AIC, numeric(1)), 1),
+  BIC    = round(vapply(fits, BIC, numeric(1)), 1), row.names = NULL)
+tab_est$dAIC <- round(tab_est$AIC - min(tab_est$AIC), 1)
+tab_est$dBIC <- round(tab_est$BIC - min(tab_est$BIC), 1)
+cat("\nTodas ajustadas às mesmas linhas e à mesma resposta -> AIC/BIC comparáveis.\n")
+cat("dAIC/dBIC são a distância para o melhor da coluna; <2 = empate técnico.\n")
+print(tab_est, row.names = FALSE)
+cat("\nAIC e BIC podem discordar: o BIC pune mais a complexidade, então\n")
+cat("tende a preferir estrutura menor. Se discordarem, vale reportar os\n")
+cat("dois e checar se o ÍNDICE muda — se não muda, a discordância é\n")
+cat("acadêmica.\n")
+
+## =====================================================================
+## 3) MEDIDA DE ESFORÇO: dias contra horas no mar
+## ---------------------------------------------------------------------
+## Comparação legítima por AIC: mesma resposta, mesmas linhas, só muda o
+## offset. A comparação é feita na estrutura E4 (a discreta completa),
+## que é a estrutura do modelo principal — e não na "melhor da escada",
+## para que a escolha do offset não dependa de qual degrau ganhou.
+## RESSALVA REGISTRADA NA PARTE 01: `Num_horas` é inconsistente com
+## `Num_dias` em ~21% das viagens (horas > 24 x dias), o que sugere que
+## os dois campos não foram derivados do mesmo jeito. Por isso, se a
+## diferença de AIC for pequena, a escolha fica com `dias`, que é
+## íntegro e é a unidade das séries oficiais.
+## =====================================================================
+cat("\n===== 2) QUAL MEDIDA DE ESFORÇO USAR =====\n")
+MARGEM_AIC <- 2      # abaixo disso é empate técnico
+m_dias  <- if ("E4" %in% names(fits)) fits[["E4"]] else
+  try(glmmTMB(monta_formula("captura", termos_E$E4, TRUE, "ldias"),
+              family = tweedie(link = "log"), data = viagens), silent = TRUE)
+m_horas <- try(glmmTMB(monta_formula("captura", termos_E$E4, TRUE, "lhoras"),
+                       family = tweedie(link = "log"), data = viagens),
+               silent = FALSE)
+if (!inherits(m_dias, "try-error") && !inherits(m_horas, "try-error")) {
+  cat(sprintf("  offset log(dias)  : AIC = %.1f\n", AIC(m_dias)))
+  cat(sprintf("  offset log(horas) : AIC = %.1f\n", AIC(m_horas)))
+  ## `isTRUE` protege contra AIC não finito (modelo que convergiu mal):
+  ## nesse caso a comparação devolveria NA e o script pararia aqui.
+  usar_horas <- isTRUE((AIC(m_dias) - AIC(m_horas)) > MARGEM_AIC)
+} else usar_horas <- FALSE
+OFFSET <- if (usar_horas) "lhoras" else "ldias"
+UNID   <- if (usar_horas) "t/hora no mar" else "t/dia de pesca"
+cat(sprintf("  -> adotado: offset(%s)  [%s]\n", OFFSET, UNID))
+if (!usar_horas)
+  cat("     (dias por integridade do campo; ver ressalva acima; Melhor ajuste)\n")
+
+## =====================================================================
+## 4) REFINAMENTO DA ESTRUTURA POR AIC (sem LRT)
+## ---------------------------------------------------------------------
+## QUAL ESTRUTURA É REFINADA, E POR QUÊ NÃO É "A MELHOR DA ESCADA":
+## o modelo principal é deliberadamente o da TÁTICA DISCRETA (E4). Não
+## porque ele ganhe sempre, mas porque as duas representações de tática
+## precisam continuar sendo DUAS COISAS DIFERENTES até o fim do script:
+## S2 (discreta) e S2b (contínua) são os dois lados da hipótese H2 e só 
+# sãocomparados formalmente na seção 8. Se deixássemos a escada escolher,
+## e ela escolhesse E5, os dois cenários (S2 e S2b) virariam o MESMO modelo com
+## dois nomes — e a comparação H2 (hipotese discreta vs contínua) se 
+# tornaria vazia. Precisamos manter a comparação discreta vs contínua viva
+## A estrutura contínua é refinada junto, com a mesma base de termos,
+## para que a comparação seja de TÁTICA e não de conjunto de covariáveis.
+##
+## O refinamento em si: partimos da estrutura cheia e testamos a REMOÇÃO
+## de cada termo, um por vez. Um termo só sai se removê-lo MELHORAR o AIC
+## em mais de MARGEM_AIC — a carga da prova é para retirar, não para
+## manter. É a versão por AIC do backward clássico.
+## Backward, e não forward: um termo cujo efeito só aparece depois de
+## ajustar outro é sistematicamente perdido no forward.
+## O fator temporal nunca entra na seleção: ele É o índice, e removê-lo
+## seria remover o objeto da análise.
+## =====================================================================
+cat("\n===== 3) REFINAMENTO BACKWARD POR AIC =====\n")
+usa_aleat <- TRUE                       # E4/E5 têm (1 | fbarco)
+ajusta <- function(termos, dados = viagens, aleat = usa_aleat)
+  try(glmmTMB(monta_formula("captura", termos, aleat, OFFSET),
+              family = tweedie(link = "log"), data = dados), silent = FALSE)
+
+## Os PCs formam UM bloco: são eixos da mesma PCA e remover PC2 mantendo
+## PC3 não tem interpretação. Esta função devolve a lista de blocos
+## removíveis de um conjunto de termos.
+blocos_de <- function(termos) {
+  pcs <- intersect(PCs, termos)
+  outros <- setdiff(termos, PCs)
+  bl <- as.list(outros); names(bl) <- outros
+  if (length(pcs) > 0) bl[["PCs"]] <- pcs
+  bl
+}
+
+backward_aic <- function(termos0) {
+  termos <- termos0
+  m <- ajusta(termos)
+  if (inherits(m, "try-error")) return(list(termos = termos, fit = m))
+  cat(sprintf("  partida: %s | AIC = %.1f\n",
+              paste(c(fator_tempo, termos), collapse = " + "), AIC(m)))
+  repeat {
+    bl <- blocos_de(termos)
+    if (length(bl) == 0) break
+    aic_sem <- vapply(bl, function(b) {
+      mr <- ajusta(setdiff(termos, b))
+      if (inherits(mr, "try-error")) Inf else AIC(mr)
+    }, numeric(1))
+    ganho <- AIC(m) - aic_sem            # positivo = remover melhora
+    cat("  dAIC ao remover: ",
+        paste(sprintf("%s=%+.1f", names(ganho), ganho), collapse = "  "), "\n")
+    ## guarda: se nenhum ajuste reduzido convergiu, `ganho` é todo NA e a
+    ## comparação devolveria NA — o modelo atual fica como está.
+    if (all(is.na(ganho)) || !isTRUE(max(ganho, na.rm = TRUE) > MARGEM_AIC)) {
+      cat("  -> nenhum termo melhora o AIC ao sair: todos retidos\n"); break
+    }
+    pior <- names(which.max(ganho))
+    cat(sprintf("  -> remove `%s` (AIC melhora %.1f)\n",
+                paste(bl[[pior]], collapse = "+"), max(ganho, na.rm = TRUE)))
+    termos <- setdiff(termos, bl[[pior]])
+    m <- ajusta(termos)
+  }
+  list(termos = termos, fit = m)
+}
+
+cat("\n-- estrutura DISCRETA (E4: fator `alvo`) --\n")
+sel_disc   <- backward_aic(termos_E$E4)
+termos_sel <- sel_disc$termos
+m_atual    <- sel_disc$fit
+f_fix      <- monta_formula("captura", termos_sel, usa_aleat, OFFSET)
+cat("Estrutura discreta final: ")
+cat("Melhor modelo dentro da família discreta: ")
+print(f_fix, showEnv = FALSE)
+
+## A estrutura contínua reaproveita EXATAMENTE a mesma base de termos,
+## trocando o fator `alvo` pelos eixos da PCA. É o que torna a
+## comparação H2 uma comparação de REPRESENTAÇÃO DE TÁTICA.
+#Se cada estrutura passasse pelo seu próprio backward, poderia 
+#acontecer de o backward do contínuo decidir manter npesc_cat enquanto
+#o backward do discreto decidiu tirar (hipoteticamente) — e aí, 
+#quando você comparasse o AIC final de um contra o outro na seção 8, 
+#a diferença estaria misturando dois efeitos: (a) discreto vs. contínuo E (b) 
+##conjuntos de covariáveis diferentes. Você não conseguiria separar 
+#qual dos dois motivos está gerando a diferença de AIC.
+termos_cont <- c(setdiff(termos_sel, "alvo"), PCs)
+cat("\n-- estrutura CONTÍNUA (E5: escores PC1..PCn) --\n")
+m_cont <- ajusta(termos_cont)
+if (!inherits(m_cont, "try-error"))
+  cat(sprintf("  %s | AIC = %.1f\n",
+              paste(c(fator_tempo, termos_cont), collapse = " + "), AIC(m_cont)))
+
+## =====================================================================
+## 5) AS DUAS DISTRIBUIÇÕES
+## ---------------------------------------------------------------------
+## Mesma estrutura, mesma resposta, mesmas linhas -> AIC/BIC comparáveis
+## diretamente. Não há mais grupos de comparabilidade para administrar.
+## =====================================================================
+cat("\n===== 4) DISTRIBUIÇÕES =====\n")
+dist_fits <- list()
+
+## D1 — Tweedie.
+dist_fits$D1_tweedie <- m_atual
+
+## D2 — Hurdle-Gamma. O `ziformula` modela a probabilidade de a viagem
+##      NÃO registrar cavala. Ele recebe o fator temporal, o trimestre e
+##      a representação de tática que estiver no modelo: são essas que
+##      descrevem a decisão de procurar (ou não) a espécie. Pôr o banco
+##      aqui também seria defensável, mas multiplicaria parâmetros no
+##      componente que tem menos informação.
+##      A função abaixo monta o `ziformula` A PARTIR dos termos do modelo,
+##      para que o componente de zeros acompanhe a estrutura escolhida
+##      (com `alvo` no modelo discreto, com os PCs no contínuo).
+monta_zi <- function(termos) {
+  z <- c(fator_tempo, intersect("ftri", termos),
+         intersect(c("alvo", PCs), termos))
+  stats::as.formula(paste("~", paste(z, collapse = " + ")))
+}
+zi_f <- monta_zi(termos_sel)
+cat(sprintf("  ziformula (probabilidade de zero): %s\n",
+            paste(deparse(zi_f), collapse = "")))
+dist_fits$D2_hurdle_gamma <- try(
+  glmmTMB(f_fix, ziformula = zi_f, family = ziGamma(link = "log"),
+          data = viagens), silent = FALSE)
+
+## Por que a Tweedie pode ganhar aqui: o hurdle-Gamma reporta AIC/BIC = NA
+## porque o componente `zi` (probabilidade de zero) não convergiu de forma
+## confiável — Hessiana não-positiva-definida, provavelmente por
+## quase-separação no termo `alvo`: a tática "macarellus" foi construída a
+## partir da própria composição de captura, então dentro desse nível quase
+## não existem viagens com captura zero, e o coeficiente logístico
+## correspondente tenta ir para o infinito. Isso invalida a verossimilhança
+## reportada, então o AIC não pode ser calculado (nem deveria ser usado).
+## A Tweedie não sofre disso porque modela a massa de zeros e os valores
+## positivos numa densidade só (via seu parâmetro de potência), sem precisar
+## de um sub-modelo logístico separado que dependa de `alvo` — por isso ela
+## tende a "vencer" por default quando o hurdle-Gamma quebra dessa forma,
+## e isso é reportado como argumento a favor da Tweedie, não só um acaso.
+
+dist_fits <- dist_fits[!vapply(dist_fits, inherits, logical(1), "try-error")]
+
+tab_dist <- data.frame(
+  modelo   = names(dist_fits),
+  resposta = "captura (t), zeros incluídos",
+  n        = vapply(dist_fits, function(m) nrow(model.frame(m)), numeric(1)),
+  df       = vapply(dist_fits, function(m) attr(logLik(m), "df"), numeric(1)),
+  AIC      = round(vapply(dist_fits, AIC, numeric(1)), 1),
+  BIC      = round(vapply(dist_fits, BIC, numeric(1)), 1), row.names = NULL)
+tab_dist$dAIC <- round(tab_dist$AIC - min(tab_dist$AIC), 1)
+tab_dist$dBIC <- round(tab_dist$BIC - min(tab_dist$BIC), 1)
+print(tab_dist, row.names = FALSE)
+
+melhor_dist <- tab_dist$modelo[which.min(tab_dist$AIC)]
+m_final <- dist_fits[[melhor_dist]]
+cat(sprintf("\nMenor AIC: %s\n", melhor_dist))
+cat("Confirmar no diagnóstico antes de aceitar — AIC mede ajuste, não\n")
+cat("adequação da distribuição. Se o resíduo do vencedor for ruim e o do\n")
+cat("outro for bom, o outro é o escolhido (e isso se reporta).\n")
+
+## A partir daqui, TODO ajuste usa a distribuição vencedora — inclusive
+## a estrutura contínua e o subconjunto do cenário S3. É o que garante
+## que as diferenças entre cenários venham da ESTRUTURA e não de estarmos
+## comparando famílias diferentes sem querer.
+ajusta_final <- function(termos, dados = viagens, aleat = usa_aleat) {
+  f <- monta_formula("captura", termos, aleat, OFFSET)
+  if (melhor_dist == "D2_hurdle_gamma")
+    try(glmmTMB(f, ziformula = monta_zi(termos), family = ziGamma(link = "log"),
+                data = dados), silent = TRUE)
+  else
+    try(glmmTMB(f, family = tweedie(link = "log"), data = dados), silent = TRUE)
+}
+
+## Estrutura contínua reajustada na distribuição vencedora: é ESTE
+## modelo que responde à hipótese H2, porque só difere do principal na
+## representação da tática.
+m_cont_final <- ajusta_final(termos_cont)
+if (!inherits(m_cont_final, "try-error"))
+  cat(sprintf("Estrutura contínua na mesma distribuição: AIC = %.1f (discreta: %.1f)\n",
+              AIC(m_cont_final), AIC(m_final)))
+
+## =====================================================================
+## 6) DIAGNÓSTICO DE RESÍDUOS (DHARMa)
+## ---------------------------------------------------------------------
+## Em GLMM não-gaussiano o resíduo de Pearson engana: a relação
+## média-variância não é constante e o gráfico "parece" ruim mesmo quando
+## o modelo está certo. O DHARMa simula do modelo ajustado e transforma
+## os resíduos para a escala uniforme, onde a leitura é a mesma para
+## qualquer distribuição.
+## O que cada teste responde:
+##   KS         a distribuição assumida está certa?
+##   dispersão  há sobre/subdispersão?
+##   outliers   há mais extremos do que o modelo consegue gerar?
+##   quantis    a variância é homogênea ao longo do predito?
+##              (é o teste de homocedasticidade aqui)
+##   zeros      o modelo gera a quantidade certa de zeros?
+## Com n grande, p pequeno aparece por desvio trivial — por isso os
+## gráficos são salvos: é neles que se vê se o desvio é grande ou só
+## detectável.
+## =====================================================================
+cat("\n===== 5) DIAGNÓSTICO =====\n")
+diagnostica <- function(m, nome, n_sim = 250) {
+  set.seed(1)
+  r <- simulateResiduals(m, n = n_sim, plot = FALSE)
+  u <- testUniformity(r, plot = FALSE); d <- testDispersion(r, plot = FALSE)
+  o <- testOutliers(r, plot = FALSE)
+  q <- try(testQuantiles(r, plot = FALSE), silent = TRUE)
+  z <- try(testZeroInflation(r, plot = FALSE), silent = TRUE)
+  data.frame(modelo = nome, KS_p = signif(u$p.value, 3),
+             disp_p = signif(d$p.value, 3),
+             disp_ratio = signif(as.numeric(d$statistic), 3),
+             outlier_p = signif(o$p.value, 3),
+             quantis_p = if (inherits(q, "try-error")) NA else signif(q$p.value, 3),
+             zeros_p = if (inherits(z, "try-error")) NA else signif(z$p.value, 3),
+             row.names = NULL)
+}
+diag_tab <- do.call(rbind, lapply(names(dist_fits), function(nm)
+  tryCatch(diagnostica(dist_fits[[nm]], nm), error = function(e)
+    data.frame(modelo = nm, KS_p = NA, disp_p = NA, disp_ratio = NA,
+               outlier_p = NA, quantis_p = NA, zeros_p = NA))))
+print(diag_tab, row.names = FALSE)
+cat("Leitura rápida: disp_ratio perto de 1 é bom; p pequeno em KS ou\n")
+cat("quantis com n grande pede olhar o gráfico antes de condenar.\n")
+
+png("diag_residuos.png", width = 26, height = 13, res = 300,
+    antialias = AA, units = "cm")
+set.seed(1); r_fin <- simulateResiduals(m_final, n = 250, plot = FALSE)
+plot(r_fin)
+dev.off()
+cat("PNG salvo: diag_residuos.png (modelo escolhido)\n")
+
+if (length(dist_fits) > 1) {
+  outro <- setdiff(names(dist_fits), melhor_dist)[1]
+  png("diag_residuos_alternativo.png", width = 26, height = 13, res = 300,
+      antialias = AA, units = "cm")
+  set.seed(1); plot(simulateResiduals(dist_fits[[outro]], n = 250, plot = FALSE))
+  dev.off()
+  cat(sprintf("PNG salvo: diag_residuos_alternativo.png (%s)\n", outro))
+}
+
+## =====================================================================
+## 7) EXTRAÇÃO DO ÍNDICE (emmeans)
+## ---------------------------------------------------------------------
+## É aqui que "entrar como fator" se paga: o emmeans calcula a média
+## marginal do fator temporal MEDIANDO os demais fatores — isto é, a taxa
+## de captura esperada num banco médio, num trimestre médio, com
+## tripulação média, numa mistura média de táticas. O que sobra é o
+## efeito do tempo.
+##
+## Dois detalhes que mudam o resultado e passam despercebidos:
+##  (1) `offset = 0`. Sem isso o emmeans usa a MÉDIA do offset e a série
+##      sai por "viagem média", não por dia. Com isso, sai em unidade de
+##      esforço, que é o que o JABBA espera.
+##  (2) `weights`. "equal" dá o mesmo peso a cada nível — o certo para um
+##      índice: queremos a média sobre ESTRATOS, não sobre as viagens que
+##      por acaso foram amostradas. "proportional" pondera pelo n
+##      observado e devolve parte do desbalanceamento (P6) que estamos
+##      justamente tentando remover.
+## =====================================================================
+especificacao <- stats::as.formula(paste("~", fator_tempo))
+
+extrai_indice <- function(m, nome, pesos = "equal", usa_offset = TRUE) {
+  args <- list(object = m, specs = especificacao, weights = pesos)
+  if (usa_offset) args$offset <- 0
+  s <- as.data.frame(summary(do.call(emmeans, args)))
+  data.frame(tempo = as.numeric(as.character(s[[fator_tempo]])),
+             cenario = nome, indice_bruto = exp(s$emmean), se_log = s$SE,
+             cv = sqrt(exp(s$SE^2) - 1), row.names = NULL)
+}
+
+## Índice de um modelo HURDLE. Este é o ponto técnico mais delicado do
+## script: num hurdle, o `emmeans` devolve por padrão só o componente
+## CONDICIONAL — a captura esperada DADO que houve captura. Usar isso
+## como índice ignoraria completamente a mudança na probabilidade de
+## encontrar a espécie, que é exatamente onde está o sinal aqui (a
+## proporção de viagens com cavala cai de 24% para 7%).
+## O valor esperado correto é:
+##      E[Y] = (1 - p_zero) x E[Y | Y > 0]
+## Na escala log:  log E[Y] = log(1 - p) + eta_cond
+## e, pelo método delta, com p = plogis(z):
+##      d log(1-p)/dz = -p   =>   contribuição ao erro-padrão = p * SE(z)
+## Os dois componentes são tratados como independentes (premissa usual).
+indice_hurdle <- function(m, nome, pesos = "equal") {
+  s_c <- as.data.frame(summary(emmeans(m, especificacao, component = "cond",
+                                       offset = 0, weights = pesos)))
+  s_z <- as.data.frame(summary(emmeans(m, especificacao, component = "zi",
+                                       weights = pesos)))
+  p   <- stats::plogis(s_z$emmean)            # P(zero estrutural)
+  idx <- (1 - p) * exp(s_c$emmean)
+  se  <- sqrt(s_c$SE^2 + (p * s_z$SE)^2)
+  data.frame(tempo = as.numeric(as.character(s_c[[fator_tempo]])),
+             cenario = nome, indice_bruto = idx, se_log = se,
+             cv = sqrt(exp(se^2) - 1), row.names = NULL)
+}
+
+## Despachante: usa o caminho certo conforme a família do modelo.
+## Num glmmTMB sem `ziformula`, o campo guardado é `~0`; com hurdle, é a
+## fórmula que passamos. O teste abaixo cobre também o caso `~1` (hurdle
+## com probabilidade constante), que `all.vars()` sozinho deixaria passar
+## como se não fosse hurdle.
+indice_de <- function(m, nome) {
+  zf <- m$modelInfo$allForm$ziformula
+  eh_hurdle <- !is.null(zf) &&
+    !identical(gsub("\\s", "", paste(deparse(zf), collapse = "")), "~0")
+  if (eh_hurdle) indice_hurdle(m, nome) else extrai_indice(m, nome)
+}
+normaliza <- function(d) { d$indice <- d$indice_bruto / mean(d$indice_bruto); d }
+
+cat("\n===== 6) ÍNDICES POR CENÁRIO =====\n")
+
+## S1 — nominal: captura agregada / esforço agregado, sem modelo nenhum.
+##      O CV é empírico (erro-padrão relativo da CPUE entre as viagens do
+##      mesmo período), porque não há modelo de onde tirar variância.
+esf_col <- if (OFFSET == "lhoras") "horas" else "dias"
+S1 <- data.frame(tempo = ser$tempo, cenario = "S1 nominal",
+                 indice_bruto = ser$cap_macarellus / ser[[esf_col]],
+                 se_log = NA_real_, cv = NA_real_)
+cv_emp <- tapply(viagens$captura / viagens[[esf_col]], viagens$tempo,
+                 function(x) sd(x) / (mean(x) * sqrt(length(x))))
+S1$cv <- as.numeric(cv_emp[as.character(S1$tempo)])
+S1 <- normaliza(S1)
+
+## S0 — modelo SEM a covariável de tática, com o resto igual. A diferença
+##      S0 - S2 isola o efeito do direcionamento: é o "influence plot" de
+##      Bentley et al. reduzido ao termo que interessa. Sem este cenário
+##      não dá para afirmar que a correção veio da tática e não de outro
+##      termo qualquer.
+E_sem_alvo <- setdiff(termos_sel, c("alvo", PCs))
+m_S0 <- ajusta_final(E_sem_alvo)
+S0 <- if (!inherits(m_S0, "try-error"))
+  normaliza(indice_de(m_S0, "S0 sem tática")) else NULL
+
+## S2 — cenário principal: modelo selecionado (estrutura + distribuição
+##      vencedoras), com tática discreta.
+S2 <- normaliza(indice_de(m_final, "S2 corrigida (tática discreta)"))
+
+## S2t — a MESMA estrutura na outra distribuição. Não é redundância: se o
+##      índice muda de forma ao trocar Tweedie por hurdle, isso é
+##      incerteza ESTRUTURAL e tem de ir para o texto; se não muda, é um
+##      argumento forte de robustez.
+outro_nome <- setdiff(names(dist_fits), melhor_dist)
+S2t <- if (length(outro_nome) > 0)
+  normaliza(indice_de(dist_fits[[outro_nome[1]]],
+                      sprintf("S2t %s", outro_nome[1]))) else NULL
+
+## S2b — tática CONTÍNUA (hipótese H2): os escores da PCA no lugar do
+##      fator de cluster, mesma base de termos e MESMA distribuição.
+S2b <- if (!inherits(m_cont_final, "try-error"))
+  normaliza(indice_de(m_cont_final, "S2b tática contínua (PCs)")) else NULL
+
+## S3 — esforço dirigido (H3): ajusta o modelo SÓ nas viagens da tática
+##      com maior fração de cavala. `alvo_cavala` vem da parte 02 e é
+##      escolhido pelo CENTRÓIDE, não pelo nome do grupo.
+##      RESSALVA: se nenhuma tática for dominada pela cavala (o caso
+##      desta série — a melhor tem ~15%), este cenário mede "esforço da
+##      tática que mais encontra cavala", que é MENOS do que "esforço
+##      dirigido à cavala". Continua sendo sensibilidade útil, mas não é
+##      o cenário principal e tende a hiperestabilidade (ao restringir às
+##      viagens que encontram a espécie, a queda fica achatada).
+S3 <- NULL
+if (exists("alvo_cavala") && alvo_cavala %in% levels(viagens$alvo)) {
+  v3 <- viagens[viagens$alvo == alvo_cavala, ]
+  v3[[fator_tempo]] <- droplevels(v3[[fator_tempo]])
+  cobre <- nlevels(v3[[fator_tempo]]) >= 0.7 * nlevels(viagens[[fator_tempo]])
+  if (cobre) {
+    for (f in c("fbanco", "fbarco", "ftri", "npesc_cat"))
+      if (f %in% names(v3)) v3[[f]] <- droplevels(v3[[f]])
+    cat(sprintf("  S3: %d viagens da tática '%s' (%.0f%% de cavala no centróide)\n",
+                nrow(v3), alvo_cavala, 100 * frac_cavala))
+    m3 <- ajusta_final(termos_viaveis(v3, E_sem_alvo), dados = v3)
+    if (!inherits(m3, "try-error"))
+      S3 <- normaliza(indice_de(m3, "S3 esforço dirigido"))
+  } else {
+    cat("[AVISO] a tática da cavala não cobre períodos suficientes;\n")
+    cat("        S3 fica sem estimativa — limitação esperada do subsetting.\n")
+  }
+}
+
+indices <- do.call(rbind, Filter(Negate(is.null), list(S1, S0, S2, S2t, S2b, S3)))
+cat("\nÍndices (média 1) e CV:\n")
+print(transform(indices[, c("tempo", "cenario", "indice", "cv")],
+                indice = round(indice, 3), cv = round(cv, 3)), row.names = FALSE)
+
+## =====================================================================
+## 8) TESTE DAS HIPÓTESES
+## =====================================================================
+cat("\n===== 7) HIPÓTESES =====\n")
+casa <- function(a, b) b$indice[match(a$tempo, b$tempo)]
+if (!is.null(S0)) {
+  r_S0S2 <- cor(S0$indice, casa(S0, S2), use = "complete.obs")
+  cat(sprintf("H0 — correlação entre índice com e sem tática: %.3f\n", r_S0S2))
+  cat(sprintf("     %s\n", if (r_S0S2 > 0.98)
+    "praticamente idênticos: a correção não muda nada (reportar!)" else
+      "a tática desloca o índice de forma relevante"))
+}
+amp <- function(d) max(d$indice, na.rm = TRUE) / min(d$indice, na.rm = TRUE)
+cat(sprintf("H1 — amplitude (máx/mín): nominal %.2f | corrigida %.2f\n",
+            amp(S1), amp(S2)))
+cat(sprintf("     correlação nominal x corrigida: %.3f\n",
+            cor(S2$indice, casa(S2, S1), use = "complete.obs")))
+cat("     amplitude menor na corrigida = parte da variação nominal era\n")
+cat("     comportamento de frota, não abundância (o efeito esperado).\n")
+if (!is.null(S2b)) {
+  d_h2 <- AIC(m_cont_final) - AIC(m_final)   # negativo = contínua ganha
+  cat(sprintf("H2 — discreta x contínua: r = %.3f | dAIC (contínua - discreta) = %+.1f\n",
+              cor(S2$indice, casa(S2, S2b), use = "complete.obs"), d_h2))
+  cat(sprintf("     %s\n", if (d_h2 < -MARGEM_AIC)
+    "a representação CONTÍNUA (PCs) ajusta melhor — como em Winker et al. (2013)"
+    else if (d_h2 > MARGEM_AIC)
+      "a representação DISCRETA (cluster) ajusta melhor"
+    else "empate técnico: as duas descrevem a tática igualmente bem"))
+}
+if (!is.null(S3))
+  cat(sprintf("H3 — esforço dirigido x corrigida: r = %.3f | amplitude %.2f\n",
+              cor(S2$indice, casa(S2, S3), use = "complete.obs"), amp(S3)))
+
+## =====================================================================
+## 9) FIGURA DOS ÍNDICES
+## =====================================================================
+cores_cen <- setNames(
+  c(COR_AUX, COR_NEU, COR_MAC, COR_S2D, COR_S2, COR_S3),
+  c("S1 nominal", "S0 sem tática", "S2 corrigida (tática discreta)",
+    if (length(outro_nome) > 0) sprintf("S2t %s", outro_nome[1]) else "S2t",
+    "S2b tática contínua (PCs)", "S3 esforço dirigido"))
+
+png("indices_cenarios.png", width = 26, height = 14, res = 300,
+    antialias = AA, units = "cm")
+op <- par(mfrow = c(1, 2), mar = c(4.4, 4.6, 3, 1), bty = "l",
+          cex.main = 0.95, cex = 0.85)
+cens <- unique(indices$cenario)
+plot(NA, xlim = range(indices$tempo),
+     ylim = c(0, max(indices$indice, na.rm = TRUE) * 1.12),
+     xlab = rotulo_tempo, ylab = "Indice relativo (media = 1)",
+     main = "A. Cenarios de indice")
+for (cen in cens) {
+  d <- indices[indices$cenario == cen, ]
+  lines(d$tempo, d$indice, lwd = 2.4, col = cores_cen[cen])
+  points(d$tempo, d$indice, pch = 19, cex = 0.8, col = cores_cen[cen])
+}
+legend("topright", cens, col = cores_cen[cens], lwd = 2.3, bty = "n", cex = 0.62)
+
+lo <- S2$indice * exp(-1.96 * S2$se_log); hi <- S2$indice * exp(1.96 * S2$se_log)
+plot(S2$tempo, S2$indice, type = "n", ylim = c(0, max(hi, na.rm = TRUE) * 1.05),
+     xlab = rotulo_tempo, ylab = "Indice (media = 1)",
+     main = "B. Indice corrigido com IC 95%")
+polygon(c(S2$tempo, rev(S2$tempo)), c(lo, rev(hi)),
+        col = adjustcolor(COR_MAC, 0.18), border = NA)
+lines(S2$tempo, S2$indice, lwd = 2.6, col = COR_MAC)
+points(S2$tempo, S2$indice, pch = 19, col = COR_MAC)
+lines(S1$tempo, S1$indice, lwd = 2, col = COR_AUX, lty = 2)
+legend("topright", c("corrigida (IC 95%)", "nominal"), col = c(COR_MAC, COR_AUX),
+       lwd = c(2.6, 2), lty = c(1, 2), bty = "n", cex = 0.72)
+par(op); dev.off()
+cat("\nPNG salvo: indices_cenarios.png\n")
+
+## =====================================================================
+## 10) EXPORTAÇÃO
+## ---------------------------------------------------------------------
+## Formato do JABBA: uma coluna de tempo e uma coluna por índice, mais
+## uma tabela equivalente de CV. Série com média 1 (o JABBA estima q).
+## Piso de CV em 0,20: o CV que sai do modelo é de processo estatístico e
+## ignora erro de processo, erro de reporte e a incerteza da própria
+## INFERÊNCIA DE TÁTICA (que não tem variância nenhuma no cálculo).
+## Entregar CV de 0,04 ao JABBA faria o modelo confiar no índice muito
+## mais do que ele merece.
+## =====================================================================
+PISO_CV <- 0.20
+saida_tempo <- sort(unique(indices$tempo))
+cen_export <- c("S1 nominal" = "cpue_nominal",
+                "S2 corrigida (tática discreta)" = "cpue_corrigida",
+                "S2b tática contínua (PCs)" = "cpue_corrigida_pcs")
+jabba_idx <- data.frame(tempo = saida_tempo)
+jabba_cv  <- data.frame(tempo = saida_tempo)
+for (cen in names(cen_export)) {
+  if (!cen %in% indices$cenario) next
+  d <- indices[indices$cenario == cen, ]
+  jabba_idx[[cen_export[cen]]] <- d$indice[match(saida_tempo, d$tempo)]
+  jabba_cv[[cen_export[cen]]]  <- d$cv[match(saida_tempo, d$tempo)]
+}
+names(jabba_idx)[1] <- names(jabba_cv)[1] <- if (fator_tempo == "fano") "Yr" else "Mes"
+jabba_cv[, -1] <- lapply(jabba_cv[, -1, drop = FALSE],
+                         function(x) pmax(x, PISO_CV, na.rm = TRUE))
+
+write.csv(jabba_idx, "jabba_indices_macarellus.csv", row.names = FALSE)
+write.csv(jabba_cv,  "jabba_cv_macarellus.csv", row.names = FALSE)
+write.csv(indices,   "indices_todos_cenarios.csv", row.names = FALSE)
+if (tem_writexl)
+  writexl::write_xlsx(list(indices = jabba_idx, cv = jabba_cv, todos = indices,
+                           estruturas = tab_est, distribuicoes = tab_dist,
+                           diagnostico = diag_tab),
+                      path = "padronizacao_cpue_macarellus.xlsx")
+cat("Arquivos salvos: jabba_indices_macarellus.csv, jabba_cv_macarellus.csv,\n")
+cat("                 indices_todos_cenarios.csv",
+    if (tem_writexl) ", padronizacao_cpue_macarellus.xlsx\n" else "\n")
+
+## =====================================================================
+## 11) COMO REPORTAR
+## =====================================================================
+cat("\n===== COMO REPORTAR =====\n")
+cat("1. S1 e S2 são CENÁRIOS ALTERNATIVOS de entrada no JABBA, não uma\n")
+cat("   série certa e outra errada (Hoyle et al. 2024, boas práticas 17-18).\n")
+cat("2. Reportar as tabelas de seleção (estruturas e distribuições) e de\n")
+cat("   diagnóstico, inclusive quando os pressupostos forem violados.\n")
+cat("3. Declarar o que a tática é: variável INFERIDA da composição da\n")
+cat("   captura, não observada. A incerteza dessa inferência não está no\n")
+cat("   CV — daí o piso de 0,20.\n")
+cat("4. Declarar as covariáveis descartadas e por quê (profundidade,\n")
+cat("   tipo de embarcação, ilha de desembarque) — todas por problema de\n")
+cat("   dado, não por não serem significativas.\n")
+cat(sprintf("5. Esta série cobre %s. Ela é POSTERIOR à mudança de alvo de\n",
+            paste(range(viagens$ano), collapse = "-")))
+cat("   2014, então descreve a dinâmica da cavala já na condição de\n")
+cat("   captura acompanhante. Não é a mesma pergunta que a série\n")
+cat("   histórica longa responde, e as duas não devem ser soldadas numa\n")
+cat("   única série 'corrigida' contínua.\n")
 
 
 
