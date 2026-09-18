@@ -67,15 +67,18 @@ lh<- read_xlsx("Parametros_Historia_de_vida.xlsx")
 
 
 #===============================================================================================================================
-# PADRONIZAÇÃO DE CPUE — Decapterus macarellus (cavala preta), Cabo Verde Frota industrial — dados do IMar, série 2019-2025
-# (1) A série agora é 2019-2025 (7 anos completos). O efeito de ANO — que É o índice de abundância — passa a ser estimável. A parte 02 troca
-#     sozinha o fator temporal de mês para ano.
+# PADRONIZAÇÃO DE CPUE — Decapterus macarellus (cavala preta), Cabo Verde Frota industrial — dados do IMar, série 2015-2025
+# (1) A série agora é 2015-2025 (10 anos; 2018 NÃO EXISTE em nenhum dos dois extratos recebidos — decisão L14).
+#     O efeito de ANO — que É o índice de abundância — é estimável. A parte 02 troca sozinha o fator temporal de mês para ano.
 # (2) PROFUNDIDADE foi REMOVIDA do pipeline. Ela é  lida e o diagnóstico é impresso, mas não vai para a tabela final:
 #     28% das viagens têm 0 (= ausência de registro, não zero metro) e o ausente não é aleatório. Ver decisão L6.
 # (3) MÊS vira TRIMESTRE como fator sazonal (decisão L9) e TRIPULAÇÃO vira FATOR em classes (decisão L10). Motivo em cada decisão.
 # (4) A identidade da embarcação passa a ser o CÓDIGO e não o nome  (decisão L11) — Os nomes se repetem entre barcos
 #     diferentes que operam ao mesmo tempo.
 # (5) `Tipo_embarcacao` foi INVESTIGADO e DESCARTADO como covariável (decisão L12).
+# (6) NOVO: o espaço entra como ILHA DO BANCO (decisão L15) e não mais como banco individual agrupado por limiar de viagens.
+#     São 244 bancos distintos nas viagens de cerco — qualquer limiar útil jogava ~40% das viagens num nível "OUTROS"
+#     que não significa lugar nenhum. A ilha do banco tem 5 níveis, todos presentes em 9-10 dos 10 anos.
 #================================================================================================================================
 # --------------------------------------------------------------------------------------------------------
 # DECISÕES DE LEITURA E LIMPEZA (cada uma comentada no código abaixo)
@@ -94,12 +97,18 @@ lh<- read_xlsx("Parametros_Historia_de_vida.xlsx")
 #— 28% das viagens. Como o ausente depende do amostrador/porto (não é aleatório), imputar enviesaria;
 #     e usar só o subconjunto completo custaria 28% das viagens e  impediria comparar modelos 
 #  por AIC (conjuntos diferentes de linhas). Fica de fora, e o diagnóstico é impresso para o texto.
-# L7. Local de pesca: usamos `Nome_banco_pesca` (onde se pescou), não o porto/ilha de 
-# desembarque (onde se descarregou). São coisas diferentes e só a primeira é covariável de densidade. 
-# A ilha de desembarque é guardada só para descrição — NÃO entra no modelo, porque a cobertura 
-# dela muda ao longo da série (S. Nicolau só aparece a partir de 2021), o que a deixa confundida com o ano.
-# L8. Bancos com menos de MIN_VIAG_BANCO viagens viram "OUTROS": nível com 3 viagens em 7 anos não 
-# estima coeficiente, só instabiliza.
+# L7. Local de pesca: a origem é `Nome_banco_pesca` (onde se pescou), nunca o porto/ilha de
+# desembarque DA VIAGEM (onde se descarregou). São coisas diferentes e só a primeira é covariável
+# de densidade. A ilha de desembarque da viagem continua FORA do modelo como variável própria,
+# porque a cobertura dela muda ao longo da série e isso a deixa confundida com o ano. Ela é usada
+# apenas como INSUMO para construir a ilha do banco (L15), o que é outra coisa — ver lá.
+# L8. [SUBSTITUÍDA POR L15] O agrupamento de bancos raros em "OUTROS" por limiar de viagens foi
+# abandonado. Motivo empírico: são 244 bancos distintos nas viagens de cerco, e a distribuição é tão
+# assimétrica que não existe limiar bom. Com MIN_VIAG_BANCO = 30 sobram 51 níveis (grade do emmeans
+# grande demais e células vazias); com 100 sobram 14 níveis, mas 40,5% das viagens caem em "OUTROS"
+# — um nível que mistura bancos de ilhas diferentes e não significa lugar nenhum. O parâmetro
+# continua no script porque `banco_gr` ainda é usado no efeito ALEATÓRIO opcional (E4b), onde o
+# encolhimento resolve a esparsidade sem precisar de limiar agressivo.
 # L9. MÊS -> TRIMESTRE. A sazonalidade da cavala é forte (presença cai de ~23% em janeiro para ~7% em agosto) 
 # e precisa estar no modelo. Mas 12 níveis de mês, cruzados com 7 anos e dezenas de bancos, deixam
 #     muitas células quase vazias e o coeficiente vira ruído. Trimestre mantém a forma sazonal 
@@ -119,45 +128,459 @@ lh<- read_xlsx("Parametros_Historia_de_vida.xlsx")
 # de maior captura de cavala; (c) os perfis de I e S em 2019 são iguais (mesmos dias no mar, 
 #mesma tripulação, mesma captura média). É um código administrativo de registro, não um tipo de embarcação.
 #Usá-lo como covariável roubaria sinal do efeito de ano.
-# L13. Viagens com MAIS DE UMA ARTE (43 viagens) são descartadas: os dias de mar delas cobrem também 
+# L13. Viagens com MAIS DE UMA ARTE (49 viagens) são descartadas: os dias de mar delas cobrem também
 #o que foi pescado com outra arte, então o esforço atribuído ao cerco ficaria inflado.
+#
+# L14. QUATRO FONTES, COLADAS POR ANO, CADA UMA NO SEU PEDAÇO DA SÉRIE. Nenhuma sozinha cobre
+#      1989-2025, e elas não têm a mesma granularidade nem o mesmo formato:
+#      - "Cavala_desembarques-esforço_pesca industrial_1989-2014.csv" : AGREGADA. Uma linha por ANO,
+#        com desembarque e esforço já somados. Não tem viagem, embarcação, tripulação nem composição
+#        de captura. Nível = "anual".
+#      - "INDUSTRIAL_2015_2017_Sem_validação.csv"  : nível de viagem, formato de referência, 2015-2017.
+#      - "INDUSTRIAL_2018_formato_diferente.csv"   : nível de viagem, 14 colunas em vez de 39 (ver L17).
+#      - "INDUSTRIAL_2019_2025_atualizado_17.09.2026.csv" : nível de viagem, formato de referência, é
+#        ESTE que define o formato-alvo para onde todo o resto é traduzido.
+#      REGRA: cada arquivo entra só nos anos em que é a melhor fonte. O script confere sozinho que não
+#      há colisão de `Amostragem` entre blocos e para (`stopifnot`) se houver — id repetido fundiria
+#      duas viagens diferentes numa só lá na frente.
+#      O produto é `esforco_completo` (39 colunas do padrão + 4 de procedência: fonte, nivel,
+#      engenhos_agregados, usar_na_serie), escrito em CSV e XLSX. A coluna `nivel` é o que impede o
+#      histórico agregado de entrar por engano nas etapas que exigem viagem.
+#      COBERTURA RESULTANTE: 1989-2025 sem nenhum ano faltando — 2018 agora existe (era buraco na
+#      versão anterior), mas fica fora da série por L17.
+#
+# L16. FRONTEIRA DA TROCA DE ALVO: pré ≤ 2014, pós ≥ 2015 (`ANO_CORTE_ALVO`). Coincide com o que já
+#      estava no cabeçalho ("hiperdepleção aparente depois de 2014") e com a troca de regime dos
+#      dados: até 2014 a fonte é agregada, de 2015 em diante é viagem a viagem. É o corte que separa
+#      os cenários nominais C2 (pré) e C3 (pós).
+#
+# L17. 2018 É TRADUZIDO PARA O FORMATO PADRÃO, MAS FICA FORA DA SÉRIE (`INCLUIR_2018 = FALSE`).
+#      TRADUÇÃO (a pedido: mudar o 2018 em função dos demais, nunca o contrário) — o que existe vai
+#      para a coluna equivalente; o que não existe fica em branco; o que só existe em 2018 é
+#      descartado por não ser informação perene do banco:
+#        ILHA->Nome_ilha | (coluna sem nome)->Nome_embarcacao | DATA PARTIDA/CHEGADA->Data_partida/
+#        Data_chegada | MÊS->Mes | ANO->Ano | PORTO EMBARQUE->Nome_porto_armamento | PORTO
+#        DESEMBARQUE->Nome_porto_desembarque | ZONA DE PESCA->Nome_banco_pesca | ENGENHO->
+#        Nome_engenho | GRUPO->Grupo | ESPÉCIE CAPTURADA->Especie | NOME CIENTÍFICO->Nome_cientifico
+#        | QUANTIDADE CAPTURADA (Kg)->Quantidade.   DESCARTADA: DIA (redundante com Data_chegada).
+#      DERIVADOS: `Amostragem` não existe e é construído como barco+partida+chegada (prefixo "2018_",
+#      porque não é comparável com os ids do IMar); `Num_dias` não existe e sai de max(chegada-
+#      partida, 1) — regra calibrada no arquivo de referência, onde reproduz 100% dos registros.
+#      EM BRANCO POR NÃO EXISTIR EM 2018: Embarcacao (o CÓDIGO; só há o nome), Numero_pescadores,
+#      Num_horas, Profundidade, Preco, Valor, Familia, Genero.
+#      POR QUE FICA FORA DA SÉRIE: 2018 destoa dos vizinhos de forma que não dá para atribuir a
+#      abundância com o que se sabe hoje. CPUE nominal de 1,03 t/dia contra 0,28 (2017) e 0,38 (2019);
+#      a cavala é 27,7% da captura contra 12,3% e 18,2%; a captura por registro tem mediana de 4,0 t
+#      contra 1,5 t em 2019-2025. O esforço e o número de viagens são normais (1.326 viagens, 2.153
+#      dias) — o que muda é só a captura. Como o levantamento é de outra origem e outro formato, a
+#      hipótese de artefato de amostragem não pode ser descartada, e um artefato aqui viraria um pico
+#      de abundância espúrio bem no meio da série. Fica na tabela (auditável, e a tradução está
+#      pronta), mas `usar_na_serie = FALSE` e nenhum cenário o usa. Basta `INCLUIR_2018 <- TRUE`
+#      para reincorporá-lo se o IMar confirmar os números.
+#      FALTA TAMBÉM, mesmo se voltar: sem tripulação e sem código de embarcação, 2018 não pode entrar
+#      na CPUE PADRONIZADA — só na nominal.
+#
+# L18. QUAL ESFORÇO USAR DE 1989-2014. A planilha traz duas colunas: "Rede cerco" e "Total"
+#      (cerco + linha de mão). Usamos a do CERCO, para bater com o filtro de arte do resto da série.
+#      Nos anos em que a própria planilha anota "engenhos agregados" (1994-1999 e 2014) o número já
+#      mistura artes; ali cai para o total e a linha fica marcada com `engenhos_agregados = TRUE`,
+#      para a ressalva aparecer no texto em vez de sumir na média. 2013 não tem esforço nenhum
+#      ("Sem esforço" na planilha): fica com `usar_na_serie = FALSE` e sem CPUE — a captura de
+#      2013 (2.210 t) continua registrada, só não vira índice.
+#
+# L15. ESPAÇO = ILHA DO BANCO DE PESCA, não o banco individual. Cada BANCO recebe, de uma vez por
+#      todas, o nome da ilha de desembarque MAIS FREQUENTE entre as viagens que pescaram nele; essa
+#      etiqueta vira a covariável `ilha_banco` (5 níveis).
+#      POR QUE ISSO NÃO É A MESMA COISA QUE USAR A ILHA DE DESEMBARQUE DA VIAGEM (o que L7 proíbe):
+#      a etiqueta é uma propriedade FIXA DO BANCO, calculada uma vez sobre a série inteira. Duas
+#      viagens ao mesmo banco recebem a mesma ilha mesmo que tenham desembarcado em portos
+#      diferentes. O porto onde o barco escolheu descarregar — que é o que muda com a cobertura de
+#      amostragem ao longo dos anos — deixa de entrar na covariável. O que entra é "em que zona do
+#      arquipélago fica este pesqueiro", que é geografia e não muda com o ano.
+#      POR QUE A ILHA E NÃO O BANCO: ver L8. E porque 5 níveis bem povoados, presentes em quase todos
+#      os anos, estimam coeficiente; 244 níveis (ou 14 + um "OUTROS" com 40% das viagens) não.
+#      QUALIDADE DO MAPEAMENTO (impressa pelo script): 197 dos 244 bancos são "puros" — todas as
+#      viagens deles desembarcaram na mesma ilha. Ponderando por viagem, 91,2% das viagens estão na
+#      ilha modal do seu banco.
+#      RESSALVA QUE VAI PARA O TEXTO: os ~9% restantes são topônimos genéricos que se repetem em
+#      várias ilhas de Cabo Verde — TARRAFAL (existe em Santiago, S. Nicolau e S. Antão), SANTA MARIA,
+#      CALHETA, BAIA, PONTA. Nesses casos a atribuição modal força uma ilha só e erra em parte das
+#      viagens. O script imprime a lista dos bancos com pureza < 80% para que ela possa ser conferida
+#      com quem conhece a pescaria — é o tipo de coisa que uma tabela de coordenadas dos bancos
+#      resolveria de vez, e que vale pedir ao IMar.
 #======================================================================
 
 ## =====================================================================
-## 0) PARÂMETROS 
+## 0) PARÂMETROS E FONTES
 ## =====================================================================
-ARQUIVO        <- "INDUSTRIAL_2019_2025_atualizado_17.09.2026.csv"
+## As QUATRO fontes do IMar. Cada uma entra só nos anos em que é a melhor
+## (ou a única) fonte — ver decisão L14. Quando o IMar mandar atualização,
+## é aqui que se mexe.
+ARQ_1517 <- "INDUSTRIAL_2015_2017_Sem_validação.csv"
+ARQ_1925 <- "INDUSTRIAL_2019_2025_atualizado_17.09.2026.csv"
+ARQ_2018 <- "INDUSTRIAL_2018_formato_diferente.csv"
+ARQ_HIST <- "Cavala_desembarques-esforço_pesca industrial_1989-2014.csv"
+
 ARTE_ALVO      <- "REDE DE CERCO"        # decisão L5
-MIN_VIAG_BANCO <- 100                    # decisão L8 (45 bancos + "OUTROS")
 ESPECIE_FOCO   <- "DECAPTERUS MACARELLUS"
 CORTES_NPESC   <- c(0, 12, 15, 17, Inf)  # decisão L10
+ANO_CORTE_ALVO <- 2014                   # decisão L16 — fronteira da troca de alvo
+INCLUIR_2018   <- FALSE                  # decisão L17 — 2018 fica FORA da série
+
+## MIN_VIAG_BANCO NÃO define mais a covariável espacial (ver L8/L15). Ele
+## só agrupa a cauda de bancos raros para o efeito ALEATÓRIO opcional
+## `(1 | fbanco)` da estrutura E4b. Como ali o encolhimento já cuida dos
+## níveis pequenos, o limiar pode ser brando.
+MIN_VIAG_BANCO <- 10
+PUREZA_ALERTA  <- 0.80
 
 ## =====================================================================
-## 1) LEITURA ROBUSTA (decisões L1-L4)
+## 0.1) FERRAMENTAS DE LEITURA E ESCRITA (decisões L1-L4)
 ## =====================================================================
-le_imar <- function(caminho) {
+## L1-L4: latin1 -> UTF-8, sem aspas, separador ";", decimal ",", e
+## `trimws` em TUDO (o arquivo é de largura fixa disfarçada de CSV).
+le_csv_imar <- function(caminho, ...) {
   linhas <- readLines(caminho, warn = FALSE)
-  # L1: latin1 -> UTF-8. `sub="?"` evita erro fatal se houver byte inválido.
   linhas <- iconv(linhas, from = "latin1", to = "UTF-8", sub = "?")
-  # L2 e L3: sem aspas, separador ";", decimal ","
   d <- read.csv2(text = linhas, quote = "", stringsAsFactors = FALSE,
-                 strip.white = TRUE)
+                 strip.white = TRUE, ...)
   names(d) <- trimws(names(d))
-  # L4: o arquivo é de largura fixa disfarçada de CSV — sobra espaço à
-  # direita em TODO campo de texto. Sem este laço, nenhuma comparação de
-  # string funciona.
   for (j in seq_along(d)) if (is.character(d[[j]])) d[[j]] <- trimws(d[[j]])
   d
 }
 
-bruto <- do.call(rbind, lapply(ARQUIVO, le_imar))
+## Remoção de acentos por substituição de BYTES. Não usa `iconv TRANSLIT`
+## (que em algumas máquinas transforma "ç" em "?") nem `chartr` (que
+## quebra com multibyte). Como as strings já vieram convertidas para
+## UTF-8, cada acentuado é uma sequência fixa de bytes e a troca por byte
+## dá o mesmo resultado no Windows, no Linux e no Mac.
+sem_acento <- function(x) {
+  x <- as.character(x); Encoding(x) <- "UTF-8"
+  de <- c("á","à","â","ã","ä","å","é","è","ê",
+          "ë","í","ì","î","ï","ó","ò","ô","õ",
+          "ö","ú","ù","û","ü","ç","ñ",
+          "Á","À","Â","Ã","Ä","Å","É","È","Ê",
+          "Ë","Í","Ì","Î","Ï","Ó","Ò","Ô","Õ",
+          "Ö","Ú","Ù","Û","Ü","Ç","Ñ")
+  para <- c("a","a","a","a","a","a","e","e","e","e","i","i","i","i","o","o","o","o","o",
+            "u","u","u","u","c","n","A","A","A","A","A","A","E","E","E","E","I","I","I","I",
+            "O","O","O","O","O","U","U","U","U","C","N")
+  Encoding(de) <- "UTF-8"
+  for (i in seq_along(de)) x <- gsub(de[i], para[i], x, fixed = TRUE, useBytes = TRUE)
+  Encoding(x) <- "UTF-8"; x
+}
+norm_txt <- function(x) toupper(trimws(gsub("\\s+", " ", sem_acento(x), useBytes = TRUE)))
 
+## Escritor de CSV byte-exato. `write.csv(fileEncoding = "UTF-8")`
+## reconverte as strings a partir do encoding nativo e, numa máquina cujo
+## locale não seja UTF-8, TRUNCA o campo no primeiro acentuado: "S. ANTÃO"
+## saía como `"S. ANT` sem fechar aspas e o arquivo ficava irrecuperável
+## (relia 8.353 das 26.932 linhas, em silêncio). Aqui as linhas são
+## montadas à mão — aspas internas dobradas, como manda o padrão CSV — e
+## gravadas como BYTES, sem o R reinterpretar nada.
+escreve_csv_utf8 <- function(d, caminho) {
+  campo <- function(x) {
+    x <- enc2utf8(as.character(x))
+    out <- paste0('"', gsub('"', '""', x, fixed = TRUE, useBytes = TRUE), '"')
+    out[is.na(x)] <- "NA"
+    out
+  }
+  linhas <- c(paste(campo(names(d)), collapse = ","),
+              do.call(paste, c(lapply(d, campo), sep = ",")))
+  con <- file(caminho, open = "wb"); on.exit(close(con))
+  writeLines(enc2utf8(linhas), con, useBytes = TRUE)
+  invisible(nrow(d))
+}
+
+## As 39 colunas do formato de referência (o da planilha 2019-2025).
+COLS_PADRAO <- c(
+  "Amostragem","Ano","Mes","Grupo","Familia","Genero","Nome_cientifico","Especie",
+  "Engenho","Nome_engenho","Quantidade","Preco","Valor","Data_amostragem","Tipo_pesca",
+  "Regiao","Ilha","Nome_ilha","Concelho","Nome_concelho","Localidade","Nome_localidade",
+  "Tipo_embarcacao","Embarcacao","Nome_embarcacao","Porto_armamento","Nome_porto_armamento",
+  "Porto_desembarque","Nome_porto_desembarque","Numero_pescadores","Data_partida",
+  "Hora_partida","Data_chegada","Num_dias","Hora_chegada","Num_horas","Banco_pesca",
+  "Nome_banco_pesca","Profundidade_pesca_engenho1")
+
+## Encaixa qualquer fonte no formato de referência: o que existe é
+## copiado, o que não existe fica NA, e o que só existe naquela fonte é
+## descartado (não é informação perene do banco). As 4 colunas de
+## procedência ficam DEPOIS das 39, para o formato original continuar
+## reconhecível.
+molda_padrao <- function(d, fonte, nivel, agregados = FALSE, usar = TRUE) {
+  out <- as.data.frame(matrix(NA_character_, nrow = nrow(d), ncol = length(COLS_PADRAO)),
+                       stringsAsFactors = FALSE)
+  names(out) <- COLS_PADRAO
+  for (cc in intersect(names(d), COLS_PADRAO)) out[[cc]] <- as.character(d[[cc]])
+  out$fonte <- fonte; out$nivel <- nivel
+  out$engenhos_agregados <- agregados; out$usar_na_serie <- usar
+  out
+}
+
+## =====================================================================
+## 0.2) MONTAGEM DA SÉRIE COMPLETA 1989-2025 (decisões L14, L17, L18)
+## =====================================================================
 cat("======================================================\n")
-cat("LEITURA DO ARQUIVO DO IMar\n")
+cat("PARTE 0 — SÉRIE DE ESFORÇO COMPLETA 1989-2025\n")
 cat("======================================================\n")
-cat(sprintf("Arquivo(s): %s\n", paste(ARQUIVO, collapse = ", ")))
-cat(sprintf("Linhas lidas (1 por espécie por amostragem): %d\n", nrow(bruto)))
-cat(sprintf("Colunas: %d\n", ncol(bruto)))
+
+## --- (a) 2015-2017 e 2019-2025: já estão no formato de referência -----
+b1517 <- le_csv_imar(ARQ_1517); b1925 <- le_csv_imar(ARQ_1925)
+b1517 <- b1517[b1517$Ano %in% as.character(2015:2017), , drop = FALSE]
+b1925 <- b1925[b1925$Ano %in% as.character(2019:2025), , drop = FALSE]
+col_1517 <- unique(b1517$Amostragem[b1517$Amostragem != ""])
+col_1925 <- unique(b1925$Amostragem[b1925$Amostragem != ""])
+cat(sprintf("\n[a] 2015-2017: %d linhas | 2019-2025: %d linhas\n", nrow(b1517), nrow(b1925)))
+cat(sprintf("    ids `Amostragem` colididos entre os dois blocos: %d %s\n",
+            length(intersect(col_1517, col_1925)),
+            if (length(intersect(col_1517, col_1925)) == 0) "(OK)" else "<<< PARE"))
+stopifnot(length(intersect(col_1517, col_1925)) == 0)
+P_1517 <- molda_padrao(b1517, "IMar 2015-2017 (sem validacao)", "viagem")
+P_1925 <- molda_padrao(b1925, "IMar 2019-2025 (atualizado)",    "viagem")
+
+## --- (b) 2018: formato diferente, traduzido para o de referência ------
+## O arquivo de 2018 tem 14 colunas contra 39. A regra (decisão L17) é
+## traduzir 2018 PARA o formato maior, nunca o contrário: o que existe
+## entra na coluna equivalente, o que não existe fica em branco, e o que
+## só existe em 2018 é descartado.
+b18 <- le_csv_imar(ARQ_2018, check.names = FALSE)
+nm <- names(b18); nm[nm == "" | is.na(nm) | nm %in% c("NA", "X")] <- "BARCO"; names(b18) <- nm
+pega <- function(d, alvo) {
+  i <- which(norm_txt(names(d)) == norm_txt(alvo))
+  if (!length(i)) rep("", nrow(d)) else as.character(d[[i[1]]])
+}
+d18 <- data.frame(
+  ilha = pega(b18,"ILHA"),               barco = pega(b18,"BARCO"),
+  dpart= pega(b18,"DATA PARTIDA"),       dcheg = pega(b18,"DATA CHEGADA"),
+  mes  = pega(b18,"MES"),                ano   = pega(b18,"ANO"),
+  pemb = pega(b18,"PORTO EMBARQUE"),     pdes  = pega(b18,"PORTO DESEMBARQUE"),
+  zona = pega(b18,"ZONA DE PESCA"),      eng   = pega(b18,"ENGENHO"),
+  grupo= pega(b18,"GRUPO"),              esp   = pega(b18,"ESPECIE CAPTURADA"),
+  sci  = pega(b18,"NOME CIENTIFICO"),
+  qtd  = pega(b18,"QUANTIDADE CAPTURADA (Kg)"), stringsAsFactors = FALSE)
+
+## `Num_dias` não existe em 2018 e é DERIVADO das datas. A regra foi
+## calibrada no arquivo de referência: lá, `Num_dias = max(chegada -
+## partida, 1)` reproduz 100% dos registros (viagem que sai e volta no
+## mesmo dia conta como 1 dia). Data invertida vira NA, não 0.
+dp <- as.Date(d18$dpart, format = "%m/%d/%Y")
+dc <- as.Date(d18$dcheg, format = "%m/%d/%Y")
+dur <- as.numeric(dc - dp)
+d18$num_dias <- ifelse(is.na(dur) | dur < 0, NA_real_, pmax(dur, 1))
+
+## Engenho em 2018 vem com caixa inconsistente ("Rede de cerco", "rede de
+## cerco", "cerco") — normalizado para o vocabulário do formato padrão.
+eng <- norm_txt(d18$eng)
+eng[grepl("CERCO", eng) & grepl("LINHA", eng)] <- "CERCO E LINHA"
+eng[grepl("CERCO", eng) & eng != "CERCO E LINHA"] <- ARTE_ALVO
+eng[grepl("^LINHA", eng) & !grepl("VARA", eng)] <- "LINHA A MAO"
+eng[eng == ""] <- NA_character_
+
+## ILHA: 2018 escreve por extenso ("São Vicente"); o padrão usa a forma
+## abreviada e acentuada ("S. VICENTE", "S. ANTÃO"). A grafia canônica
+## NÃO é escrita aqui à mão: ela é LIDA dos arquivos padrão e localizada
+## pela forma sem acento. Assim o nível do 2018 recebe exatamente os
+## mesmos bytes do resto da tabela, sem depender de escapes `\u` — que,
+## num locale não-UTF-8, o R guarda como o texto literal "<c3><83>" e
+## fazem a correspondência falhar em silêncio.
+ilhas_padrao <- unique(c(P_1517$Nome_ilha, P_1925$Nome_ilha))
+ilhas_padrao <- ilhas_padrao[!is.na(ilhas_padrao) & ilhas_padrao != ""]
+canon_ilha <- setNames(ilhas_padrao, norm_txt(ilhas_padrao))
+ALIAS_ILHA <- c("SAO VICENTE"="S. VICENTE", "SANTO ANTAO"="S. ANTAO",
+                "SAO NICOLAU"="S. NICOLAU", "SAL"="SAL", "SANTIAGO"="SANTIAGO",
+                "BOA VISTA"="BOA VISTA", "MAIO"="MAIO", "FOGO"="FOGO", "BRAVA"="BRAVA")
+ilha18  <- norm_txt(d18$ilha)
+chave18 <- ifelse(ilha18 %in% names(ALIAS_ILHA), ALIAS_ILHA[ilha18], ilha18)
+ilha18  <- ifelse(chave18 %in% names(canon_ilha), canon_ilha[chave18], ilha18)
+
+## Identificador de viagem: 2018 não tem `Amostragem`. Construído a
+## partir de barco + data de partida + data de chegada, que é o que
+## identifica uma maré. NÃO é comparável com os ids do resto da série —
+## por isso recebe o prefixo "2018_".
+d18$viagem <- paste(norm_txt(d18$barco), d18$dpart, d18$dcheg, sep = "|")
+id18 <- paste0("2018_", match(d18$viagem, unique(d18$viagem)))
+
+cat(sprintf("\n[b] 2018: %d linhas -> %d viagens (barco + partida + chegada)\n",
+            nrow(d18), length(unique(id18))))
+cat(sprintf("    ilhas casadas com a grafia do padrão: %d de %d\n",
+            sum(ilha18 %in% ilhas_padrao), length(ilha18)))
+cat(sprintf("    datas invertidas (chegada < partida): %d -> Num_dias = NA\n",
+            sum(!is.na(dur) & dur < 0)))
+cat(sprintf("    engenho normalizado: %s\n",
+            paste(sprintf("%s=%d", names(table(eng)), table(eng)), collapse = " | ")))
+cat("    DESCARTADA (só existe em 2018, não é perene): DIA\n")
+cat("    SEM EQUIVALENTE (ficam em branco): Embarcacao (código), Numero_pescadores,\n")
+cat("                      Num_horas, Profundidade, Preco, Valor, Familia, Genero\n")
+cat(sprintf("    usar_na_serie = %s (decisão L17)\n", INCLUIR_2018))
+
+P_2018 <- molda_padrao(data.frame(
+  Amostragem = id18, Ano = d18$ano, Mes = d18$mes, Grupo = norm_txt(d18$grupo),
+  Nome_cientifico = norm_txt(d18$sci), Especie = norm_txt(d18$esp),
+  Nome_engenho = eng, Quantidade = d18$qtd, Tipo_pesca = "INDUSTRIAL",
+  Nome_ilha = ilha18, Nome_embarcacao = norm_txt(d18$barco),
+  Nome_porto_armamento = norm_txt(d18$pemb),
+  Nome_porto_desembarque = norm_txt(d18$pdes),
+  Data_partida = d18$dpart, Data_chegada = d18$dcheg, Num_dias = d18$num_dias,
+  Nome_banco_pesca = norm_txt(d18$zona), stringsAsFactors = FALSE),
+  "IMar 2018 (formato diferente)", "viagem", FALSE, INCLUIR_2018)
+
+## --- (c) 1989-2014: série histórica AGREGADA --------------------------
+## Esta planilha não é de viagem: é uma linha por ANO, com desembarque e
+## esforço já somados. Ela não tem — e não pode ter — composição de
+## captura, embarcação, tripulação ou banco. Entra no formato de
+## referência com as colunas que existem preenchidas e o resto em branco,
+## marcada com nivel = "anual" para que nenhuma etapa de viagem a use por
+## engano.
+## DECISÃO L18 (qual coluna de esforço): a planilha traz "Rede cerco" e
+## "Total" (cerco + linha de mão). Usamos o cerco, para bater com o
+## filtro de arte do resto da série; nos anos em que a própria planilha
+## anota "engenhos agregados" o número já mistura artes e aí cai para o
+## total, com a marca `engenhos_agregados = TRUE`. 2013 não tem esforço
+## nenhum e fica com usar_na_serie = FALSE.
+lin <- iconv(readLines(ARQ_HIST, warn = FALSE), "latin1", "UTF-8", sub = "?")
+h <- read.csv2(text = lin[-(1:3)], header = FALSE, quote = "",
+               stringsAsFactors = FALSE, strip.white = TRUE)
+names(h)[1:8] <- c("ano","lm_des","lm_esf","rc_des","rc_esf","tot_des","tot_esf","obs")
+h <- h[!is.na(suppressWarnings(as.numeric(h$ano))), , drop = FALSE]
+num <- function(x) suppressWarnings(as.numeric(gsub(",", ".", trimws(as.character(x)))))
+for (cc in c("ano","lm_des","lm_esf","rc_des","rc_esf","tot_des","tot_esf")) h[[cc]] <- num(h[[cc]])
+h$obs       <- trimws(as.character(h$obs))
+h$agregado  <- grepl("agregad", h$obs, ignore.case = TRUE)
+h$desem_t   <- ifelse(!is.na(h$rc_des) & !h$agregado, h$rc_des, h$tot_des)
+h$esforco_d <- ifelse(!is.na(h$rc_esf) & !h$agregado, h$rc_esf, h$tot_esf)
+h$usar      <- !is.na(h$desem_t) & !is.na(h$esforco_d)
+cat(sprintf("\n[c] histórico 1989-2014: %d anos | engenhos agregados: %d | sem esforço: %d\n",
+            nrow(h), sum(h$agregado), sum(!h$usar)))
+if (any(!h$usar))
+  cat(sprintf("    ano(s) sem esforço utilizável: %s\n",
+              paste(h$ano[!h$usar], collapse = ", ")))
+
+P_HIST <- molda_padrao(data.frame(
+  Amostragem = paste0("HIST_", h$ano), Ano = as.character(h$ano),
+  Nome_cientifico = ESPECIE_FOCO, Especie = "CAVALA PRETA",
+  Nome_engenho = ifelse(h$agregado, "AGREGADO (CERCO + LINHA)", ARTE_ALVO),
+  Quantidade = ifelse(is.na(h$desem_t), NA_character_,
+                      as.character(round(h$desem_t * 1000, 3))),
+  Tipo_pesca = "INDUSTRIAL", Num_dias = as.character(h$esforco_d),
+  stringsAsFactors = FALSE),
+  "Historico 1989-2014 (agregado)", "anual", h$agregado, h$usar)
+
+## --- (d) colagem e higiene -------------------------------------------
+esforco_completo <- rbind(P_HIST, P_2018, P_1517, P_1925)
+esforco_completo <- esforco_completo[order(as.numeric(esforco_completo$Ano)), ]
+rownames(esforco_completo) <- NULL
+
+## Aspas, ponto-e-vírgula e quebras de linha DENTRO de um campo estragam
+## qualquer releitura. `useBytes = TRUE` é obrigatório: sem ele, uma
+## classe de caracteres aplicada a uma string UTF-8 num locale C corta a
+## string no primeiro acentuado. Como os caracteres removidos são ASCII
+## de 1 byte (e um byte ASCII nunca aparece como continuação de um
+## caractere UTF-8), a troca por byte é segura.
+sujos <- 0
+for (cc in COLS_PADRAO) {
+  x <- esforco_completo[[cc]]
+  ruim <- !is.na(x) & grepl("[\"\r\n;]", x, useBytes = TRUE)
+  if (any(ruim)) {
+    sujos <- sujos + sum(ruim)
+    y <- trimws(gsub("[ \t]+", " ", gsub("[\"\r\n;]", " ", x, useBytes = TRUE), useBytes = TRUE))
+    y[!is.na(y) & y == ""] <- NA_character_
+    Encoding(y) <- "UTF-8"
+    esforco_completo[[cc]] <- y
+  }
+}
+cat(sprintf("\n[d] TABELA UNIFICADA: %d linhas x %d colunas (%d do padrão + 4 de procedência)\n",
+            nrow(esforco_completo), ncol(esforco_completo), length(COLS_PADRAO)))
+cat(sprintf("    campos higienizados (aspas/;/quebra de linha): %d\n", sujos))
+print(table(esforco_completo$fonte, esforco_completo$nivel))
+anos_ec <- sort(unique(as.numeric(esforco_completo$Ano)))
+buracos <- setdiff(min(anos_ec):max(anos_ec), anos_ec)
+cat(sprintf("    cobertura: %d-%d | anos ausentes: %s\n", min(anos_ec), max(anos_ec),
+            if (length(buracos)) paste(buracos, collapse = ", ") else "nenhum"))
+
+escreve_csv_utf8(esforco_completo, "esforco_completo_1989_2025.csv")
+volta <- read.csv("esforco_completo_1989_2025.csv", stringsAsFactors = FALSE, encoding = "UTF-8")
+cat(sprintf("    CSV escrito e relido: %d x %d | íntegro: %s\n", nrow(volta), ncol(volta),
+            identical(dim(volta), dim(esforco_completo))))
+stopifnot(identical(dim(volta), dim(esforco_completo)))
+if (requireNamespace("writexl", quietly = TRUE)) {
+  writexl::write_xlsx(list(esforco_completo = esforco_completo),
+                      "esforco_completo_1989_2025.xlsx")
+  cat("    XLSX escrito: esforco_completo_1989_2025.xlsx\n")
+}
+
+## --- (e) série anual nominal da cavala --------------------------------
+## Esta é a série que alimenta os cenários nominais longos (C1/C2/C3).
+## Para 1989-2014 vem pronta da planilha histórica; para 2015-2025 é
+## agregada das viagens, com o MESMO filtro de arte e a MESMA exclusão de
+## viagem multi-arte (L13) usados no resto do script.
+ec <- esforco_completo
+ec$Ano_n <- as.numeric(ec$Ano)
+ec$Q <- suppressWarnings(as.numeric(ec$Quantidade))
+ec$D <- suppressWarnings(as.numeric(ec$Num_dias))
+
+hist_an <- data.frame(ano = h$ano, fonte = "Historico 1989-2014 (agregado)",
+                      cavala_t = h$desem_t, dias = h$esforco_d, n_viagens = NA_real_,
+                      cap_total_t = NA_real_, engenhos_agregados = h$agregado,
+                      usar_na_serie = h$usar, stringsAsFactors = FALSE)
+
+vg <- ec[ec$nivel == "viagem" & !is.na(ec$Amostragem) & ec$Amostragem != "", ]
+n_artes <- tapply(vg$Nome_engenho, vg$Amostragem, function(z) length(unique(z[!is.na(z)])))
+multi <- names(n_artes)[!is.na(n_artes) & n_artes > 1]
+cat(sprintf("\n[e] série anual: %d viagens multi-arte descartadas (decisão L13)\n", length(multi)))
+vg <- vg[!(vg$Amostragem %in% multi) & vg$Nome_engenho %in% ARTE_ALVO, ]
+
+por <- function(x, by, f) tapply(x, by, f)
+ids <- unique(vg$Amostragem)
+V <- data.frame(
+  id   = ids,
+  ano  = as.numeric(por(vg$Ano_n, vg$Amostragem, function(z) z[1])[ids]),
+  dias = as.numeric(por(vg$D,     vg$Amostragem, function(z) z[1])[ids]),
+  usar = as.logical(por(vg$usar_na_serie, vg$Amostragem, function(z) z[1])[ids]),
+  tot  = as.numeric(por(vg$Q, vg$Amostragem, function(z) sum(z, na.rm = TRUE))[ids]),
+  stringsAsFactors = FALSE)
+mv <- vg[toupper(vg$Nome_cientifico) == ESPECIE_FOCO, ]
+mm <- por(mv$Q, mv$Amostragem, function(z) sum(z, na.rm = TRUE))
+V$mac <- as.numeric(mm[V$id]); V$mac[is.na(V$mac)] <- 0
+V <- V[!is.na(V$dias) & V$dias > 0 & !is.na(V$ano), ]
+
+viag_an <- do.call(rbind, lapply(split(V, V$ano), function(s) data.frame(
+  ano = s$ano[1],
+  fonte = if (s$ano[1] == 2018) "IMar 2018 (formato diferente)" else "IMar viagem",
+  cavala_t = sum(s$mac) / 1000, dias = sum(s$dias), n_viagens = nrow(s),
+  cap_total_t = sum(s$tot) / 1000, engenhos_agregados = FALSE,
+  usar_na_serie = all(s$usar), stringsAsFactors = FALSE)))
+
+serie_anual <- rbind(hist_an, viag_an)
+serie_anual <- serie_anual[order(serie_anual$ano), ]
+serie_anual$cpue_nominal <- serie_anual$cavala_t / serie_anual$dias
+serie_anual$periodo <- ifelse(serie_anual$ano <= ANO_CORTE_ALVO,
+                              sprintf("pre-alvo (<=%d)", ANO_CORTE_ALVO),
+                              sprintf("pos-alvo (>=%d)", ANO_CORTE_ALVO + 1))
+rownames(serie_anual) <- NULL
+cat("\n--- SÉRIE ANUAL NOMINAL DA CAVALA (captura / dias de mar) ---\n")
+print(transform(serie_anual, cavala_t = round(cavala_t, 1),
+                cap_total_t = round(cap_total_t, 1),
+                cpue_nominal = round(cpue_nominal, 4)), row.names = FALSE)
+escreve_csv_utf8(serie_anual, "serie_anual_cavala_1989_2025.csv")
+cat("\nCSV escrito: serie_anual_cavala_1989_2025.csv\n")
+
+## =====================================================================
+## 0.3) ENTRADA DA PARTE 01
+## ---------------------------------------------------------------------
+## Daqui em diante o script trabalha com o nível de VIAGEM. O histórico
+## agregado (nivel = "anual") fica de fora — ele não tem composição de
+## captura, então não pode passar pela inferência de tática nem pela
+## padronização. Ele volta no fim, nos cenários nominais longos.
+## =====================================================================
+bruto <- esforco_completo[esforco_completo$nivel == "viagem" &
+                            esforco_completo$usar_na_serie, COLS_PADRAO, drop = FALSE]
+rownames(bruto) <- NULL
+for (j in seq_along(bruto)) bruto[[j]][is.na(bruto[[j]])] <- ""
+cat(sprintf("\n>> Entram na parte 01 (nível viagem): %d linhas, anos %s\n",
+            nrow(bruto), paste(range(as.numeric(bruto$Ano)), collapse = "-")))
+if (!INCLUIR_2018)
+  cat("   (2018 fora por decisão L17 — ver o bloco de decisões)\n")
+rm(b1517, b1925, b18, d18, volta)
 
 ## =====================================================================
 ## 2) RELATÓRIO DE QUALIDADE — ANTES de filtrar qualquer coisa
@@ -402,13 +825,77 @@ cat(sprintf("      contínua: mediana %.0f, intervalo %.0f-%.0f pescadores\n",
             median(viagens$npesc, na.rm = TRUE), min(viagens$npesc, na.rm = TRUE),
             max(viagens$npesc, na.rm = TRUE)))
 
-## --- L8: bancos raros agrupados --------------------------------------
+## --- L15: ILHA DO BANCO — a covariável espacial do modelo ------------
+## Cada BANCO recebe a ilha de desembarque mais frequente entre as
+## viagens que pescaram nele. A etiqueta é calculada sobre a série
+## inteira e vale para todas as viagens daquele banco: é propriedade do
+## PESQUEIRO, não da viagem. Por isso ela não carrega a variação de
+## cobertura de amostragem que proíbe usar a ilha de desembarque crua
+## como covariável (decisão L7).
+banco_valido <- !is.na(viagens$banco) & viagens$banco != ""
+if (any(!banco_valido))
+  cat(sprintf("\n[L15] AVISO: %d viagens sem banco registrado -> ilha 'INDEFINIDA'\n",
+              sum(!banco_valido)))
+
+## moda da ilha de desembarque dentro de cada banco
+mapa_ilha <- tapply(viagens$ilha_desemb[banco_valido],
+                    viagens$banco[banco_valido],
+                    function(x) { tb <- table(x); names(tb)[which.max(tb)] })
+viagens$ilha_banco <- unname(mapa_ilha[viagens$banco])
+viagens$ilha_banco[is.na(viagens$ilha_banco)] <- "INDEFINIDA"
+
+## Diagnóstico do mapeamento. "Pureza" de um banco = fração das viagens
+## dele que de fato desembarcaram na ilha que ele recebeu. Pureza 1
+## significa que o banco só aparece ligado a uma ilha — atribuição sem
+## ambiguidade. Pureza baixa significa topônimo repetido entre ilhas.
+pureza <- tapply(seq_len(nrow(viagens))[banco_valido],
+                 viagens$banco[banco_valido],
+                 function(ix) mean(viagens$ilha_desemb[ix] == viagens$ilha_banco[ix]))
+n_por_banco <- table(viagens$banco[banco_valido])
+pureza      <- pureza[names(n_por_banco)]
+
+cat(sprintf("\n[L15] Bancos distintos: %d -> %d ilhas de pesca\n",
+            length(n_por_banco), length(unique(viagens$ilha_banco))))
+cat(sprintf("      bancos com pureza 100%% (uma ilha só): %d de %d\n",
+            sum(pureza == 1), length(pureza)))
+cat(sprintf("      pureza média ponderada por viagem: %.1f%%\n",
+            100 * sum(pureza * as.numeric(n_por_banco)) / sum(as.numeric(n_por_banco))))
+cat(sprintf("      -> %.1f%% das viagens estão na ilha modal do seu banco\n",
+            100 * mean(viagens$ilha_desemb == viagens$ilha_banco)))
+
+## Lista de conferência: topônimos que se repetem entre ilhas. Esta
+## tabela é para ser lida por quem conhece a pescaria — a atribuição
+## modal força uma ilha só e nesses bancos ela erra em parte das
+## viagens. É a ressalva de L15 que vai para o texto.
+amb <- which(pureza < PUREZA_ALERTA & as.numeric(n_por_banco) >= 30)
+if (length(amb) > 0) {
+  cat(sprintf("\n      bancos AMBÍGUOS (pureza < %.0f%% e >= 30 viagens) — conferir:\n",
+              100 * PUREZA_ALERTA))
+  for (k in amb[order(-as.numeric(n_por_banco)[amb])]) {
+    b  <- names(n_por_banco)[k]
+    ds <- sort(table(viagens$ilha_desemb[viagens$banco == b]), decreasing = TRUE)
+    cat(sprintf("        %-26s n=%4d  pureza=%4.1f%%  ->  %s\n", b,
+                as.integer(n_por_banco[k]), 100 * pureza[k],
+                paste(sprintf("%s:%d", names(ds), as.integer(ds)), collapse = "  ")))
+  }
+  cat("      ^ topônimos genéricos que existem em mais de uma ilha de Cabo Verde.\n")
+  cat("        Uma tabela de coordenadas dos bancos resolveria isto de vez.\n")
+}
+
+cat("\n      distribuição das viagens por ilha do banco:\n")
+print(table(viagens$ilha_banco))
+
+## --- L8 (resíduo): banco agrupado, só para o efeito ALEATÓRIO --------
+## `banco_gr` não é mais a covariável espacial do modelo. Ele sobrevive
+## porque a estrutura E4b testa `(1 | fbanco)` como refinamento DENTRO
+## da ilha — e ali o limiar pode ser brando, porque o efeito aleatório
+## encolhe sozinho os níveis com pouca informação.
 tb_banco <- table(viagens$banco)
 raros <- names(tb_banco[tb_banco < MIN_VIAG_BANCO])
 viagens$banco_gr <- ifelse(viagens$banco %in% raros, "OUTROS", viagens$banco)
-cat(sprintf("\n[L8] Bancos de pesca: %d distintos; %d com < %d viagens agrupados\n",
+cat(sprintf("\n[L8] `banco_gr` (só para o efeito aleatório E4b): %d bancos, %d com < %d\n",
             length(tb_banco), length(raros), MIN_VIAG_BANCO))
-cat(sprintf("     em 'OUTROS' (%.1f%% das viagens) -> %d níveis no modelo\n",
+cat(sprintf("     viagens agrupados em 'OUTROS' (%.1f%% das viagens) -> %d níveis\n",
             100 * mean(viagens$banco %in% raros),
             length(unique(viagens$banco_gr))))
 
@@ -522,9 +1009,11 @@ stopifnot(exists("viagens"))
 ## 0) FATOR TEMPORAL
 ## ---------------------------------------------------------------------
 ## O índice de abundância É o efeito do fator temporal. Com a série
-## 2019-2025 completa, esse fator é o ANO. O código continua detectando
-## sozinho o caso de um ano só (que cairia para mês) para não quebrar se
-## alguém rodar um recorte.
+## 2015-2025, esse fator é o ANO. O código continua detectando sozinho o
+## caso de um ano só (que cairia para mês) para não quebrar se alguém
+## rodar um recorte. O ano ausente (2018, decisão L14) simplesmente não
+## vira nível do fator — o índice sai com um buraco, que é o correto:
+## inventar o valor de 2018 seria pior do que declarar que faltou.
 ## =====================================================================
 UM_ANO_SO    <- length(unique(viagens$ano)) == 1
 fator_tempo  <- if (UM_ANO_SO) "fmes" else "fano"
@@ -570,12 +1059,15 @@ for (cc in cols_cap)
 ## assim que o emmeans consegue tirar a média sobre os níveis e devolver
 ## o efeito do tempo "limpo" dos demais.
 ## Note o que NÃO está aqui: `tipo_emb` (decisão L12 da parte 01) e
-## `ilha_desemb` (decisão L7) — ambos confundidos com o ano.
+## `ilha_desemb` (decisão L7) — ambos confundidos com o ano. `filha` NÃO
+## é a ilha de desembarque da viagem: é a ilha ATRIBUÍDA AO BANCO em L15,
+## que é geografia do pesqueiro e não escolha de porto.
 viagens$fano   <- factor(viagens$ano)
 viagens$fmes   <- factor(viagens$mes, levels = 1:12)
 viagens$ftri   <- factor(viagens$trimestre, levels = 1:4,
                          labels = c("T1", "T2", "T3", "T4"))
-viagens$fbanco <- factor(viagens$banco_gr)
+viagens$filha  <- factor(viagens$ilha_banco)        # decisão L15 — covariável espacial
+viagens$fbanco <- factor(viagens$banco_gr)          # só para o (1|fbanco) opcional (E4b)
 viagens$fbarco <- factor(viagens$barco_id)          # código, não nome (L11)
 viagens$barco_mes <- paste(viagens$barco_id, viagens$ano, viagens$mes, sep = "_")
 
@@ -616,25 +1108,44 @@ a <- nrow(viagens)
 viagens <- viagens[viagens$barco_id %in% names(tb[tb >= MIN_VIAG_BARCO]), ]
 reg(sprintf("embarcações com >= %d viagens", MIN_VIAG_BARCO), a)
 
-## (iv) estratos tempo x banco muito ralos geram coeficientes instáveis
+## (iv) estratos tempo x ESPAÇO muito ralos geram coeficientes instáveis
 ## (e, no limite, níveis que só existem em um ano — que o modelo
-## confundiria com efeito de ano).
-te <- table(paste(viagens$ano, viagens$banco_gr))
+## confundiria com efeito de ano). O estrato agora é ano x ILHA do banco
+## (decisão L15) e não mais ano x banco: como a ilha tem 5 níveis em vez
+## de 244, o mesmo critério corta MUITO menos viagem. É exatamente o
+## ganho que motivou a troca — o filtro deixa de ser uma peneira e volta
+## a ser o que devia ser, uma guarda contra célula vazia.
+te <- table(paste(viagens$ano, viagens$ilha_banco))
 a <- nrow(viagens)
-viagens <- viagens[paste(viagens$ano, viagens$banco_gr) %in%
+viagens <- viagens[paste(viagens$ano, viagens$ilha_banco) %in%
                      names(te[te >= MIN_POR_ESTRATO]), ]
-reg(sprintf("estratos ano x banco com >= %d viagens", MIN_POR_ESTRATO), a)
+reg(sprintf("estratos ano x ilha do banco com >= %d viagens", MIN_POR_ESTRATO), a)
 
-for (f in c("fano", "fmes", "ftri", "fbanco", "fbarco"))
+for (f in c("fano", "fmes", "ftri", "filha", "fbanco", "fbarco"))
   viagens[[f]] <- droplevels(viagens[[f]])
 
 cat("\n================== FILTROS ================\n"); print(filtro_log, row.names = FALSE)
 cat(sprintf("Retidas %d de %d viagens (%.1f%%)\n", nrow(viagens), n0,
             100 * nrow(viagens) / n0))
-cat(sprintf("Após filtros: %d anos, %d bancos, %d embarcações\n",
-            nlevels(viagens$fano), nlevels(viagens$fbanco),
-            nlevels(viagens$fbarco)))
+cat(sprintf("Após filtros: %d anos, %d ilhas de pesca, %d bancos, %d embarcações\n",
+            nlevels(viagens$fano), nlevels(viagens$filha),
+            nlevels(viagens$fbanco), nlevels(viagens$fbarco)))
 cat("Viagens por ano após filtros:\n"); print(table(viagens$ano))
+
+## Cruzamento ano x ilha do banco: é aqui que se vê se o efeito de ano e
+## o efeito de espaço são separáveis. Uma coluna (ano) concentrada numa
+## linha só (ilha) significa que, NAQUELE ano, o modelo não consegue
+## distinguir "foi um ano ruim" de "só se pescou naquela ilha".
+cat("\nViagens por ano x ilha do banco (base da separabilidade ano/espaço):\n")
+print(table(viagens$ilha_banco, viagens$ano))
+ilhas_por_ano <- colSums(table(viagens$ilha_banco, viagens$ano) > 0)
+if (any(ilhas_por_ano <= 1))
+  cat(sprintf("AVISO: ano(s) com uma ilha só: %s — o efeito de ano desses anos\n       absorve o efeito de espaço. Reportar como limitação.\n",
+              paste(names(ilhas_por_ano)[ilhas_por_ano <= 1], collapse = ", ")))
+n_por_ano <- table(viagens$ano)
+if (any(n_por_ano < 150))
+  cat(sprintf("AVISO: ano(s) com < 150 viagens: %s — índice com IC largo.\n",
+              paste(names(n_por_ano)[n_por_ano < 150], collapse = ", ")))
 
 ## =====================================================================
 ## 3) SÉRIE NOMINAL (cenário S1) — captura da espécie / esforço TOTAL
@@ -748,31 +1259,31 @@ png("exp4_covariaveis.png", width = 26, height = 20, res = 300,
 op <- par(mfrow = c(2, 2), mar = c(7.5, 4.6, 3, 1), bty = "l",
           cex.main = 0.95, cex = 0.85)
 
-## A — ONDE se pega cavala (componente de presença, por banco de pesca).
-##     Só os 20 bancos com mais viagens, senão o eixo fica ilegível.
-pr_b <- tapply(viagens$pos_mac, viagens$fbanco, mean)
-n_b  <- table(viagens$fbanco)
-top_b <- names(sort(n_b, decreasing = TRUE))[1:min(20, length(n_b))]
-ord  <- top_b[order(pr_b[top_b], decreasing = TRUE)]
-barra_prop(pr_b[ord], n_b[ord], "A. Presenca de cavala (20 maiores bancos)",
-           "", cex_nome = 0.55, n_vertical = TRUE)
+## A — ONDE se pega cavala (componente de presença, por ILHA do banco).
+##     Agora cabem todos os níveis no eixo: são 5, não 244 (decisão L15).
+pr_b <- tapply(viagens$pos_mac, viagens$filha, mean)
+n_b  <- table(viagens$filha)
+ord  <- names(sort(pr_b, decreasing = TRUE))
+barra_prop(pr_b[ord], n_b[ord], "A. Presenca de cavala (ilha do banco)",
+           "", cex_nome = 0.70, n_vertical = FALSE)
 
 ## B — QUANTO se pega, dado que pegou (componente de magnitude).
 pos <- viagens[viagens$pos_mac == 1, ]
-## Só os 15 bancos com mais viagens POSITIVAS: abaixo disso a caixa é
+## Só as ilhas com ao menos 10 viagens POSITIVAS: abaixo disso a caixa é
 ## desenhada sobre 3-4 pontos e não descreve distribuição nenhuma.
-n_pos_b <- sort(table(pos$fbanco), decreasing = TRUE)
-bancos_ok <- names(n_pos_b[n_pos_b >= 10])[1:min(15, sum(n_pos_b >= 10))]
-pos_b <- pos[pos$fbanco %in% bancos_ok, ]
+n_pos_b <- sort(table(pos$filha), decreasing = TRUE)
+bancos_ok <- names(n_pos_b[n_pos_b >= 10])
+pos_b <- pos[pos$filha %in% bancos_ok, ]
 if (nrow(pos_b) > 0) {
-  pos_b$fbanco <- droplevels(pos_b$fbanco)
-  bx <- boxplot(cpue_dia ~ fbanco, data = pos_b, outline = FALSE, plot = FALSE)
-  boxplot(cpue_dia ~ fbanco, data = pos_b, outline = FALSE, col = "#74C476",
+  pos_b$filha <- droplevels(pos_b$filha)
+  bx <- boxplot(cpue_dia ~ filha, data = pos_b, outline = FALSE, plot = FALSE)
+  boxplot(cpue_dia ~ filha, data = pos_b, outline = FALSE, col = "#74C476",
           xaxt = "n", xlab = "", ylab = "CPUE (t/dia) entre as positivas",
           lwd = 1, main = "B. Magnitude, so nas viagens com cavala")
-  axis(1, at = seq_along(bx$names), labels = FALSE)
-  text(seq_along(bx$names), par("usr")[3], labels = bx$names, srt = 45,
-       adj = 1, xpd = NA, cex = 0.6)
+  ## Com 5 ilhas os rótulos cabem na horizontal; a versão rotada a 45
+  ## graus era necessária quando aqui havia 15 nomes de banco.
+  axis(1, at = seq_along(bx$names), labels = bx$names, cex.axis = 0.72,
+       tick = TRUE, mgp = c(3, 0.6, 0))
 }
 
 ## C — tripulação em classes (decisão L10). Se as barras forem
@@ -1072,7 +1583,8 @@ cat("PNG salvo: exp6_taticas.png\n")
 ## menos do que "esforço dirigido à cavala". A diferença tem de estar no
 ## texto.
 ## =====================================================================
-esforco_dirigido <- aggregate(cbind(dias, horas) ~ tempo + banco_gr + alvo,
+## O estrato espacial aqui acompanha o do modelo: ilha do banco (L15).
+esforco_dirigido <- aggregate(cbind(dias, horas) ~ tempo + ilha_banco + alvo,
                               data = viagens, FUN = sum)
 dias_alvo <- aggregate(dias ~ tempo + alvo, data = esforco_dirigido, FUN = sum)
 
@@ -1141,11 +1653,23 @@ cat("`alvo_cavala`, `frac_cavala`.\n")
 # ===================== MODELOS QUE SERÃO TESTADOS ============================================
 # ESTRUTURAS (o fator temporal NUNCA entra na seleção — ele É o índice):
 #   E0  tempo
-#   E1  tempo + banco
-#   E2  tempo + banco + trimestre + tripulação(classes)
+#   E1  tempo + ilha do banco                       (espaço; decisão L15)
+#   E2  E1 + trimestre + tripulação(classes)
 #   E3  E2 + alvo                                   (tática DISCRETA)
 #   E4  E3 + (1 | barco)                            [GLMM]
+#   E4b E4 + (1 | banco)                            espaço FINO dentro da ilha
 #   E5  E2 + PC1..PCn + (1 | barco)                 (tática CONTÍNUA)
+#
+# SOBRE O E4b — POR QUE ELE EXISTE:
+# a ilha (5 níveis) é o gradiente espacial GROSSO. Dentro de cada ilha há bancos com
+# produtividades diferentes, e essa variação fina não some só porque não cabe como fator fixo.
+# O E4b a coloca como efeito ALEATÓRIO: cada banco ganha um desvio em torno da média da sua
+# ilha, estimado com encolhimento (bancos com poucas viagens são puxados para a média da ilha
+# em vez de receberem um coeficiente instável). É a estrutura hierarquicamente correta para
+# "muitos níveis, alguns com pouca informação" — e, ao contrário do fator fixo, NÃO entra na
+# grade de referência do emmeans, então não reaparece o problema de grade que derrubou a
+# extração do índice na versão anterior. O AIC decide se essa camada extra se paga.
+#
 # OFFSET: log(dias) contra log(horas).
 # DISTRIBUIÇÕES (resposta = toneladas, contínua, com ~88% de zeros):
 #   D1 Tweedie            D2 Hurdle-Gamma
@@ -1197,10 +1721,10 @@ viagens$ldias   <- log(viagens$dias)
 viagens$lhoras  <- log(viagens$horas)
 
 cat("\n===== DADOS PARA A MODELAGEM =====\n")
-cat(sprintf("Viagens: %d | níveis de %s: %d | bancos: %d | barcos: %d | táticas: %d\n",
+cat(sprintf("Viagens: %d | níveis de %s: %d | ilhas: %d | bancos: %d | barcos: %d | táticas: %d\n",
             nrow(viagens), fator_tempo, nlevels(viagens[[fator_tempo]]),
-            nlevels(viagens$fbanco), nlevels(viagens$fbarco),
-            nlevels(viagens$alvo)))
+            nlevels(viagens$filha), nlevels(viagens$fbanco),
+            nlevels(viagens$fbarco), nlevels(viagens$alvo)))
 cat(sprintf("Zeros na resposta: %.1f%%  (P3 — decisivo para a escolha da distribuição)\n",
             100 * mean(viagens$captura == 0)))
 cat(sprintf("Captura da cavala: %.1f t em %.0f dias de pesca\n",
@@ -1212,17 +1736,31 @@ cat("\nCovariáveis descartadas na parte 01:\n")
 cat("  profundidade   — 28% de ausentes codificados como 0 (decisão L6)\n")
 cat("  tipo_embarcacao— mesmo barco com dois códigos e código quase\n")
 cat("                   restrito a 2019 => confundido com ano (decisão L12)\n")
-cat("  ilha/porto de desembarque — cobertura muda ao longo da série (L7)\n")
+cat("  ilha/porto de desembarque DA VIAGEM — cobertura muda ao longo da\n")
+cat("                   série => confundido com ano (decisão L7).\n")
+cat("                   NÃO confundir com `filha`, que É usada: aquela é a\n")
+cat("                   ilha ATRIBUÍDA AO BANCO (L15), propriedade fixa do\n")
+cat("                   pesqueiro, e não o porto escolhido pela viagem.\n")
+cat("  banco individual — 244 níveis; entra como efeito ALEATÓRIO se o AIC\n")
+cat("                   mandar (seção 1.5), nunca como fator fixo (L8/L15)\n")
 
 ## =====================================================================
 ## 1) CONSTRUTOR DE FÓRMULAS
 ## ---------------------------------------------------------------------
 ## Montar a fórmula como string para evitar perder termos nos testes
 ## =====================================================================
+## `aleatorio` aceita três formas, para que a mesma função sirva tanto
+## aos modelos sem efeito aleatório quanto ao E4b, que tem dois:
+##   TRUE                    -> (1 | fbarco)            [o padrão]
+##   FALSE                   -> nenhum efeito aleatório
+##   vetor de caracteres     -> exatamente esses termos, ex.:
+##                              c("(1 | fbarco)", "(1 | fbanco)")
 monta_formula <- function(resposta, termos, aleatorio = TRUE,
                           offset_var = "ldias") {
-  rhs <- paste(c(fator_tempo, termos,
-                 if (aleatorio) "(1 | fbarco)",
+  ale <- if (isTRUE(aleatorio))  "(1 | fbarco)"
+  else if (isFALSE(aleatorio)) character(0)
+  else as.character(aleatorio)
+  rhs <- paste(c(fator_tempo, termos, ale,
                  if (!is.null(offset_var)) sprintf("offset(%s)", offset_var)),
                collapse = " + ")
   stats::as.formula(paste(resposta, "~", rhs))
@@ -1230,8 +1768,8 @@ monta_formula <- function(resposta, termos, aleatorio = TRUE,
 
 ## Guarda contra modelo mais complexo do que os dados sustentam: um termo
 ## categórico só entra se houver pelo menos MIN_POR_NIVEL observações por
-## nível. Importa nos subconjuntos (cenário S3), onde `fbanco` tem
-## dezenas de níveis e sobram poucas centenas de viagens.
+## nível. Importa nos subconjuntos (cenário S3), onde os fatores perdem
+## povoamento e sobram poucas centenas de viagens.
 MIN_POR_NIVEL <- 10
 termos_viaveis <- function(dados, termos, min_por_nivel = MIN_POR_NIVEL) {
   manter <- vapply(termos, function(tm) {
@@ -1255,25 +1793,45 @@ termos_viaveis <- function(dados, termos, min_por_nivel = MIN_POR_NIVEL) {
 # distribuições. Comparar tudo contra tudo multiplicaria ajustes sem necessidade 
 # e tornaria o resultado dependente da ordem em que se olha.
 ##
-## As seis estruturas são uma escada: cada degrau acrescenta um tipo deexplicação 
-#alternativa à abundância.
-##   E0 só o tempo         -> o índice "cru" do modelo
-##   E1 + banco            -> onde se pescou (P6, desbalanceamento espacial)
-##   E2 + trimestre + trip.-> quando se pescou e com que poder de pesca
-##   E3 + alvo             -> o que se estava tentando pescar (P2)
-##   E4 + (1|barco)        -> quem pescou (P5, composição de frota)
-##   E5 tática contínua    -> a alternativa da H2
+## As estruturas são uma escada: cada degrau acrescenta um tipo de explicação
+## alternativa à abundância. A leitura da tabela de AIC é literalmente "quanto
+## desta série ainda parece abundância depois de descontar isto".
+##   E0  só o tempo          -> o índice "cru" do modelo
+##   E1  + ilha do banco     -> ONDE se pescou (P6, desbalanceamento espacial)
+##   E2  + trimestre + trip. -> QUANDO se pescou e com que poder de pesca
+##   E3  + alvo              -> O QUE se estava tentando pescar (P2)
+##   E4  + (1|barco)         -> QUEM pescou (P5, composição de frota)
+##   E4b + (1|banco)         -> onde DENTRO da ilha (espaço fino, com encolhimento)
+##   E5  tática contínua     -> a alternativa da H2
 ## Todas ajustadas às MESMAS linhas e à MESMA resposta => AIC comparável.
+##
+## POR QUE O EFEITO DE BARCO É ALEATÓRIO E O DE ILHA É FIXO:
+## não é preferência de estilo, são perguntas diferentes. Da ilha queremos o
+## CONTRASTE entre níveis, e são 5 níveis bem povoados que precisam aparecer na
+## grade do emmeans para a média marginal ser sobre estratos. Do barco não
+## queremos contraste nenhum — queremos só descontar que barcos diferentes pescam
+## diferente. São ~200 barcos, muitos com poucas viagens; como fator fixo cada um
+## gastaria um parâmetro e os raros teriam coeficientes puro ruído. Como efeito
+## aleatório eles são descritos por UM parâmetro (a variância entre barcos), e os
+## barcos com pouca informação são encolhidos para a média em vez de receberem
+## estimativa própria. De quebra, efeito aleatório não entra na grade de
+## referência do emmeans — que é o que impede a explosão de grade que travou a
+## extração do índice na versão anterior.
 ## ===============================================================================
 termos_E <- list(
-  E0 = character(0),
-  E1 = c("fbanco"),
-  E2 = c("fbanco", "ftri", "npesc_cat"),
-  E3 = c("fbanco", "ftri", "npesc_cat", "alvo"),
-  E4 = c("fbanco", "ftri", "npesc_cat", "alvo"),
-  E5 = c("fbanco", "ftri", "npesc_cat", PCs)
+  E0  = character(0),
+  E1  = c("filha"),
+  E2  = c("filha", "ftri", "npesc_cat"),
+  E3  = c("filha", "ftri", "npesc_cat", "alvo"),
+  E4  = c("filha", "ftri", "npesc_cat", "alvo"),
+  E4b = c("filha", "ftri", "npesc_cat", "alvo"),
+  E5  = c("filha", "ftri", "npesc_cat", PCs)
 )
-aleat_E <- c(E0 = FALSE, E1 = FALSE, E2 = FALSE, E3 = FALSE, E4 = TRUE, E5 = TRUE)
+## `list` e não `c`, porque E4b precisa de um VETOR de termos aleatórios.
+aleat_E <- list(E0 = FALSE, E1 = FALSE, E2 = FALSE, E3 = FALSE,
+                E4  = TRUE,                                  # (1|fbarco)
+                E4b = c("(1 | fbarco)", "(1 | fbanco)"),     # + espaço fino
+                E5  = TRUE)
 
 cat("\n===== 1) ESTRUTURAS (Tweedie, offset = log dias) =====\n")
 fits <- list()
@@ -1283,7 +1841,7 @@ for (nm in names(termos_E)) {
   fits[[nm]] <- try(glmmTMB(f, family = tweedie(link = "log"), data = viagens),
                     silent = FALSE)
   ok <- !inherits(fits[[nm]], "try-error")
-  cat(sprintf("  %-3s %-64s %s (%.1f min)\n", nm,
+  cat(sprintf("  %-3s %-70s %s (%.1f min)\n", nm,
               paste(deparse(f), collapse = ""),
               if (ok) sprintf("AIC=%.1f", AIC(fits[[nm]])) else "FALHOU",
               as.numeric(difftime(Sys.time(), t0, units = "mins"))))
@@ -1317,12 +1875,18 @@ for (nome in names(fits)) {
 }
 cat("===========================================\n")
 
-#*** O modelo E3 tem direção plana longa no otimizador .Isso sugere que a superfície 
-#de verossimilhança do E3 tem alguma direção quase plana — bem possivelmente colinearidade 
-#parcial entre alvo (que vem da composição de espécies) e fbanco/fano 
-#(já que a composição de espécies varia sistematicamente por banco e por ano) — 
-#e que adicionar o efeito aleatório de embarcação (1 | fbarco) ajuda a "resolver" 
-#essa direção achatada, absorvendo parte dessa variação compartilhada
+#*** COMO LER OS AVISOS DE CONVERGÊNCIA:
+# "singular convergence (7)" é um código do otimizador (nlminb) dizendo que ele
+# parou de conseguir melhorar. NÃO é, por si só, sinal de modelo inválido: se
+# pdHess = TRUE e o maior gradiente está na casa de 1e-4, o ótimo encontrado é
+# legítimo e o aviso é falso alarme. O que condena o ajuste é pdHess = FALSE
+# (Hessiana não-positiva-definida), porque aí não há mínimo bem definido e os
+# erros-padrão — logo os CV do índice — não valem nada.
+# Na versão anterior o E3 dava esse aviso: a superfície de verossimilhança tinha
+# direção quase plana, provavelmente por colinearidade parcial entre `alvo` (que
+# vem da composição de espécies) e o espaço/ano (já que a composição varia
+# sistematicamente por lugar e por ano); acrescentar (1 | fbarco) no E4 absorvia
+# parte dessa variação compartilhada e "resolvia" a direção achatada.
 #--------------------------------------------------------------------
 
 #tabela comparativa dos modelos com índices de ajuste
@@ -1343,6 +1907,58 @@ cat("dois e checar se o ÍNDICE muda — se não muda, a discordância é\n")
 cat("acadêmica.\n")
 
 ## =====================================================================
+## 1.5) A ESTRUTURA ALEATÓRIA: o banco dentro da ilha se paga?
+## ---------------------------------------------------------------------
+## Esta é a comparação que a decisão L15 deixou em aberto. A ilha entrou
+## como fator fixo porque é o gradiente espacial que tem níveis
+## suficientes para ser estimado em todos os anos. A pergunta que sobra
+## é se a variação ENTRE BANCOS DA MESMA ILHA ainda carrega sinal depois
+## disso.
+##
+## E4  = ... + (1 | fbarco)                  -> só o barco é aleatório
+## E4b = ... + (1 | fbarco) + (1 | fbanco)   -> banco também
+##
+## Os dois têm os MESMOS efeitos fixos e as MESMAS linhas, e o glmmTMB
+## ajusta por máxima verossimilhança (não REML), então o AIC é
+## diretamente comparável entre eles — inclusive diferindo em efeito
+## aleatório, que é o caso em que o REML invalidaria a comparação.
+##
+## Por que o teste é por AIC e não por LRT: testar variância zero põe o
+## parâmetro na BORDA do espaço permitido (uma variância não pode ser
+## negativa), e nessa situação o LRT não segue a qui-quadrado usual — o
+## p-valor sai conservador. O AIC não depende dessa distribuição nula e
+## responde a pergunta que interessa aqui, que é de compromisso entre
+## ajuste e parcimônia, não de significância.
+##
+## A decisão é carregada para TODO o resto do script (backward, as duas
+## distribuições, os cenários), para que a estrutura aleatória seja uma
+## escolha só, feita uma vez, e não varie de modelo para modelo.
+## Margem de AIC abaixo da qual dois modelos são empate técnico. Definida
+## aqui porque é usada a partir desta seção (Burnham & Anderson: dAIC < 2
+## não distingue modelos).
+MARGEM_AIC <- 2
+
+cat("\n===== 1.5) ESTRUTURA ALEATÓRIA: (1|fbarco) x (1|fbarco)+(1|fbanco) =====\n")
+usa_aleat <- TRUE     # padrão: só o barco
+if (all(c("E4", "E4b") %in% names(fits))) {
+  aic_E4  <- AIC(fits[["E4"]]);  aic_E4b <- AIC(fits[["E4b"]])
+  cat(sprintf("  E4  (1|fbarco)             : AIC = %.1f\n", aic_E4))
+  cat(sprintf("  E4b (1|fbarco) + (1|fbanco): AIC = %.1f\n", aic_E4b))
+  cat(sprintf("  dAIC (E4b - E4) = %+.1f\n", aic_E4b - aic_E4))
+  if (isTRUE((aic_E4 - aic_E4b) > MARGEM_AIC)) {
+    usa_aleat <- c("(1 | fbarco)", "(1 | fbanco)")
+    cat("  -> o banco dentro da ilha SE PAGA: a variação fina de pesqueiro\n")
+    cat("     ainda carrega sinal depois de controlar a ilha. Adotado E4b.\n")
+  } else {
+    cat("  -> o banco dentro da ilha NÃO se paga: a ilha já absorve o que\n")
+    cat("     havia de espaço. Fica só (1|fbarco) — mais simples e mais\n")
+    cat("     estável. Isto é resultado, e vai para o texto.\n")
+  }
+} else {
+  cat("  E4 ou E4b não convergiu — mantido o padrão (1|fbarco).\n")
+}
+
+## =====================================================================
 ## 3) MEDIDA DE ESFORÇO: dias contra horas no mar
 ## ---------------------------------------------------------------------
 ## Comparação legítima por AIC: mesma resposta, mesmas linhas, só muda o
@@ -1355,12 +1971,12 @@ cat("acadêmica.\n")
 ## diferença de AIC for pequena, a escolha fica com `dias`, que é
 ## íntegro e é a unidade das séries oficiais.
 ## =====================================================================
+## A comparação usa a estrutura aleatória JÁ ESCOLHIDA na seção 1.5, para
+## que offset e efeito aleatório não sejam decididos um contra o outro.
 cat("\n===== 2) QUAL MEDIDA DE ESFORÇO USAR =====\n")
-MARGEM_AIC <- 2      # abaixo disso é empate técnico
-m_dias  <- if ("E4" %in% names(fits)) fits[["E4"]] else
-  try(glmmTMB(monta_formula("captura", termos_E$E4, TRUE, "ldias"),
-              family = tweedie(link = "log"), data = viagens), silent = TRUE)
-m_horas <- try(glmmTMB(monta_formula("captura", termos_E$E4, TRUE, "lhoras"),
+m_dias  <- try(glmmTMB(monta_formula("captura", termos_E$E4, usa_aleat, "ldias"),
+                       family = tweedie(link = "log"), data = viagens), silent = TRUE)
+m_horas <- try(glmmTMB(monta_formula("captura", termos_E$E4, usa_aleat, "lhoras"),
                        family = tweedie(link = "log"), data = viagens),
                silent = FALSE)
 if (!inherits(m_dias, "try-error") && !inherits(m_horas, "try-error")) {
@@ -1399,9 +2015,32 @@ if (!usar_horas)
 ## ajustar outro é sistematicamente perdido no forward.
 ## O fator temporal nunca entra na seleção: ele É o índice, e removê-lo
 ## seria remover o objeto da análise.
+##
+## O QUE O AIC ESTÁ FAZENDO AQUI, EM UMA FRASE:
+##   AIC = -2 x log-verossimilhança + 2 x (nº de parâmetros)
+## O primeiro termo premia ajuste; o segundo cobra por cada parâmetro
+## gasto. Retirar um bloco de termos sempre PIORA a verossimilhança (o
+## modelo menor não pode ajustar melhor), mas devolve parâmetros. Se o
+## que se devolve vale mais que o que se perde, o AIC cai e o termo sai.
+## `MARGEM_AIC = 2` é a convenção de Burnham & Anderson: diferenças
+## menores que isso não distinguem modelos, então exigimos folga de 2
+## para mexer na estrutura.
+##
+## POR QUE NÃO EXISTE p-VALOR NESTA SEÇÃO:
+## com ~8 mil viagens, qualquer termo com efeito minúsculo sai
+## "significativo" num LRT. Num contexto normal isso seria só um
+## incômodo; aqui é perigoso, porque cada covariável que entra no modelo
+## COME sinal do efeito de ano — e o efeito de ano é o produto final. É o
+## dilema de Hinton & Maunder (2003): a covariável que "explica" a queda
+## da CPUE pode estar explicando justamente a queda de abundância que
+## queremos medir. Por isso a régua é de compromisso (AIC), não de
+## significância, e por isso a carga da prova é para RETIRAR.
 ## =====================================================================
 cat("\n===== 3) REFINAMENTO BACKWARD POR AIC =====\n")
-usa_aleat <- TRUE                       # E4/E5 têm (1 | fbarco)
+## `usa_aleat` vem da seção 1.5 e NÃO é redefinido aqui: a estrutura
+## aleatória já foi decidida por AIC e vale para todo o resto do script.
+cat(sprintf("  estrutura aleatória em uso: %s\n",
+            if (isTRUE(usa_aleat)) "(1 | fbarco)" else paste(usa_aleat, collapse = " + ")))
 ajusta <- function(termos, dados = viagens, aleat = usa_aleat)
   try(glmmTMB(monta_formula("captura", termos, aleat, OFFSET),
               family = tweedie(link = "log"), data = dados), silent = FALSE)
@@ -1478,6 +2117,17 @@ if (!inherits(m_cont, "try-error"))
 ## ---------------------------------------------------------------------
 ## Mesma estrutura, mesma resposta, mesmas linhas -> AIC/BIC comparáveis
 ## diretamente. Não há mais grupos de comparabilidade para administrar.
+##
+## POR QUE O AIC PODE COMPARAR DUAS DISTRIBUIÇÕES DIFERENTES:
+## o AIC é comparável sempre que os modelos descrevem A MESMA VARIÁVEL
+## RESPOSTA, nas MESMAS OBSERVAÇÕES, e a verossimilhança reportada é a
+## completa (com todas as constantes de normalização). As duas condições
+## valem aqui: a resposta é `captura` em toneladas nos dois casos, sem
+## transformação, e o glmmTMB devolve a log-verossimilhança exata, não
+## uma quasi-verossimilhança. O que NÃO seria comparável é modelar
+## log(captura) num e captura no outro — aí as respostas são variáveis
+## diferentes e o AIC perde o sentido. Mudar só a função de LIGAÇÃO,
+## mantendo a distribuição e a resposta, é comparável pelo mesmo motivo.
 ## =====================================================================
 cat("\n===== 4) DISTRIBUIÇÕES =====\n")
 dist_fits <- list()
@@ -1569,16 +2219,39 @@ if (!inherits(m_cont_final, "try-error"))
 ## o modelo está certo. O DHARMa simula do modelo ajustado e transforma
 ## os resíduos para a escala uniforme, onde a leitura é a mesma para
 ## qualquer distribuição.
+## COMO O DHARMa CONSTRÓI O RESÍDUO (vale entender para ler a tabela):
+## para cada observação, ele simula centenas de valores a partir do
+## modelo ajustado e pergunta em que QUANTIL da distribuição simulada cai
+## o valor observado. Se o modelo estiver correto, esses quantis são
+## Uniforme(0,1) por construção — qualquer que seja a distribuição
+## (Tweedie, Gamma, Poisson). É isso que torna a leitura a mesma para
+## todos os modelos e resolve o problema do resíduo de Pearson em GLMM.
+##
 ## O que cada teste responde:
-##   KS         a distribuição assumida está certa?
-##   dispersão  há sobre/subdispersão?
-##   outliers   há mais extremos do que o modelo consegue gerar?
-##   quantis    a variância é homogênea ao longo do predito?
-##              (é o teste de homocedasticidade aqui)
-##   zeros      o modelo gera a quantidade certa de zeros?
-## Com n grande, p pequeno aparece por desvio trivial — por isso os
-## gráficos são salvos: é neles que se vê se o desvio é grande ou só
-## detectável.
+##   KS         os resíduos são mesmo Uniforme(0,1)? É o teste global de
+##              adequação da distribuição assumida.
+##   dispersão  a variância dos dados bate com a que o modelo prevê?
+##              `disp_ratio` = observada/esperada. ~1 é bom; >1 é
+##              sobredispersão (o modelo subestima a variabilidade e os
+##              IC do índice saem estreitos demais); <1 é subdispersão.
+##   outliers   há mais valores fora do envelope simulado do que o
+##              modelo consegue gerar?
+##   quantis    a variância é homogênea ao longo do predito? Ajusta
+##              regressões quantílicas (0,25/0,50/0,75) dos resíduos
+##              contra o valor predito: se o modelo está bem
+##              especificado, as três curvas saem horizontais. Curva
+##              inclinada = o erro depende do nível do predito, que é a
+##              heterocedasticidade aqui.
+##   zeros      o modelo gera a quantidade certa de zeros? Com ~86% de
+##              zeros na resposta, este é o teste que mais importa para
+##              escolher entre Tweedie e hurdle.
+##
+## COMO LER O p-VALOR AQUI (importante): com ~8 mil observações, um
+## desvio irrelevante já produz p < 0,001. O p-valor responde "o desvio é
+## detectável?", e a resposta é quase sempre sim. A pergunta que
+## interessa é "o desvio é GRANDE?", e essa só o tamanho do efeito
+## responde — `disp_ratio` perto de 1 e os gráficos. Por isso os PNG são
+## salvos e são eles, não a tabela, que decidem se a distribuição serve.
 ## =====================================================================
 cat("\n===== 5) DIAGNÓSTICO =====\n")
 diagnostica <- function(m, nome, n_sim = 250) {
@@ -1640,6 +2313,34 @@ if (length(dist_fits) > 1) {
 ##      justamente tentando remover.
 ## =====================================================================
 especificacao <- stats::as.formula(paste("~", fator_tempo))
+
+## GUARDA DA GRADE DE REFERÊNCIA — o erro que travou a versão anterior.
+## Com `weights = "equal"` o emmeans monta o produto cartesiano de TODOS
+## os níveis de TODOS os fatores fixos e recusa passar de `rg.limit`
+## (10.000 por padrão). Fatores com muitos níveis estouram isso: com o
+## banco como fator fixo em 46 níveis a grade pedida era 25.760 e a
+## extração do índice morria ali. Com a ilha (5 níveis) a grade cai para
+## alguns milhares. Efeito ALEATÓRIO não entra na grade — é a segunda
+## razão para `(1 | fbarco)` e `(1 | fbanco)` serem aleatórios.
+## Este bloco calcula o tamanho ANTES de chamar o emmeans e avisa, em vez
+## de deixar o script morrer 200 linhas adiante com uma mensagem críptica.
+tamanho_grade <- function(m) {
+  mf <- model.frame(m)
+  fx <- names(mf)[vapply(mf, is.factor, logical(1))]
+  ## termos aleatórios não entram na grade de referência
+  aleat <- unlist(lapply(m$modelInfo$reTrms, function(z) names(z$cnms)))
+  fx <- setdiff(fx, aleat)
+  if (length(fx) == 0) return(1L)
+  prod(vapply(mf[fx], nlevels, numeric(1)))
+}
+cat("\n--- tamanho da grade de referência do emmeans (limite: 10.000) ---\n")
+for (nm in names(dist_fits)) {
+  g <- tryCatch(tamanho_grade(dist_fits[[nm]]), error = function(e) NA_real_)
+  cat(sprintf("  %-18s %6.0f %s\n", nm, g,
+              if (!is.na(g) && g > 10000)
+                "<<< vai estourar: reduza níveis ou passe o fator a aleatório"
+              else "OK"))
+}
 
 extrai_indice <- function(m, nome, pesos = "equal", usa_offset = TRUE) {
   args <- list(object = m, specs = especificacao, weights = pesos)
@@ -1745,11 +2446,23 @@ if (exists("alvo_cavala") && alvo_cavala %in% levels(viagens$alvo)) {
   v3[[fator_tempo]] <- droplevels(v3[[fator_tempo]])
   cobre <- nlevels(v3[[fator_tempo]]) >= 0.7 * nlevels(viagens[[fator_tempo]])
   if (cobre) {
-    for (f in c("fbanco", "fbarco", "ftri", "npesc_cat"))
+    for (f in c("filha", "fbanco", "fbarco", "ftri", "npesc_cat"))
       if (f %in% names(v3)) v3[[f]] <- droplevels(v3[[f]])
     cat(sprintf("  S3: %d viagens da tática '%s' (%.0f%% de cavala no centróide)\n",
                 nrow(v3), alvo_cavala, 100 * frac_cavala))
-    m3 <- ajusta_final(termos_viaveis(v3, E_sem_alvo), dados = v3)
+    ## O subconjunto é pequeno e pode não sustentar a mesma estrutura
+    ## aleatória do modelo principal: um `(1 | fbanco)` com dezenas de
+    ## níveis e poucas viagens por nível não é estimável. Se for o caso,
+    ## S3 cai para `(1 | fbarco)` e isso é registrado — a alternativa
+    ## (o ajuste falhar em silêncio) perderia o cenário inteiro.
+    aleat_S3 <- usa_aleat
+    if (!isTRUE(usa_aleat) && "(1 | fbanco)" %in% usa_aleat &&
+        nrow(v3) < 10 * nlevels(v3$fbanco)) {
+      aleat_S3 <- "(1 | fbarco)"
+      cat(sprintf("      [S3] (1|fbanco) retirado: %d viagens para %d bancos\n",
+                  nrow(v3), nlevels(v3$fbanco)))
+    }
+    m3 <- ajusta_final(termos_viaveis(v3, E_sem_alvo), dados = v3, aleat = aleat_S3)
     if (!inherits(m3, "try-error"))
       S3 <- normaliza(indice_de(m3, "S3 esforço dirigido"))
   } else {
@@ -1836,45 +2549,197 @@ par(op); dev.off()
 cat("\nPNG salvo: indices_cenarios.png\n")
 
 ## =====================================================================
-## 10) EXPORTAÇÃO
+## 10) OS CINCO CENÁRIOS FINAIS (entrada do JABBA)
 ## ---------------------------------------------------------------------
-## Formato do JABBA: uma coluna de tempo e uma coluna por índice, mais
-## uma tabela equivalente de CV. Série com média 1 (o JABBA estima q).
-## Piso de CV em 0,20: o CV que sai do modelo é de processo estatístico e
-## ignora erro de processo, erro de reporte e a incerteza da própria
-## INFERÊNCIA DE TÁTICA (que não tem variância nenhuma no cálculo).
-## Entregar CV de 0,04 ao JABBA faria o modelo confiar no índice muito
-## mais do que ele merece.
+## Cada cenário é uma SÉRIE ALTERNATIVA de abundância relativa, não uma
+## versão "mais certa" da mesma coisa. Eles respondem a perguntas
+## diferentes e cobrem períodos diferentes:
+##
+##   C1  nominal 1989-2025   — a série inteira, como a FAO a construiu.
+##                             Junta duas fontes de natureza diferente
+##                             (agregada até 2014, viagem a viagem
+##                             depois), o que é a sua principal fraqueza.
+##   C2  nominal pré-alvo    — só até `ANO_CORTE_ALVO` (L16). É o período
+##                             em que a cavala ainda era ALVO da frota,
+##                             então o esforço do cerco é um denominador
+##                             razoável para ela.
+##   C3  nominal pós-alvo    — de `ANO_CORTE_ALVO`+1 em diante. Mesmo
+##                             cálculo, período em que a cavala virou
+##                             captura acompanhante — é justamente aqui
+##                             que o denominador deixa de ser específico
+##                             e a CPUE nominal fica suspeita (P1/P2).
+##   C4  padronizada SEM tática — modelo com espaço, sazonalidade,
+##                             tripulação e embarcação, mas SEM a
+##                             covariável de direcionamento. É o cenário
+##                             S0 da seção 6.
+##   C5  padronizada COM tática — o mesmo modelo MAIS a tática inferida
+##                             da composição da captura. É o cenário S2.
+##
+## A distância C4 -> C5 é a medida do viés de direcionamento; a distância
+## C3 -> C5 é o efeito total da padronização.
+##
+## POR QUE CADA SÉRIE É NORMALIZADA PELA PRÓPRIA MÉDIA: o JABBA estima um
+## coeficiente de capturabilidade (q) por índice, então o que ele lê é a
+## FORMA da série, não o nível. Normalizar cada cenário pela sua própria
+## média deixa isso explícito e evita que um recorte (C2, C3) herde a
+## escala da série inteira.
+##
+## SOBRE O CV DA PARTE HISTÓRICA: a planilha 1989-2014 é agregada — um
+## número por ano, sem viagens por trás. Não existe variância amostral
+## para extrair dali. Esses anos recebem o PISO de CV, e a coluna
+## `cv_origem` registra que é piso, não estimativa. Tratar um CV inventado
+## como se fosse medido seria o erro mais caro desta etapa.
 ## =====================================================================
 PISO_CV <- 0.20
-saida_tempo <- sort(unique(indices$tempo))
-cen_export <- c("S1 nominal" = "cpue_nominal",
-                "S2 corrigida (tática discreta)" = "cpue_corrigida",
-                "S2b tática contínua (PCs)" = "cpue_corrigida_pcs")
-jabba_idx <- data.frame(tempo = saida_tempo)
-jabba_cv  <- data.frame(tempo = saida_tempo)
-for (cen in names(cen_export)) {
-  if (!cen %in% indices$cenario) next
-  d <- indices[indices$cenario == cen, ]
-  jabba_idx[[cen_export[cen]]] <- d$indice[match(saida_tempo, d$tempo)]
-  jabba_cv[[cen_export[cen]]]  <- d$cv[match(saida_tempo, d$tempo)]
-}
-names(jabba_idx)[1] <- names(jabba_cv)[1] <- if (fator_tempo == "fano") "Yr" else "Mes"
-jabba_cv[, -1] <- lapply(jabba_cv[, -1, drop = FALSE],
-                         function(x) pmax(x, PISO_CV, na.rm = TRUE))
 
-write.csv(jabba_idx, "jabba_indices_macarellus.csv", row.names = FALSE)
-write.csv(jabba_cv,  "jabba_cv_macarellus.csv", row.names = FALSE)
-write.csv(indices,   "indices_todos_cenarios.csv", row.names = FALSE)
+norm1 <- function(x) x / mean(x, na.rm = TRUE)
+
+## --- C1/C2/C3: nominais, a partir da série anual da Parte 0 ----------
+sa <- serie_anual[serie_anual$usar_na_serie & !is.na(serie_anual$cpue_nominal), ]
+
+## CV empírico do período de viagem (erro-padrão relativo da CPUE entre as
+## viagens do ano); nos anos agregados não há como calculá-lo.
+cv_emp_ano <- tapply(viagens$captura / viagens[[if (OFFSET == "lhoras") "horas" else "dias"]],
+                     viagens$ano, function(z) sd(z) / (mean(z) * sqrt(length(z))))
+monta_nominal <- function(d, nome) {
+  if (nrow(d) == 0) return(NULL)
+  cv <- as.numeric(cv_emp_ano[as.character(d$ano)])
+  data.frame(tempo = d$ano, cenario = nome,
+             indice = norm1(d$cpue_nominal),
+             cv = ifelse(is.na(cv), PISO_CV, cv),
+             cv_origem = ifelse(is.na(cv), "piso (fonte agregada)", "empirico"),
+             fonte = d$fonte, engenhos_agregados = d$engenhos_agregados,
+             row.names = NULL, stringsAsFactors = FALSE)
+}
+C1 <- monta_nominal(sa, "C1 nominal 1989-2025")
+C2 <- monta_nominal(sa[sa$ano <= ANO_CORTE_ALVO, ],
+                    sprintf("C2 nominal pre-alvo (<=%d)", ANO_CORTE_ALVO))
+C3 <- monta_nominal(sa[sa$ano >  ANO_CORTE_ALVO, ],
+                    sprintf("C3 nominal pos-alvo (>=%d)", ANO_CORTE_ALVO + 1))
+
+## --- C4/C5: padronizadas, vindas dos modelos da seção 6 --------------
+## S0 = sem a covariável de tática; S2 = com ela. Já vêm normalizadas.
+de_modelo <- function(d, nome) {
+  if (is.null(d)) return(NULL)
+  data.frame(tempo = d$tempo, cenario = nome, indice = d$indice, cv = d$cv,
+             cv_origem = "modelo", fonte = "IMar viagem (padronizado)",
+             engenhos_agregados = FALSE, row.names = NULL, stringsAsFactors = FALSE)
+}
+C4 <- de_modelo(S0, "C4 padronizada SEM tatica")
+C5 <- de_modelo(S2, "C5 padronizada COM tatica")
+
+cenarios <- do.call(rbind, Filter(Negate(is.null), list(C1, C2, C3, C4, C5)))
+
+cat("\n===== OS CINCO CENÁRIOS =====\n")
+resumo_cen <- do.call(rbind, lapply(split(cenarios, cenarios$cenario), function(s) data.frame(
+  cenario = s$cenario[1], anos = sprintf("%d-%d", min(s$tempo), max(s$tempo)),
+  n = nrow(s), amplitude = round(max(s$indice, na.rm = TRUE) /
+                                   min(s$indice, na.rm = TRUE), 2),
+  cv_medio = round(mean(pmax(s$cv, PISO_CV), na.rm = TRUE), 3),
+  row.names = NULL, stringsAsFactors = FALSE)))
+print(resumo_cen[order(resumo_cen$cenario), ], row.names = FALSE)
+cat("\nAmplitude = máx/mín do índice. Amplitude MENOR na padronizada quer\n")
+cat("dizer que parte da variação nominal era comportamento de frota e não\n")
+cat("abundância — é o efeito que se espera da correção.\n")
+
+## Correlação entre os cenários que compartilham período
+if (!is.null(C3) && !is.null(C5)) {
+  anos_com <- intersect(C3$tempo, C5$tempo)
+  if (length(anos_com) > 2) {
+    r35 <- cor(C3$indice[match(anos_com, C3$tempo)],
+               C5$indice[match(anos_com, C5$tempo)], use = "complete.obs")
+    cat(sprintf("\nC3 (nominal pos-alvo) x C5 (padronizada com tatica): r = %.3f em %d anos\n",
+                r35, length(anos_com)))
+  }
+}
+if (!is.null(C4) && !is.null(C5)) {
+  r45 <- cor(C4$indice, C5$indice[match(C4$tempo, C5$tempo)], use = "complete.obs")
+  cat(sprintf("C4 (sem tatica) x C5 (com tatica): r = %.3f", r45))
+  cat(sprintf("  -> %s\n", if (r45 > 0.98)
+    "a tatica quase nao desloca o indice (reportar!)" else
+      "a tatica desloca o indice de forma relevante"))
+}
+
+## --- planilhas por cenário, no formato do JABBA ----------------------
+## Uma coluna de ano e uma coluna por cenário. Anos que um cenário não
+## cobre ficam NA — o JABBA aceita e simplesmente não usa aquele ponto.
+anos_saida <- sort(unique(cenarios$tempo))
+jabba_idx <- data.frame(Yr = anos_saida)
+jabba_cv  <- data.frame(Yr = anos_saida)
+rotulo <- c("C1 nominal 1989-2025" = "C1_nominal_total",
+            setNames("C2_nominal_pre_alvo",  sprintf("C2 nominal pre-alvo (<=%d)", ANO_CORTE_ALVO)),
+            setNames("C3_nominal_pos_alvo",  sprintf("C3 nominal pos-alvo (>=%d)", ANO_CORTE_ALVO + 1)),
+            "C4 padronizada SEM tatica" = "C4_padronizada_sem_tatica",
+            "C5 padronizada COM tatica" = "C5_padronizada_com_tatica")
+for (cen in names(rotulo)) {
+  if (!cen %in% cenarios$cenario) next
+  d <- cenarios[cenarios$cenario == cen, ]
+  jabba_idx[[rotulo[[cen]]]] <- d$indice[match(anos_saida, d$tempo)]
+  jabba_cv[[rotulo[[cen]]]]  <- pmax(d$cv[match(anos_saida, d$tempo)], PISO_CV)
+}
+
+cat("\n--- índices (média 1) por cenário ---\n")
+## O ano é inteiro; só as colunas de índice levam casas decimais.
+mostra <- jabba_idx; mostra[[1]] <- as.integer(mostra[[1]])
+for (j in 2:ncol(mostra)) mostra[[j]] <- round(mostra[[j]], 3)
+print(mostra, row.names = FALSE)
+cat("NA = o cenário não cobre aquele ano (o JABBA apenas não usa o ponto).\n")
+
+escreve_csv_utf8(jabba_idx,  "jabba_indices_macarellus.csv")
+escreve_csv_utf8(jabba_cv,   "jabba_cv_macarellus.csv")
+escreve_csv_utf8(cenarios,   "cenarios_cpue_macarellus.csv")
+escreve_csv_utf8(indices,    "indices_todos_cenarios.csv")
 if (tem_writexl)
-  writexl::write_xlsx(list(indices = jabba_idx, cv = jabba_cv, todos = indices,
+  writexl::write_xlsx(list(indices_jabba = jabba_idx, cv_jabba = jabba_cv,
+                           cenarios = cenarios, resumo = resumo_cen,
+                           serie_anual = serie_anual, todos_indices = indices,
                            estruturas = tab_est, distribuicoes = tab_dist,
                            diagnostico = diag_tab),
-                      path = "padronizacao_cpue_macarellus.xlsx")
-cat("Arquivos salvos: jabba_indices_macarellus.csv, jabba_cv_macarellus.csv,\n")
-cat("                 indices_todos_cenarios.csv",
-    if (tem_writexl) ", padronizacao_cpue_macarellus.xlsx\n" else "\n")
+                      path = "cpue_macarellus_cenarios.xlsx")
+cat("\nArquivos salvos:\n")
+cat("  jabba_indices_macarellus.csv   (índices, média 1, uma coluna por cenário)\n")
+cat("  jabba_cv_macarellus.csv        (CV correspondente, com piso de", PISO_CV, ")\n")
+cat("  cenarios_cpue_macarellus.csv   (formato longo, com fonte e origem do CV)\n")
+cat("  indices_todos_cenarios.csv     (os cenários intermediários S0-S3)\n")
+if (tem_writexl) cat("  cpue_macarellus_cenarios.xlsx  (tudo acima em abas)\n")
 
+## --- figura dos cinco cenários ---------------------------------------
+png("cenarios_finais.png", width = 26, height = 13, res = 300, antialias = AA, units = "cm")
+op <- par(mfrow = c(1, 2), mar = c(4.4, 4.6, 3, 1), bty = "l", cex.main = 0.95, cex = 0.85)
+cor_c <- c("C1 nominal 1989-2025" = COR_NEU)
+cor_c[sprintf("C2 nominal pre-alvo (<=%d)", ANO_CORTE_ALVO)]    <- COR_AUX
+cor_c[sprintf("C3 nominal pos-alvo (>=%d)", ANO_CORTE_ALVO + 1)] <- COR_S2D
+cor_c["C4 padronizada SEM tatica"] <- COR_S3
+cor_c["C5 padronizada COM tatica"] <- COR_MAC
+
+plot(NA, xlim = range(cenarios$tempo), ylim = c(0, max(cenarios$indice, na.rm = TRUE) * 1.1),
+     xlab = "Ano", ylab = "Indice relativo (media = 1)",
+     main = "A. Serie completa 1989-2025")
+abline(v = ANO_CORTE_ALVO + 0.5, lty = 3, col = "grey40")
+## rótulo embaixo, para não brigar com a legenda no canto superior
+text(ANO_CORTE_ALVO + 0.5, max(cenarios$indice, na.rm = TRUE) * 0.04,
+     "mudanca de alvo", pos = 4, cex = 0.62, col = "grey30")
+for (cen in unique(cenarios$cenario)) {
+  d <- cenarios[cenarios$cenario == cen, ]
+  lines(d$tempo, d$indice, lwd = 2.2, col = cor_c[cen])
+  points(d$tempo, d$indice, pch = 19, cex = 0.6, col = cor_c[cen])
+}
+legend("topright", names(cor_c), col = cor_c, lwd = 2.2, bty = "n", cex = 0.58)
+
+## painel B: só o período padronizado, onde os cenários são comparáveis
+sub <- cenarios[cenarios$tempo > ANO_CORTE_ALVO, ]
+plot(NA, xlim = range(sub$tempo), ylim = c(0, max(sub$indice, na.rm = TRUE) * 1.1),
+     xlab = "Ano", ylab = "Indice relativo (media = 1)",
+     main = sprintf("B. Periodo pos-alvo (>=%d)", ANO_CORTE_ALVO + 1))
+for (cen in unique(sub$cenario)) {
+  d <- sub[sub$cenario == cen, ]
+  lines(d$tempo, d$indice, lwd = 2.4, col = cor_c[cen])
+  points(d$tempo, d$indice, pch = 19, cex = 0.8, col = cor_c[cen])
+}
+legend("topright", unique(sub$cenario), col = cor_c[unique(sub$cenario)],
+       lwd = 2.4, bty = "n", cex = 0.62)
+par(op); dev.off()
+cat("PNG salvo: cenarios_finais.png\n")
 ## =====================================================================
 ## 11) COMO REPORTAR
 ## =====================================================================
@@ -1887,14 +2752,36 @@ cat("3. Declarar o que a tática é: variável INFERIDA da composição da\n")
 cat("   captura, não observada. A incerteza dessa inferência não está no\n")
 cat("   CV — daí o piso de 0,20.\n")
 cat("4. Declarar as covariáveis descartadas e por quê (profundidade,\n")
-cat("   tipo de embarcação, ilha de desembarque) — todas por problema de\n")
-cat("   dado, não por não serem significativas.\n")
-cat(sprintf("5. Esta série cobre %s. Ela é POSTERIOR à mudança de alvo de\n",
-            paste(range(viagens$ano), collapse = "-")))
-cat("   2014, então descreve a dinâmica da cavala já na condição de\n")
-cat("   captura acompanhante. Não é a mesma pergunta que a série\n")
-cat("   histórica longa responde, e as duas não devem ser soldadas numa\n")
-cat("   única série 'corrigida' contínua.\n")
+cat("   tipo de embarcação, ilha de desembarque da viagem) — todas por\n")
+cat("   problema de dado, não por não serem significativas.\n")
+cat("5. Declarar como o espaço foi tratado (decisão L15): a covariável é a\n")
+cat("   ILHA ATRIBUÍDA AO BANCO pela moda da ilha de desembarque, não o\n")
+cat("   banco individual nem a ilha de desembarque da viagem. Reportar a\n")
+cat("   pureza do mapeamento e a lista de bancos ambíguos — são topônimos\n")
+cat("   que se repetem entre ilhas e é a principal fonte de erro de\n")
+cat("   classificação espacial desta análise.\n")
+cat("6. Declarar a origem dos dados (decisão L14): QUATRO fontes coladas\n")
+cat("   por ano, com granularidades diferentes — agregada por ano até\n")
+cat("   2014, viagem a viagem de 2015 em diante. A coluna `fonte` da\n")
+cat("   planilha unificada identifica cada trecho.\n")
+cat(sprintf("7. Declarar que 2018 EXISTE mas ficou FORA da série (L17): CPUE\n"))
+cat("   nominal de 1,03 t/dia contra 0,28 em 2017 e 0,38 em 2019, com\n")
+cat("   esforço normal. Como vem de levantamento e formato diferentes,\n")
+cat("   não dá para separar abundância de artefato de amostragem. A\n")
+cat("   tradução dele está pronta na planilha; basta INCLUIR_2018 <- TRUE\n")
+cat("   se o IMar confirmar os números. Sem tripulação e sem código de\n")
+cat("   embarcação, 2018 nunca poderá entrar na série PADRONIZADA.\n")
+cat("8. Declarar que 2013 tem captura mas NÃO tem esforço (L18): entra na\n")
+cat("   tabela de capturas do JABBA e fica fora do índice.\n")
+cat("9. NÃO soldar C2 e C3 numa única série contínua. São o mesmo cálculo\n")
+cat("   em dois regimes diferentes de pescaria: antes de 2015 a cavala era\n")
+cat("   alvo e o esforço do cerco é um denominador razoável para ela;\n")
+cat("   depois, ela é captura acompanhante e o mesmo denominador passa a\n")
+cat("   medir outra coisa. C1 existe para mostrar a série inteira, mas a\n")
+cat("   descontinuidade de fonte e de regime tem de estar no texto.\n")
+cat("10. Os CV dos anos 1989-2014 são PISO, não estimativa: a fonte é\n")
+cat("   agregada e não tem variância amostral. A coluna `cv_origem` do\n")
+cat("   arquivo cenarios_cpue_macarellus.csv marca cada caso.\n")
 
 
 
