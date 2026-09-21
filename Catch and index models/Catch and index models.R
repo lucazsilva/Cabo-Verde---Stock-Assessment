@@ -48,6 +48,8 @@ library(mgcv)
 library(pak)
 #pak::pak("jabbamodel/JABBA")
 library(JABBA)
+#install.packages("rjags")
+library(rjags)
 #install.packages("DHARMa")
 library(DHARMa)
 #install.packages("emmeans")
@@ -70,7 +72,7 @@ lh<- read_xlsx("Parametros_Historia_de_vida.xlsx")
 # PADRONIZAÇÃO DE CPUE — Decapterus macarellus (cavala preta), Cabo Verde Frota industrial — dados do IMar, série 2015-2025
 # (1) A série agora é 2015-2025 (10 anos; 2018 NÃO EXISTE em nenhum dos dois extratos recebidos — decisão L14).
 #     O efeito de ANO — que É o índice de abundância — é estimável. A parte 02 troca sozinha o fator temporal de mês para ano.
-# (2) PROFUNDIDADE foi REMOVIDA do pipeline. Ela é  lida e o diagnóstico é impresso, mas não vai para a tabela final:
+# (2) PROFUNDIDADE foi REMOVIDA do pipeline. Ela é  lida, mas não vai para a tabela final:
 #     28% das viagens têm 0 (= ausência de registro, não zero metro) e o ausente não é aleatório. Ver decisão L6.
 # (3) MÊS vira TRIMESTRE como fator sazonal (decisão L9) e TRIPULAÇÃO vira FATOR em classes (decisão L10). Motivo em cada decisão.
 # (4) A identidade da embarcação passa a ser o CÓDIGO e não o nome  (decisão L11) — Os nomes se repetem entre barcos
@@ -155,7 +157,7 @@ lh<- read_xlsx("Parametros_Historia_de_vida.xlsx")
 #      os cenários nominais C2 (pré) e C3 (pós).
 #
 # L17. 2018 É TRADUZIDO PARA O FORMATO PADRÃO, MAS FICA FORA DA SÉRIE (`INCLUIR_2018 = FALSE`).
-#      TRADUÇÃO (a pedido: mudar o 2018 em função dos demais, nunca o contrário) — o que existe vai
+#      (mudar 2018 em função dos demais, nunca o contrário) — o que existe vai
 #      para a coluna equivalente; o que não existe fica em branco; o que só existe em 2018 é
 #      descartado por não ser informação perene do banco:
 #        ILHA->Nome_ilha | (coluna sem nome)->Nome_embarcacao | DATA PARTIDA/CHEGADA->Data_partida/
@@ -190,7 +192,7 @@ lh<- read_xlsx("Parametros_Historia_de_vida.xlsx")
 #
 # L15. ESPAÇO = ILHA DO BANCO DE PESCA, não o banco individual. Cada BANCO recebe, de uma vez por
 #      todas, o nome da ilha de desembarque MAIS FREQUENTE entre as viagens que pescaram nele; essa
-#      etiqueta vira a covariável `ilha_banco` (5 níveis).
+#      etiqueta vira a variavel `ilha_banco` (5 níveis).
 #      POR QUE ISSO NÃO É A MESMA COISA QUE USAR A ILHA DE DESEMBARQUE DA VIAGEM (o que L7 proíbe):
 #      a etiqueta é uma propriedade FIXA DO BANCO, calculada uma vez sobre a série inteira. Duas
 #      viagens ao mesmo banco recebem a mesma ilha mesmo que tenham desembarcado em portos
@@ -1550,7 +1552,7 @@ print(round(prop.table(table(viagens$ano, viagens$alvo), margin = 1), 3))
 
 ## --- Fig 6: PCA, silhueta e composição das táticas ---------------------
 cor_cl <- hcl.colors(k_otimo, palette = "Dark 3")
-png("exp6_taticas.png", width = 27, height = 10.5, res = 300,
+png("exp6_taticas.png", width = 30, height = 10.5, res = 300,
     antialias = AA, units = "cm")
 op <- par(mfrow = c(1, 3), mar = c(4.6, 4.4, 3, 1), oma = c(0, 0, 0, 5),
           bty = "l", cex.main = 0.95, cex = 0.85)
@@ -1562,12 +1564,12 @@ plot(pca$x[, 1], pca$x[, 2], col = adjustcolor(cor_cl[km$cluster], 0.6),
      ylab = sprintf("PC2 (%.0f%%)", var_exp[2]),
      main = "B. Taticas no espaco de composicao")
 points(km$centers[, 1], km$centers[, 2], pch = 21, bg = cor_cl, cex = 2, lwd = 1.5)
-legend("topright", nome_cl, col = cor_cl, pch = 16, bty = "n", cex = 0.7)
+legend("topleft", nome_cl, col = cor_cl, pch = 16, bty = "n", cex = 0.8, pt.cex = 1.6)
 bp <- barplot(t(cent), col = cor_sp, border = NA, names.arg = nome_cl,
               las = 2, cex.names = 0.65, ylab = "Proporcao media da captura",
               main = "C. Composicao de cada tatica")
 legend(max(bp) + 0.8, 1, rev(sp_nomes), fill = rev(cor_sp), border = NA,
-       bty = "n", cex = 0.6, xpd = NA)
+       bty = "n", cex = 0.8, xpd = NA,pt.cex = 1.2)
 par(op); dev.off()
 cat("PNG salvo: exp6_taticas.png\n")
 
@@ -1975,7 +1977,7 @@ if (all(c("E4", "E4b") %in% names(fits))) {
 ## que offset e efeito aleatório não sejam decididos um contra o outro.
 cat("\n===== 2) QUAL MEDIDA DE ESFORÇO USAR =====\n")
 m_dias  <- try(glmmTMB(monta_formula("captura", termos_E$E4, usa_aleat, "ldias"),
-                       family = tweedie(link = "log"), data = viagens), silent = TRUE)
+                       family = tweedie(link = "log"), data = viagens), silent = FALSE)
 m_horas <- try(glmmTMB(monta_formula("captura", termos_E$E4, usa_aleat, "lhoras"),
                        family = tweedie(link = "log"), data = viagens),
                silent = FALSE)
@@ -2156,20 +2158,7 @@ dist_fits$D2_hurdle_gamma <- try(
   glmmTMB(f_fix, ziformula = zi_f, family = ziGamma(link = "log"),
           data = viagens), silent = FALSE)
 
-## Por que a Tweedie pode ganhar aqui: o hurdle-Gamma reporta AIC/BIC = NA
-## porque o componente `zi` (probabilidade de zero) não convergiu de forma
-## confiável — Hessiana não-positiva-definida, provavelmente por
-## quase-separação no termo `alvo`: a tática "macarellus" foi construída a
-## partir da própria composição de captura, então dentro desse nível quase
-## não existem viagens com captura zero, e o coeficiente logístico
-## correspondente tenta ir para o infinito. Isso invalida a verossimilhança
-## reportada, então o AIC não pode ser calculado (nem deveria ser usado).
-## A Tweedie não sofre disso porque modela a massa de zeros e os valores
-## positivos numa densidade só (via seu parâmetro de potência), sem precisar
-## de um sub-modelo logístico separado que dependa de `alvo` — por isso ela
-## tende a "vencer" por default quando o hurdle-Gamma quebra dessa forma,
-## e isso é reportado como argumento a favor da Tweedie, não só um acaso.
-
+#Comparação entre os modelos tweedie e Hurdle-Gamma
 dist_fits <- dist_fits[!vapply(dist_fits, inherits, logical(1), "try-error")]
 
 tab_dist <- data.frame(
@@ -2391,6 +2380,7 @@ normaliza <- function(d) { d$indice <- d$indice_bruto / mean(d$indice_bruto); d 
 
 cat("\n===== 6) ÍNDICES POR CENÁRIO =====\n")
 
+#----------------------------------------------------------------------
 ## S1 — nominal: captura agregada / esforço agregado, sem modelo nenhum.
 ##      O CV é empírico (erro-padrão relativo da CPUE entre as viagens do
 ##      mesmo período), porque não há modelo de onde tirar variância.
@@ -2402,7 +2392,7 @@ cv_emp <- tapply(viagens$captura / viagens[[esf_col]], viagens$tempo,
                  function(x) sd(x) / (mean(x) * sqrt(length(x))))
 S1$cv <- as.numeric(cv_emp[as.character(S1$tempo)])
 S1 <- normaliza(S1)
-
+#-----------------------------------------------------------------------
 ## S0 — modelo SEM a covariável de tática, com o resto igual. A diferença
 ##      S0 - S2 isola o efeito do direcionamento: é o "influence plot" de
 ##      Bentley et al. reduzido ao termo que interessa. Sem este cenário
@@ -2412,11 +2402,11 @@ E_sem_alvo <- setdiff(termos_sel, c("alvo", PCs))
 m_S0 <- ajusta_final(E_sem_alvo)
 S0 <- if (!inherits(m_S0, "try-error"))
   normaliza(indice_de(m_S0, "S0 sem tática")) else NULL
-
+#-----------------------------------------------------------------------
 ## S2 — cenário principal: modelo selecionado (estrutura + distribuição
 ##      vencedoras), com tática discreta.
 S2 <- normaliza(indice_de(m_final, "S2 corrigida (tática discreta)"))
-
+#-----------------------------------------------------------------------
 ## S2t — a MESMA estrutura na outra distribuição. Não é redundância: se o
 ##      índice muda de forma ao trocar Tweedie por hurdle, isso é
 ##      incerteza ESTRUTURAL e tem de ir para o texto; se não muda, é um
@@ -2425,12 +2415,19 @@ outro_nome <- setdiff(names(dist_fits), melhor_dist)
 S2t <- if (length(outro_nome) > 0)
   normaliza(indice_de(dist_fits[[outro_nome[1]]],
                       sprintf("S2t %s", outro_nome[1]))) else NULL
-
+#------------------------------------------------------------------------
 ## S2b — tática CONTÍNUA (hipótese H2): os escores da PCA no lugar do
 ##      fator de cluster, mesma base de termos e MESMA distribuição.
+##      ATENÇÃO: a seção 7.6 mostra que esta série é CIRCULAR — os PCs
+##      nascem de uma composição que inclui a própria cavala, então a
+##      covariável carrega parte da resposta e o efeito de ano sai
+##      achatado. Ela é mantida por ser o RESULTADO do teste (e para a
+##      figura mostrar o contraste), mas NÃO é candidata a entrada do
+##      JABBA. O contraponto honesto à discreta é o `S2b_limpo`,
+##      construído na seção 7.6 a partir da composição sem a cavala.
 S2b <- if (!inherits(m_cont_final, "try-error"))
-  normaliza(indice_de(m_cont_final, "S2b tática contínua (PCs)")) else NULL
-
+  normaliza(indice_de(m_cont_final, "S2b PCs COM cavala (circular)")) else NULL
+#-------------------------------------------------------------------------
 ## S3 — esforço dirigido (H3): ajusta o modelo SÓ nas viagens da tática
 ##      com maior fração de cavala. `alvo_cavala` vem da parte 02 e é
 ##      escolhido pelo CENTRÓIDE, não pelo nome do grupo.
@@ -2477,6 +2474,182 @@ print(transform(indices[, c("tempo", "cenario", "indice", "cv")],
                 indice = round(indice, 3), cv = round(cv, 3)), row.names = FALSE)
 
 ## =====================================================================
+## 7.6) TESTE DE CIRCULARIDADE DA COVARIÁVEL DE TÁTICA
+## ---------------------------------------------------------------------
+## POR QUE ISTO É RESULTADO E NÃO RASCUNHO:
+## a matriz de composição que gera as DUAS representações de tática
+## (`alvo`, do k-means, e PC1..PCn, da PCA) sai de `cols_cap`, que INCLUI
+## `cap_macarellus` — a própria espécie-resposta. Isso abre a porta para
+## uma circularidade: a covariável passa a conter parte da resposta, e o
+## modelo "explica" a captura de cavala com uma variável que é, em parte,
+## a captura de cavala. O sintoma é sempre o mesmo par: ajuste
+## espetacular e efeito de ANO achatado. É o dilema de Hinton & Maunder
+## (2003) descrito na seção 4, aqui na sua forma mais aguda — a
+## covariável não apenas compete com o sinal de abundância, ela É o sinal
+## de abundância entrando pela porta dos fundos.
+##
+## O TESTE: reconstruir a composição SEM a cavala e refazer a PCA. O
+## direcionamento pode ser descrito inteiramente pelo que sobra na rede
+## ("este barco-mês foi 80% Auxis / 20% Katsuwonus"), e como as
+## proporções são RENORMALIZADAS, o mix relativo das outras espécies fica
+## preservado intacto. Perde-se apenas o número que era a resposta
+## disfarçada. Se a vantagem da representação contínua sobreviver à
+## limpeza, ela é real; se desaparecer, ela era vazamento.
+##
+## POR QUE ISSO NÃO DESTRÓI O CENÁRIO DE ESFORÇO DIRIGIDO (S3):
+## o teste NÃO altera o pipeline. O k-means, o `alvo`, o `alvo_cavala` e
+## o S3 continuam exatamente como estavam; o que se mede aqui é se
+## deveriam mudar. O item (4) responde isso com um número.
+##
+## OS TRÊS MODELOS SÃO AJUSTADOS NAS MESMAS LINHAS. Barcos-mês que só
+## pegaram cavala ficam sem composição depois da remoção e saem do teste.
+## AIC comparado entre conjuntos de linhas diferentes não significa nada.
+## =====================================================================
+cat("\n===== 7.6) CIRCULARIDADE DA TÁTICA =====\n")
+
+## (1) quanto a agregação por barco-mês dilui a viagem individual
+vpbm <- as.numeric(table(viagens$barco_mes))
+cat(sprintf("(1) viagens por barco-mês: mediana %.0f | só uma viagem: %.1f%%\n",
+            stats::median(vpbm), 100 * mean(vpbm == 1)))
+cat("    quanto mais barcos-mês de uma viagem só, mais a composição do\n")
+cat("    barco-mês É a composição da própria viagem — vazamento direto.\n")
+
+## (2) os PCs enxergam a resposta?
+esf_v    <- viagens[[if (OFFSET == "lhoras") "horas" else "dias"]]
+cor_cpue <- sapply(PCs, function(p) cor(viagens[[p]], viagens$captura / esf_v,
+                                        use = "complete.obs"))
+cor_pres <- sapply(PCs, function(p) cor(viagens[[p]], as.numeric(viagens$captura > 0),
+                                        use = "complete.obs"))
+cat("\n(2) correlação dos PCs com a PRÓPRIA resposta:\n")
+print(round(rbind(`com a CPUE` = cor_cpue, `com a presença` = cor_pres), 3))
+cat("    correlação alta aqui já é o vazamento visível sem ajustar modelo.\n")
+
+## (3) PCA reconstruída SEM a cavala, e os três modelos nas mesmas linhas
+cols_sm <- setdiff(cols_cap, "cap_macarellus")
+ag2 <- aggregate(viagens[, cols_sm], by = list(barco_mes = viagens$barco_mes), FUN = sum)
+tt2 <- rowSums(ag2[, cols_sm]); ok2 <- tt2 > 0
+cp2 <- sqrt(as.matrix(ag2[ok2, cols_sm] / tt2[ok2]))
+rownames(cp2) <- ag2$barco_mes[ok2]
+pca2 <- prcomp(cp2, center = TRUE, scale. = FALSE)
+ve2  <- 100 * pca2$sdev^2 / sum(pca2$sdev^2)
+np2  <- min(4, max(2, which(cumsum(ve2) >= 70)[1]))
+if (is.na(np2)) np2 <- min(4, ncol(pca2$x))
+PCs2 <- paste0("PCsm", seq_len(np2))
+cat(sprintf("\n(3) PCA sem a cavala: %d eixos retidos (%.0f%% da variação)\n",
+            np2, cumsum(ve2)[np2]))
+
+## Os escores novos vão para uma CÓPIA de `viagens`: o objeto que o resto
+## do script usa não pode ser poluído por variáveis de teste.
+v_circ <- viagens
+for (j in seq_len(np2))
+  v_circ[[PCs2[j]]] <- as.numeric(pca2$x[match(viagens$barco_mes, rownames(pca2$x)), j])
+v_circ <- v_circ[stats::complete.cases(v_circ[, PCs2]), ]
+for (f in c("filha", "fbanco", "fbarco", "ftri", "npesc_cat", "alvo", fator_tempo))
+  if (f %in% names(v_circ)) v_circ[[f]] <- droplevels(v_circ[[f]])
+cat(sprintf("    linhas do teste: %d de %d\n", nrow(v_circ), nrow(viagens)))
+
+m_disc_c <- ajusta_final(termos_sel, dados = v_circ)
+m_pc_com <- ajusta_final(c(setdiff(termos_sel, "alvo"), PCs), dados = v_circ)
+## `monta_zi()` lê `PCs` do ambiente global. Trocamos temporariamente para
+## que os eixos NOVOS entrem também no componente de zeros — senão o
+## modelo limpo competiria em desvantagem justamente no lado do hurdle
+## onde o vazamento mais pesa, e o teste ficaria viciado a favor dele.
+PCs_bkp <- PCs; PCs <- PCs2
+m_pc_sem <- ajusta_final(c(setdiff(termos_sel, "alvo"), PCs2), dados = v_circ)
+PCs <- PCs_bkp
+
+aic_ok <- function(m) if (inherits(m, "try-error")) NA_real_ else AIC(m)
+a_disc <- aic_ok(m_disc_c); a_com <- aic_ok(m_pc_com); a_sem <- aic_ok(m_pc_sem)
+d_com  <- a_com - a_disc;   d_sem <- a_sem - a_disc
+cat(sprintf("\n    discreto (`alvo`)   AIC = %9.1f\n", a_disc))
+cat(sprintf("    PCs COM a cavala    AIC = %9.1f   (dAIC %+.1f)\n", a_com, d_com))
+cat(sprintf("    PCs SEM a cavala    AIC = %9.1f   (dAIC %+.1f)\n", a_sem, d_sem))
+
+## (4) o `alvo` DISCRETO depende da espécie-resposta?
+## Ele nasce da mesma matriz, então tem a mesma exposição em princípio.
+## Mas o k-means joga tudo dentro de um grupo na mesma categoria e
+## descarta a variação interna, então vaza muito menos. Aqui isso deixa
+## de ser argumento e vira medida: refazemos o agrupamento sobre a PCA
+## limpa e comparamos a atribuição.
+conc_km <- NA_real_
+if (exists("km") && exists("esc") && exists("k_otimo")) {
+  set.seed(1)
+  esc2  <- pca2$x[, 1:min(3, ncol(pca2$x)), drop = FALSE]
+  km2   <- stats::kmeans(esc2, centers = k_otimo, nstart = 50, iter.max = 100)
+  bm_c  <- intersect(rownames(esc), rownames(esc2))
+  tb_km <- table(com_cavala = km$cluster[match(bm_c, rownames(esc))],
+                 sem_cavala = km2$cluster[match(bm_c, rownames(esc2))])
+  conc_km <- 100 * sum(apply(tb_km, 2, max)) / sum(tb_km)
+  cat(sprintf("\n(4) atribuição de tática com x sem a cavala: %.1f%% de concordância\n",
+              conc_km))
+  print(tb_km)
+  cat("    concordância alta = o `alvo` discreto NÃO depende da espécie-\n")
+  cat("    resposta, e o pipeline (k-means, `alvo_cavala`, S3) fica de pé.\n")
+}
+
+## (5) a série ainda achata?
+## Este é o teste que importa para a avaliação: AIC mede ajuste, mas o
+## produto final é a FORMA da série. Se o efeito de ano volta a cair ao
+## limpar a covariável, o achatamento era artefato.
+S2b_limpo <- if (!inherits(m_pc_sem, "try-error"))
+  normaliza(indice_de(m_pc_sem, "S2b PCs SEM cavala")) else NULL
+r_sem <- NA_real_; r_com <- NA_real_
+if (!is.null(S2b_limpo) && !is.null(S2b)) {
+  cmp <- data.frame(ano      = S2b_limpo$tempo,
+                    discreta = S2$indice[match(S2b_limpo$tempo, S2$tempo)],
+                    pc_sem   = S2b_limpo$indice,
+                    pc_com   = S2b$indice[match(S2b_limpo$tempo, S2b$tempo)])
+  cat("\n(5) as três séries lado a lado (média = 1):\n")
+  print(transform(cmp, discreta = round(discreta, 3), pc_sem = round(pc_sem, 3),
+                  pc_com = round(pc_com, 3)), row.names = FALSE)
+  r_sem <- cor(cmp$discreta, cmp$pc_sem, use = "complete.obs")
+  r_com <- cor(cmp$discreta, cmp$pc_com, use = "complete.obs")
+  amp_c <- function(x) max(x, na.rm = TRUE) / min(x, na.rm = TRUE)
+  cat(sprintf("    discreta            : amplitude %.2f\n", amp_c(cmp$discreta)))
+  cat(sprintf("    PCs SEM a cavala    : amplitude %.2f | r com a discreta = %.3f\n",
+              amp_c(cmp$pc_sem), r_sem))
+  cat(sprintf("    PCs COM a cavala    : amplitude %.2f | r com a discreta = %.3f\n",
+              amp_c(cmp$pc_com), r_com))
+}
+
+## VEREDITO — tudo derivado dos números acima, nada fixo no texto.
+circularidade <- isTRUE(d_com < -MARGEM_AIC) && isTRUE(d_sem > -MARGEM_AIC)
+cat("\nVEREDITO: ")
+if (circularidade) {
+  cat("CIRCULARIDADE CONFIRMADA.\n")
+  cat(sprintf("  A representação contínua parecia superior por %.0f pontos de AIC.\n", -d_com))
+  cat(sprintf("  Removida a espécie-resposta da composição, a diferença vira %+.1f\n", d_sem))
+  cat(sprintf("  — uma virada de %.0f pontos causada por UMA coluna da matriz.\n", d_sem - d_com))
+  cat("  O S2b (PCs COM cavala) NÃO pode ser cenário de entrada do JABBA:\n")
+  cat("  o efeito de ano dele está achatado porque a covariável absorveu o\n")
+  cat("  sinal de abundância que o índice deveria medir.\n")
+  if (isTRUE(d_sem > MARGEM_AIC))
+    cat("  Entre as representações SEM vazamento, a DISCRETA ajusta melhor.\n")
+  else if (isTRUE(abs(d_sem) <= MARGEM_AIC))
+    cat("  Entre as representações SEM vazamento, há empate técnico.\n")
+} else if (isTRUE(d_sem < -MARGEM_AIC)) {
+  cat("SEM circularidade detectável — a vantagem da representação contínua\n")
+  cat("  sobrevive à remoção da espécie-resposta da composição. Ela é real.\n")
+} else {
+  cat("a representação DISCRETA ajusta melhor entre as opções limpas.\n")
+}
+
+tab_circ <- data.frame(
+  representacao    = c("discreta (alvo)", "continua PCs COM cavala",
+                       "continua PCs SEM cavala"),
+  AIC              = round(c(a_disc, a_com, a_sem), 1),
+  dAIC_vs_discreta = round(c(0, d_com, d_sem), 1),
+  r_com_discreta   = round(c(1, r_com, r_sem), 3),
+  n_linhas         = nrow(v_circ),
+  concordancia_kmeans_pct = round(conc_km, 1),
+  row.names = NULL, stringsAsFactors = FALSE)
+
+## A série limpa entra no painel de cenários: é ela, e não o S2b, que
+## serve de contraponto honesto à discreta.
+if (!is.null(S2b_limpo))
+  indices <- rbind(indices, S2b_limpo[, names(indices), drop = FALSE])
+
+## =====================================================================
 ## 8) TESTE DAS HIPÓTESES
 ## =====================================================================
 cat("\n===== 7) HIPÓTESES =====\n")
@@ -2487,36 +2660,70 @@ if (!is.null(S0)) {
   cat(sprintf("     %s\n", if (r_S0S2 > 0.98)
     "praticamente idênticos: a correção não muda nada (reportar!)" else
       "a tática desloca o índice de forma relevante"))
+  ## Leitura cruzada com a seção 7.6: um `alvo` que quase não desloca o
+  ## índice é também um `alvo` que quase não está vazando a resposta —
+  ## covariável contaminada desloca MUITO, como o S2b desloca.
 }
 amp <- function(d) max(d$indice, na.rm = TRUE) / min(d$indice, na.rm = TRUE)
+amp_nom <- amp(S1); amp_cor <- amp(S2)
 cat(sprintf("H1 — amplitude (máx/mín): nominal %.2f | corrigida %.2f\n",
-            amp(S1), amp(S2)))
+            amp_nom, amp_cor))
 cat(sprintf("     correlação nominal x corrigida: %.3f\n",
             cor(S2$indice, casa(S2, S1), use = "complete.obs")))
-cat("     amplitude menor na corrigida = parte da variação nominal era\n")
-cat("     comportamento de frota, não abundância (o efeito esperado).\n")
+## O texto abaixo é CONDICIONAL: a versão anterior afirmava sempre que a
+## amplitude corrigida era menor, o que não é um resultado garantido —
+## e nesta série não é o que acontece.
+if (amp_cor < amp_nom) {
+  cat("     amplitude MENOR na corrigida: parte da variação nominal era\n")
+  cat("     comportamento de frota e não abundância (o efeito usual).\n")
+} else {
+  cat("     amplitude MAIOR na corrigida: a padronização NÃO achatou a\n")
+  cat("     série. Padronizar não garante amplitude menor — ao remover\n")
+  cat("     desbalanceamento a correção pode SEPARAR anos que o cálculo\n")
+  cat("     nominal confundia. Não é anomalia, mas o texto NÃO pode usar\n")
+  cat("     a frase usual de que a correção removeu variação de frota.\n")
+}
 if (!is.null(S2b)) {
   d_h2 <- AIC(m_cont_final) - AIC(m_final)   # negativo = contínua ganha
-  cat(sprintf("H2 — discreta x contínua: r = %.3f | dAIC (contínua - discreta) = %+.1f\n",
+  cat(sprintf("H2 — discreta x contínua: r = %.3f | dAIC bruto (contínua - discreta) = %+.1f\n",
               cor(S2$indice, casa(S2, S2b), use = "complete.obs"), d_h2))
-  cat(sprintf("     %s\n", if (d_h2 < -MARGEM_AIC)
-    "a representação CONTÍNUA (PCs) ajusta melhor — como em Winker et al. (2013)"
-    else if (d_h2 > MARGEM_AIC)
-      "a representação DISCRETA (cluster) ajusta melhor"
-    else "empate técnico: as duas descrevem a tática igualmente bem"))
+  if (exists("circularidade") && isTRUE(circularidade)) {
+    cat("     ESTE dAIC BRUTO É ARTEFATO — não reportar sozinho.\n")
+    cat(sprintf("     A seção 7.6 mostra que ele vira %+.1f quando a espécie-\n", d_sem))
+    cat("     resposta sai da matriz de composição. A vantagem aparente da\n")
+    cat("     representação contínua era a cavala se explicando a si mesma.\n")
+    cat(sprintf("     CONCLUSÃO VÁLIDA: %s\n",
+                if (isTRUE(d_sem > MARGEM_AIC))
+                  "entre representações limpas, a DISCRETA ajusta melhor."
+                else if (isTRUE(d_sem < -MARGEM_AIC))
+                  "entre representações limpas, a CONTÍNUA ainda ajusta melhor."
+                else "entre representações limpas, há empate técnico."))
+    cat("     A leitura de Winker et al. (2013) a favor da representação\n")
+    cat("     contínua NÃO se sustenta nesta série — e o motivo (a espécie-\n")
+    cat("     resposta dentro da composição) é reportável por si só.\n")
+  } else if (d_h2 < -MARGEM_AIC) {
+    cat("     a representação CONTÍNUA (PCs) ajusta melhor — como em Winker et al. (2013)\n")
+  } else if (d_h2 > MARGEM_AIC) {
+    cat("     a representação DISCRETA (cluster) ajusta melhor\n")
+  } else {
+    cat("     empate técnico: as duas descrevem a tática igualmente bem\n")
+  }
 }
 if (!is.null(S3))
   cat(sprintf("H3 — esforço dirigido x corrigida: r = %.3f | amplitude %.2f\n",
               cor(S2$indice, casa(S2, S3), use = "complete.obs"), amp(S3)))
-
 ## =====================================================================
 ## 9) FIGURA DOS ÍNDICES
 ## =====================================================================
+## O cenário circular entra em CINZA: ele está na figura como resultado
+## do teste da seção 7.6, não como candidato. A série contínua LIMPA
+## (`S2b PCs SEM cavala`) é que serve de contraponto à discreta.
 cores_cen <- setNames(
-  c(COR_AUX, COR_NEU, COR_MAC, COR_S2D, COR_S2, COR_S3),
+  c(COR_AUX, COR_NEU, COR_MAC, COR_S2D, "grey60", COR_S2, COR_S3),
   c("S1 nominal", "S0 sem tática", "S2 corrigida (tática discreta)",
     if (length(outro_nome) > 0) sprintf("S2t %s", outro_nome[1]) else "S2t",
-    "S2b tática contínua (PCs)", "S3 esforço dirigido"))
+    "S2b PCs COM cavala (circular)", "S2b PCs SEM cavala",
+    "S3 esforço dirigido"))
 
 png("indices_cenarios.png", width = 26, height = 14, res = 300,
     antialias = AA, units = "cm")
@@ -2574,9 +2781,21 @@ cat("\nPNG salvo: indices_cenarios.png\n")
 ##                             S0 da seção 6.
 ##   C5  padronizada COM tática — o mesmo modelo MAIS a tática inferida
 ##                             da composição da captura. É o cenário S2.
+##   C6  nominal esforço dirigido — mesmo cálculo simples de C3 (captura/
+##                             dias, sem GLM), mas só com as viagens da
+##                             tática mais associada à cavala (`alvo_cavala`,
+##                             seção 5). Ataca o mesmo problema de C5 por
+##                             outro mecanismo: C5 AJUSTA o efeito de
+##                             tática com toda viagem dentro do modelo; C6
+##                             DESCARTA as viagens não-dirigidas. Só existe
+##                             2015-2025 (mesma razão de C4/C5) e carrega a
+##                             ressalva da seção 5.5: nenhuma tática é de
+##                             fato dominada pela cavala nesta frota.
 ##
-## A distância C4 -> C5 é a medida do viés de direcionamento; a distância
-## C3 -> C5 é o efeito total da padronização.
+## A distância C4 -> C5 é a medida do viés de direcionamento pela via da
+## PADRONIZAÇÃO; a distância C3 -> C6 é a mesma medida pela via do
+## SUBSETTING — duas formas independentes de estimar o mesmo viés, e a
+## distância C3 -> C5 é o efeito total da padronização.
 ##
 ## POR QUE CADA SÉRIE É NORMALIZADA PELA PRÓPRIA MÉDIA: o JABBA estima um
 ## coeficiente de capturabilidade (q) por índice, então o que ele lê é a
@@ -2628,9 +2847,67 @@ de_modelo <- function(d, nome) {
 C4 <- de_modelo(S0, "C4 padronizada SEM tatica")
 C5 <- de_modelo(S2, "C5 padronizada COM tatica")
 
-cenarios <- do.call(rbind, Filter(Negate(is.null), list(C1, C2, C3, C4, C5)))
+## --- C6: nominal, mas com o esforço filtrado só para a tática-cavala --
+## Pedido explícito (set/2026): um cenário NOMINAL — sem GLM nenhum,
+## captura/dias puro, do mesmo jeito que C1-C3 — só que com o
+## DENOMINADOR restrito às viagens que a inferência de tática (seção 5)
+## classificou como `alvo_cavala`, em vez do esforço de TODA a frota de
+## cerco. A pergunta que C6 testa, que é diferente da de C5: se o
+## problema da CPUE pós-2015 é o DENOMINADOR (esforço "genérico",
+## incluindo viagens que nunca iriam encontrar cavala), filtrar por
+## tática deveria destravar sinal de depleção que a nominal-total (C3)
+## não mostra. C5 já ataca isso por outro caminho — CORRIGINDO o efeito
+## de tática como covariável num GLM, com toda viagem dentro; C6
+## SUBTRAI as viagens não-dirigidas em vez de corrigi-las. São mecanismos
+## diferentes (ajustar x descartar) e por isso vale rodar os dois.
+##
+## SÓ EXISTE 2015-2025 — mesma razão de C4/C5: a tática só é inferível de
+## viagem com composição registrada, e só há viagem a viagem a partir de
+## 2015. A planilha 1989-2014 é agregada; não tem o que classificar.
+##
+## RESSALVA DA PRÓPRIA SEÇÃO 5.5, e ela é séria: nenhuma tática desta
+## frota é de fato DOMINADA pela cavala (a melhor gira em torno de
+## `frac_cavala`*100%, tipicamente ~15%). `alvo_cavala` é "a tática que
+## MAIS ENCONTRA cavala", não "a tática exclusiva da cavala" — então C6
+## está mais para uma sensibilidade do que para um índice "dirigido" no
+## sentido em que a palavra é usada em pescarias com arte realmente
+## seletiva. Declarar isso é obrigatório se C6 for reportado.
+C6 <- NULL
+if (exists("alvo_cavala") && alvo_cavala %in% levels(viagens$alvo)) {
+  vd      <- viagens[viagens$alvo == alvo_cavala, ]
+  anos_vd <- sort(unique(vd$ano))
+  ## mesmo critério de cobertura que o S3 já usa (seção 6): sem isso, um
+  ## cenário que só existe em 2-3 anos entraria como se fosse série.
+  cobre_c6 <- length(anos_vd) >= 0.7 * length(unique(viagens$ano))
+  if (cobre_c6) {
+    cavala_ano_vd <- tapply(vd$captura, vd$ano, sum)
+    dias_ano_vd   <- tapply(vd$dias,    vd$ano, sum)
+    cpue_vd       <- cavala_ano_vd / dias_ano_vd
+    ## CV empírico DENTRO do subconjunto dirigido — não reaproveita
+    ## cv_emp_ano (esse é calculado com TODAS as viagens do ano).
+    cv_emp_vd <- tapply(vd$captura / vd$dias, vd$ano, function(z)
+      if (length(z) > 1) sd(z) / (mean(z) * sqrt(length(z))) else NA_real_)
+    C6 <- data.frame(tempo = as.numeric(names(cpue_vd)),
+                     cenario = "C6 nominal esforco dirigido",
+                     indice = norm1(as.numeric(cpue_vd)),
+                     cv = pmax(ifelse(is.na(as.numeric(cv_emp_vd)), PISO_CV,
+                                      as.numeric(cv_emp_vd)), PISO_CV),
+                     cv_origem = "empirico (subconjunto dirigido)",
+                     fonte = "IMar viagem (so tatica-cavala)",
+                     engenhos_agregados = FALSE, row.names = NULL,
+                     stringsAsFactors = FALSE)
+    cat(sprintf("\nC6: %d viagens em %d anos na tatica '%s' (%.0f%% de cavala no centroide -- ver ressalva 5.5)\n",
+                nrow(vd), length(anos_vd), alvo_cavala, 100 * frac_cavala))
+  } else {
+    cat("[AVISO] tatica-cavala nao cobre anos suficientes para C6; cenario nao construido.\n")
+  }
+} else {
+  cat("[AVISO] alvo_cavala inexistente/nao encontrado; C6 nao construido.\n")
+}
 
-cat("\n===== OS CINCO CENÁRIOS =====\n")
+cenarios <- do.call(rbind, Filter(Negate(is.null), list(C1, C2, C3, C4, C5, C6)))
+
+cat("\n===== OS CENARIOS DE INDICE =====\n")
 resumo_cen <- do.call(rbind, lapply(split(cenarios, cenarios$cenario), function(s) data.frame(
   cenario = s$cenario[1], anos = sprintf("%d-%d", min(s$tempo), max(s$tempo)),
   n = nrow(s), amplitude = round(max(s$indice, na.rm = TRUE) /
@@ -2638,9 +2915,24 @@ resumo_cen <- do.call(rbind, lapply(split(cenarios, cenarios$cenario), function(
   cv_medio = round(mean(pmax(s$cv, PISO_CV), na.rm = TRUE), 3),
   row.names = NULL, stringsAsFactors = FALSE)))
 print(resumo_cen[order(resumo_cen$cenario), ], row.names = FALSE)
-cat("\nAmplitude = máx/mín do índice. Amplitude MENOR na padronizada quer\n")
-cat("dizer que parte da variação nominal era comportamento de frota e não\n")
-cat("abundância — é o efeito que se espera da correção.\n")
+## Condicional, e não afirmação fixa: padronizar NÃO garante amplitude
+## menor. A versão anterior imprimia a frase do caso usual mesmo quando
+## os números diziam o contrário, o que iria direto para o texto errado.
+cat("\nAmplitude = máx/mín do índice.\n")
+if (!is.null(C3) && !is.null(C5)) {
+  amp_C3 <- max(C3$indice, na.rm = TRUE) / min(C3$indice, na.rm = TRUE)
+  amp_C5 <- max(C5$indice, na.rm = TRUE) / min(C5$indice, na.rm = TRUE)
+  if (amp_C5 < amp_C3) {
+    cat("Amplitude MENOR na padronizada (C5) que na nominal do mesmo período\n")
+    cat("(C3): parte da variação nominal era comportamento de frota e não\n")
+    cat("abundância — é o efeito usual da correção.\n")
+  } else {
+    cat("Amplitude MAIOR na padronizada (C5) que na nominal do mesmo período\n")
+    cat("(C3): a correção não achatou a série. Ao remover desbalanceamento\n")
+    cat("ela pode SEPARAR anos que o cálculo nominal confundia — reportar\n")
+    cat("assim, sem a frase usual de 'a correção removeu variação de frota'.\n")
+  }
+}
 
 ## Correlação entre os cenários que compartilham período
 if (!is.null(C3) && !is.null(C5)) {
@@ -2659,6 +2951,22 @@ if (!is.null(C4) && !is.null(C5)) {
     "a tatica quase nao desloca o indice (reportar!)" else
       "a tatica desloca o indice de forma relevante"))
 }
+## C3 x C6: o teste direto do que C6 foi criado para responder — será que
+## restringir o denominador à tática-cavala muda a FORMA da série nominal
+## do período pós-alvo, ou ela reproduz C3 e o denominador não era o
+## problema?
+if (!is.null(C3) && !is.null(C6)) {
+  anos_com36 <- intersect(C3$tempo, C6$tempo)
+  if (length(anos_com36) > 2) {
+    r36 <- cor(C3$indice[match(anos_com36, C3$tempo)],
+               C6$indice[match(anos_com36, C6$tempo)], use = "complete.obs")
+    cat(sprintf("C3 (nominal pos-alvo, esforco total) x C6 (nominal, esforco dirigido): r = %.3f em %d anos",
+                r36, length(anos_com36)))
+    cat(sprintf("  -> %s\n", if (r36 > 0.9)
+      "quase identicas: o denominador (esforco total x dirigido) NAO era o problema" else
+        "divergem: filtrar o esforco muda a forma da serie, vale investigar por que"))
+  }
+}
 
 ## --- planilhas por cenário, no formato do JABBA ----------------------
 ## Uma coluna de ano e uma coluna por cenário. Anos que um cenário não
@@ -2670,7 +2978,8 @@ rotulo <- c("C1 nominal 1989-2025" = "C1_nominal_total",
             setNames("C2_nominal_pre_alvo",  sprintf("C2 nominal pre-alvo (<=%d)", ANO_CORTE_ALVO)),
             setNames("C3_nominal_pos_alvo",  sprintf("C3 nominal pos-alvo (>=%d)", ANO_CORTE_ALVO + 1)),
             "C4 padronizada SEM tatica" = "C4_padronizada_sem_tatica",
-            "C5 padronizada COM tatica" = "C5_padronizada_com_tatica")
+            "C5 padronizada COM tatica" = "C5_padronizada_com_tatica",
+            "C6 nominal esforco dirigido" = "C6_nominal_dirigida")
 for (cen in names(rotulo)) {
   if (!cen %in% cenarios$cenario) next
   d <- cenarios[cenarios$cenario == cen, ]
@@ -2689,18 +2998,20 @@ escreve_csv_utf8(jabba_idx,  "jabba_indices_macarellus.csv")
 escreve_csv_utf8(jabba_cv,   "jabba_cv_macarellus.csv")
 escreve_csv_utf8(cenarios,   "cenarios_cpue_macarellus.csv")
 escreve_csv_utf8(indices,    "indices_todos_cenarios.csv")
+escreve_csv_utf8(tab_circ,   "teste_circularidade_tatica.csv")
 if (tem_writexl)
   writexl::write_xlsx(list(indices_jabba = jabba_idx, cv_jabba = jabba_cv,
                            cenarios = cenarios, resumo = resumo_cen,
                            serie_anual = serie_anual, todos_indices = indices,
                            estruturas = tab_est, distribuicoes = tab_dist,
-                           diagnostico = diag_tab),
+                           diagnostico = diag_tab, circularidade = tab_circ),
                       path = "cpue_macarellus_cenarios.xlsx")
 cat("\nArquivos salvos:\n")
 cat("  jabba_indices_macarellus.csv   (índices, média 1, uma coluna por cenário)\n")
 cat("  jabba_cv_macarellus.csv        (CV correspondente, com piso de", PISO_CV, ")\n")
 cat("  cenarios_cpue_macarellus.csv   (formato longo, com fonte e origem do CV)\n")
 cat("  indices_todos_cenarios.csv     (os cenários intermediários S0-S3)\n")
+cat("  teste_circularidade_tatica.csv (a tabela da seção 7.6)\n")
 if (tem_writexl) cat("  cpue_macarellus_cenarios.xlsx  (tudo acima em abas)\n")
 
 ## --- figura dos cinco cenários ---------------------------------------
@@ -2711,6 +3022,7 @@ cor_c[sprintf("C2 nominal pre-alvo (<=%d)", ANO_CORTE_ALVO)]    <- COR_AUX
 cor_c[sprintf("C3 nominal pos-alvo (>=%d)", ANO_CORTE_ALVO + 1)] <- COR_S2D
 cor_c["C4 padronizada SEM tatica"] <- COR_S3
 cor_c["C5 padronizada COM tatica"] <- COR_MAC
+cor_c["C6 nominal esforco dirigido"] <- COR_S2
 
 plot(NA, xlim = range(cenarios$tempo), ylim = c(0, max(cenarios$indice, na.rm = TRUE) * 1.1),
      xlab = "Ano", ylab = "Indice relativo (media = 1)",
@@ -2740,8 +3052,106 @@ legend("topright", unique(sub$cenario), col = cor_c[unique(sub$cenario)],
        lwd = 2.4, bty = "n", cex = 0.62)
 par(op); dev.off()
 cat("PNG salvo: cenarios_finais.png\n")
+
 ## =====================================================================
-## 11) COMO REPORTAR
+## 12) SÉRIE DE DESEMBARQUES (CAPTURA) — entrada de CATCH do JABBA
+## ---------------------------------------------------------------------
+## Até aqui C1-C5 são tudo CPUE (abundância relativa). O JABBA também
+## precisa da série de REMOÇÕES (captura em toneladas), que é um insumo
+## INDEPENDENTE do índice — e o IMar não forneceu uma série de
+## desembarques pronta (a que alimentou o CMSY/DBSRA antes veio da FAO).
+##
+## A captura de cavala preta já está dentro das MESMAS planilhas de
+## esforço usadas para a CPUE — `serie_anual`, montada na seção 0.2 —
+## então a série de desembarques sai do mesmo lugar, sem reler nada.
+##
+## POR QUE A CAPTURA NÃO HERDA OS MESMOS "BURACOS" DA CPUE:
+## o JABBA é um modelo de estado-espaço — ele precisa de uma remoção
+## (mesmo que pequena) em CADA ano do modelo para atualizar a biomassa;
+## o ÍNDICE não, ele só entra nos anos em que existe e o JABBA
+## simplesmente pula os anos sem índice. Por isso 2013 (sem esforço) e
+## 2018 (formato e levantamento diferentes — decisão L17) ENTRAM aqui
+## mesmo estando marcados `usar_na_serie = FALSE` em `serie_anual`: não
+## dá para pular um ano de captura sem quebrar o balanço de massa do
+## modelo. A marcação de confiabilidade viaja junto na coluna
+## `confiavel`, para o texto — não para remover a linha.
+## =====================================================================
+cat("\n===== 12) SÉRIE DE DESEMBARQUES (CAPTURA) =====\n")
+
+desembarques <- data.frame(
+  Yr = serie_anual$ano,
+  Catch_macarellus_t = round(serie_anual$cavala_t, 3),
+  ## NA em 1989-2014: a planilha histórica é agregada e não abre a
+  ## captura total da frota por espécie — só a de cavala.
+  Catch_total_frota_t = round(serie_anual$cap_total_t, 3),
+  fonte = serie_anual$fonte,
+  confiavel = serie_anual$usar_na_serie,
+  engenhos_agregados = serie_anual$engenhos_agregados,
+  periodo = serie_anual$periodo,
+  row.names = NULL, stringsAsFactors = FALSE)
+
+cat(sprintf("Cobertura: %d-%d (%d anos)\n",
+            min(desembarques$Yr), max(desembarques$Yr), nrow(desembarques)))
+falta <- is.na(desembarques$Catch_macarellus_t)
+if (any(falta)) {
+  cat(sprintf("Anos SEM captura registrada (%d): %s\n", sum(falta),
+              paste(desembarques$Yr[falta], collapse = ", ")))
+  cat("  ^ ficam como estão (NA) — o pedido foi para não travar nisso; o\n")
+  cat("    JABBA aceita, mas o manual do pacote recomenda decidir entre\n")
+  cat("    interpolar ou usar um valor mínimo antes de rodar, porque um\n")
+  cat("    NA no meio da série de captura quebra o balanço daquele ano.\n")
+} else {
+  cat("Nenhum ano sem captura registrada — série completa para o JABBA.\n")
+}
+nao_conf <- !desembarques$confiavel
+if (any(nao_conf))
+  cat(sprintf("Anos com captura presente mas marcados NÃO confiáveis para o índice: %s\n",
+              paste(desembarques$Yr[nao_conf], collapse = ", ")))
+cat("  ^ continuam na série de captura — a ressalva de 2013 (sem esforço)\n")
+cat("    e 2018 (levantamento e formato diferentes) vale para este número\n")
+cat("    também e deve constar no texto, não justifica remover a linha.\n")
+
+print(desembarques, row.names = FALSE)
+
+escreve_csv_utf8(desembarques, "desembarques_macarellus_1989_2025.csv")
+cat("\nCSV escrito: desembarques_macarellus_1989_2025.csv\n")
+if (tem_writexl) {
+  writexl::write_xlsx(list(desembarques = desembarques),
+                      "desembarques_macarellus_1989_2025.xlsx")
+  cat("XLSX escrito: desembarques_macarellus_1989_2025.xlsx\n")
+}
+
+## --- gráfico -----------------------------------------------------------
+png("desembarques_macarellus.png", width = 24, height = 12, res = 300,
+    antialias = AA, units = "cm")
+op <- par(mar = c(4.4, 4.6, 3, 1), bty = "l", cex.main = 0.95, cex = 0.85)
+cor_fonte <- c("Historico 1989-2014 (agregado)" = COR_NEU,
+               "IMar viagem" = COR_MAC,
+               "IMar 2018 (formato diferente)" = COR_AUX)
+plot(desembarques$Yr, desembarques$Catch_macarellus_t, type = "n",
+     xlab = "Ano", ylab = "Desembarque de cavala preta (t)",
+     ylim = c(0, max(desembarques$Catch_macarellus_t, na.rm = TRUE) * 1.15),
+     main = "Serie de desembarques - D. macarellus, frota de cerco (Cabo Verde)", lwd=2)
+abline(v = ANO_CORTE_ALVO + 0.5, lty = 3, col = "grey40")
+text(ANO_CORTE_ALVO + 3, max(desembarques$Catch_macarellus_t, na.rm = TRUE) * 1,
+     "mudanca de alvo", pos = 2, cex = 0.7, col = "grey30")
+lines(desembarques$Yr, desembarques$Catch_macarellus_t, lwd =2, col = "grey75")
+for (f in names(cor_fonte)) {
+  d <- desembarques[desembarques$fonte == f, ]
+  if (nrow(d) == 0) next
+  points(d$Yr[d$confiavel],  d$Catch_macarellus_t[d$confiavel],
+         pch = 19, cex = 1, col = cor_fonte[f])
+  points(d$Yr[!d$confiavel], d$Catch_macarellus_t[!d$confiavel],
+         pch = 4,  cex = 1.3, lwd = 2, col = cor_fonte[f])
+}
+legend("topleft", names(cor_fonte), col = cor_fonte, pch = 19, bty = "n", cex = 0.9, pt.cex = 1)
+legend("topright", c("confiavel p/ indice", "nao confiavel p/ indice (entra na captura mesmo assim)"),
+       pch = c(19, 4), pt.lwd = c(1, 2), col = "grey30", bty = "n", cex = 0.9, pt.cex = 1)
+par(op); dev.off()
+cat("PNG salvo: desembarques_macarellus.png\n")
+
+## =====================================================================
+## 13) COMO REPORTAR
 ## =====================================================================
 cat("\n===== COMO REPORTAR =====\n")
 cat("1. S1 e S2 são CENÁRIOS ALTERNATIVOS de entrada no JABBA, não uma\n")
@@ -2782,11 +3192,2167 @@ cat("   descontinuidade de fonte e de regime tem de estar no texto.\n")
 cat("10. Os CV dos anos 1989-2014 são PISO, não estimativa: a fonte é\n")
 cat("   agregada e não tem variância amostral. A coluna `cv_origem` do\n")
 cat("   arquivo cenarios_cpue_macarellus.csv marca cada caso.\n")
+cat("11. REPORTAR O TESTE DE CIRCULARIDADE (seção 7.6) como resultado de\n")
+cat("   método, não como nota de rodapé. A representação CONTÍNUA da\n")
+cat("   tática (escores da PCA) parecia superior à discreta por uma\n")
+cat("   margem enorme de AIC, e essa vantagem se inverte quando a\n")
+cat("   espécie-resposta é removida da matriz de composição que gera os\n")
+cat("   eixos. Era a cavala se explicando a si mesma: a covariável\n")
+cat("   continha parte da resposta, o ajuste disparava e o efeito de ANO\n")
+cat("   saía achatado — que é justamente o índice que se quer medir.\n")
+cat("   Consequências a declarar: (a) o cenário contínuo NÃO entra no\n")
+cat("   JABBA; (b) o `alvo` discreto foi verificado e a sua atribuição\n")
+cat("   praticamente não muda ao limpar a composição, por isso o\n")
+cat("   pipeline (k-means, tática da cavala, S3) foi mantido; (c) o\n")
+cat("   `alvo` ainda nasce de uma matriz que inclui a cavala, o que é\n")
+cat("   limitação a declarar, sustentada pelos números do teste e não\n")
+cat("   por argumento. É a demonstração empírica do dilema de Hinton &\n")
+cat("   Maunder (2003) na própria série.\n")
+cat("12b. C6 (esforco dirigido) so cobre 2015-2025 e carrega a ressalva da\n")
+cat("   secao 5.5: nenhuma tatica desta frota e de fato DOMINADA pela\n")
+cat("   cavala (a melhor gira em torno da fracao reportada em `frac_cavala`).\n")
+cat("   `alvo_cavala` e 'a tatica que MAIS encontra cavala', nao 'a tatica\n")
+cat("   exclusiva da cavala' — declarar isso sempre que C6 for reportado.\n")
+cat("   Comparar C3 x C6 (o script imprime a correlacao acima): se forem\n")
+cat("   quase identicas, o denominador de esforco NAO era o problema da\n")
+cat("   CPUE pos-2015 — o mesmo viés de composicao que afeta C3 provavelmente\n")
+cat("   afeta C6 tambem, porque a tatica nasce da mesma matriz de composicao\n")
+cat("   que inclui a cavala (secao 7.6).\n")
+cat("12. A série de CAPTURA (seção 12, `desembarques_macarellus_1989_2025`)\n")
+cat("   substitui a série da FAO usada antes no CMSY/DBSRA: agora vem da\n")
+cat("   mesma fonte primária (IMar) que a CPUE, extraída das planilhas de\n")
+cat("   esforço. Declarar que ela NÃO segue o mesmo filtro de qualidade do\n")
+cat("   índice — 2013 e 2018 entram na captura mesmo estando marcados como\n")
+cat("   não confiáveis para a CPUE — porque o JABBA precisa de uma remoção\n")
+cat("   em todo ano do modelo, e o índice não. As mesmas ressalvas de 2013\n")
+cat("   (sem esforço) e 2018 (levantamento e formato diferentes, decisão\n")
+cat("   L17) se aplicam ao número de captura desses anos.\n")
 
 
+#----------------------------------------------------------------------------------------------------------#
+#   AVALIACAO DE ESTOQUE — Decapterus macarellus (cavala preta), Cabo Verde                                #
+#   JABBA — Just Another Bayesian Biomass Assessment (Winker, Carvalho & Kapur 2018, Fish. Res. 204:275)   #
+#                                                                                                          #
+#   Este script é a PARTE 04 do pipeline. Ele NAO depende do `Catch_and_index_models.R` estar na           #
+#   memória: lê os CSV que aquele script já escreveu no diretório. Pode ser colado no fim dele ou          #
+#   rodado sozinho — as poucas funções compartilhadas são redefinidas aqui só se não existirem.            #
+#                                                                                                          #
+#   ENTRADAS (escritas pelas seções 10 e 12 da parte 03):                                                  #
+#     jabba_indices_macarellus.csv        índices de CPUE, média 1, uma coluna por cenário C1..C6          #
+#     jabba_cv_macarellus.csv             CV correspondente a cada ponto de índice                         #
+#     desembarques_macarellus_1989_2025.csv  captura anual (t) de cavala preta                             #
+#                                                                                                          #
+#   SAIDAS: uma pasta por rodada + planilhas consolidadas + figuras comparativas.                          #
+#----------------------------------------------------------------------------------------------------------#
+
+## =========================================================================
+## 0) ANTES DE RODAR — LEIA ISTO
+## -------------------------------------------------------------------------
+## O JABBA é um modelo BAYESIANO ajustado por MCMC, e quem faz o MCMC é o
+## JAGS — um programa EXTERNO ao R, que precisa ser instalado à parte. Esse
+## é o erro nº 1 de quem roda JABBA pela primeira vez: `library(JABBA)`
+## funciona, `fit_jabba()` morre com uma mensagem críptica sobre não achar
+## o JAGS.
+##
+##   Windows: baixar e instalar o JAGS 4.3.x em
+##            https://sourceforge.net/projects/mcmc-jags/files/
+##            DEPOIS disso, no R: install.packages(c("rjags","R2jags"))
+##            (a ordem importa — o rjags compila contra o JAGS instalado)
+##
+## O QUE O MODELO FAZ, EM UMA FRASE: ele assume que a biomassa cresce por
+## uma curva de produção excedente e encolhe pela captura,
+##
+##      B[t+1] = B[t] + produção(B[t]) - Captura[t]
+##
+## e usa os índices de CPUE como observações ruidosas de B[t] (via
+## CPUE[t] = q * B[t]). Tudo que ele estima — K, r, MSY, B/Bmsy — sai dessa
+## tensão entre o que a captura removeu e o que o índice diz que sobrou.
+##
+## AS TRES COISAS QUE MAIS DECIDEM O RESULTADO (nesta ordem):
+##   1. A SERIE DE CAPTURA. O modelo acredita nela quase cegamente. Se a
+##      captura estiver subestimada, K e MSY saem subestimados junto.
+##      Ver a seção 3 — tem um problema real a resolver aqui.
+##   2. O PRIOR DE r. Stobberup & Erzini (2006), que avaliaram ESTE MESMO
+##      estoque em Cabo Verde, reportaram que "a posterior marginal de r
+##      era quase idêntica à prior" — ou seja, os dados não informam r, o
+##      prior informa. Por isso a seção 5 tem análise de sensibilidade de
+##      prior e ela NAO é opcional.
+##   3. QUANTOS q O MODELO ESTIMA. Cada índice ganha o seu, e é assim que
+##      se acomoda a mudança de alvo de 2015. Ver a seção 6.
+## =========================================================================
 
 
+## =========================================================================
+## 1) PACOTES, DIRETORIOS E CHAVES DA RODADA
+## =========================================================================
+
+## --- 1.1 pacotes -------------------------------------------------------
+if (!requireNamespace("JABBA", quietly = TRUE)) {
+  stop("Pacote JABBA ausente. Instale com:\n",
+       "  install.packages('devtools')\n",
+       "  devtools::install_github('jabbamodel/JABBA')\n",
+       "E confirme que o JAGS (programa externo) está instalado — ver seção 0.")
+}
+library(JABBA)
+tem_writexl <- requireNamespace("writexl", quietly = TRUE)
+
+## Checagem explícita do JAGS: falhar AGORA, com mensagem clara, é muito
+## melhor do que falhar dentro do primeiro fit_jabba() daqui a 10 minutos.
+if (!requireNamespace("rjags", quietly = TRUE))
+  stop("Pacote rjags ausente — instale o JAGS (programa externo) e depois install.packages('rjags').")
+cat(sprintf("JAGS encontrado: versão %s\n", as.character(rjags::jags.version())))
+
+## --- 1.2 diretórios ----------------------------------------------------
+## `DIR_DADOS` é onde estão os CSV da parte 03. Se você colou este bloco no
+## fim do Catch_and_index_models.R, o getwd() já é o lugar certo.
+DIR_DADOS  <- getwd()
+ASSESSMENT <- "macarellus_CV"
+## Algumas funções de plotagem "de comparação entre cenários" do JABBA
+## (jbplot_summary é a principal, mas jbplot_ensemble tem o mesmo problema)
+## vêm do estilo antigo de script de entrada do JABBA — aquele em que você
+## definia `assessment` como uma variável solta no ambiente global antes do
+## loop de cenários (foi assim no Sp_name_v1.0.R que você me mandou). Essas
+## funções ainda procuram por um objeto chamado `assessment` no ambiente
+## global em vez de tirar o nome de dentro de cada item da lista de ajustes
+## — mesmo quando você já passou `assessment=...` para o build_jabba() de
+## cada cenário. Sem essa variável solta, elas quebram com
+## "object 'assessment' not found". Criamos ela aqui, redundante com
+## ASSESSMENT (maiúsculo, usado no resto do script), só para blindar essas
+## chamadas legadas.
+assessment <- ASSESSMENT
+DIR_SAIDA  <- file.path(DIR_DADOS, "JABBA_macarellus")
+dir.create(DIR_SAIDA, showWarnings = FALSE, recursive = TRUE)
+cat(sprintf("Saídas em: %s\n", DIR_SAIDA))
+
+## --- 1.3 chaves da rodada ----------------------------------------------
+## RODADA_RAPIDA = TRUE usa uma cadeia MCMC curta (o `quickmcmc` do JABBA).
+## Serve para DESENVOLVER: você descobre em 1 minuto que um cenário está mal
+## especificado, em vez de em 20. NUNCA reporte resultado de rodada rápida —
+## as caudas das posteriores não estão amostradas direito.
+RODADA_RAPIDA <- FALSE
+
+## MCMC da rodada final. O que cada número significa:
+##   MCMC_NI = iterações TOTAIS por cadeia
+##   MCMC_NB = burn-in: as primeiras iterações, jogadas fora, porque a
+##             cadeia ainda está "andando" da posição inicial até a região
+##             de alta densidade da posterior
+##   MCMC_NT = thinning: guarda 1 a cada NT iterações. Reduz autocorrelação
+##             entre amostras guardadas e o tamanho do objeto
+##   MCMC_NC = número de cadeias independentes. Precisa ser >= 2 para os
+##             diagnósticos de convergência (Gelman-Rubin) fazerem sentido
+## Amostras guardadas = (NI - NB)/NT * NC
+MCMC_NI <- 30000; MCMC_NB <- 5000; MCMC_NT <- 5; MCMC_NC <- 2
+cat(sprintf("MCMC final: %d amostras guardadas por parâmetro\n",
+            (MCMC_NI - MCMC_NB) / MCMC_NT * MCMC_NC))
+
+## Rodar os diagnósticos pesados? Retrospectiva e hindcast reajustam o
+## modelo uma vez por "peel" — multiplica o tempo por ~6. Deixe FALSE
+## enquanto estiver montando os cenários; ligue na rodada final.
+RODAR_DIAGNOSTICO <- TRUE
+RODAR_PROJECAO    <- TRUE
+
+## --- 1.4 utilitários (só se ainda não existirem) ------------------------
+if (!exists("escreve_csv_utf8")) {
+  escreve_csv_utf8 <- function(d, caminho) {
+    esc <- function(x) {
+      x <- ifelse(is.na(x), "", as.character(x))
+      pr <- grepl('[",\r\n]', x, useBytes = TRUE)
+      x[pr] <- paste0('"', gsub('"', '""', x[pr], fixed = TRUE), '"')
+      x
+    }
+    con <- file(caminho, open = "wb"); on.exit(close(con))
+    writeLines(enc2utf8(c(paste(names(d), collapse = ","),
+                          do.call(paste, c(lapply(d, esc), sep = ",")))),
+               con, useBytes = TRUE)
+  }
+}
+if (!exists("COR_MAC")) { COR_MAC <- "#1F4E79"; COR_AUX <- "#C0501B"; COR_NEU <- "#7F7F7F" }
+if (!exists("COR_S2"))  { COR_S2  <- "#2E8B57"; COR_S3  <- "#7030A0"; COR_S2D <- "#00A0B0" }
+if (!exists("AA")) AA <- if (.Platform$OS.type == "windows") "cleartype" else "default"
 
 
+## =========================================================================
+## 2) LEITURA DAS ENTRADAS
+## =========================================================================
+cat("\n===== 2) ENTRADAS =====\n")
 
+le <- function(f) {
+  cam <- file.path(DIR_DADOS, f)
+  if (!file.exists(cam))
+    stop(sprintf("Não achei '%s' em %s.\nRode antes o Catch_and_index_models.R.", f, DIR_DADOS))
+  d <- read.csv(cam, stringsAsFactors = FALSE, encoding = "UTF-8")
+  ## Arquivos salvos pelo Excel costumam vir com BOM (a marca invisível de
+  ## codificação no início do arquivo). O read.csv() a incorpora ao nome da
+  ## PRIMEIRA coluna, que vira "X.U.FEFF.Year" em vez de "Year" — e aí
+  ## qualquer busca por nome de coluna falha, com uma mensagem que não
+  ## sugere BOM nenhum. Limpar aqui resolve para todos os arquivos.
+  names(d) <- sub("^X\\.U\\.FEFF\\.", "", names(d))
+  names(d) <- sub("^﻿", "", names(d))
+  d
+}
+idx_in  <- le("jabba_indices_macarellus.csv")
+cv_in   <- le("jabba_cv_macarellus.csv")
+cap_in  <- le("desembarques_macarellus_1989_2025.csv")
+
+cat(sprintf("índices : %d anos x %d cenários (%s)\n", nrow(idx_in), ncol(idx_in) - 1,
+            paste(setdiff(names(idx_in), "Yr"), collapse = ", ")))
+cat(sprintf("captura : %d anos (%d-%d)\n", nrow(cap_in), min(cap_in$Yr), max(cap_in$Yr)))
+
+## As duas tabelas de índice têm de ser gêmeas — mesmo ano, mesma coluna.
+stopifnot(identical(names(idx_in), names(cv_in)), identical(idx_in$Yr, cv_in$Yr))
+
+## Cobertura de cada cenário de índice. Vale olhar: é isso que decide quais
+## combinações fazem sentido na seção 6.
+cat("\nCobertura de cada cenário de índice:\n")
+for (cn in setdiff(names(idx_in), "Yr")) {
+  ok <- !is.na(idx_in[[cn]])
+  cat(sprintf("  %-28s %2d anos (%d-%d)\n", cn, sum(ok),
+              min(idx_in$Yr[ok]), max(idx_in$Yr[ok])))
+}
+
+
+## =========================================================================
+## 3) A SERIE DE CAPTURA — a decisão mais consequente do script
+## -------------------------------------------------------------------------
+## O JABBA trata a captura como REMOÇÃO TOTAL do estoque. Ele não tem como
+## saber que existe pescaria que você não contou: se metade das remoções
+## fica de fora, o modelo conclui que o estoque aguenta menos do que
+## aguenta, e K, MSY e B/Bmsy saem todos deslocados.
+##
+## >>> PROBLEMA CONHECIDO NESTA SERIE <<<
+## A coluna `Catch_macarellus_t` é a captura da REDE DE CERCO INDUSTRIAL —
+## foi assim que a parte 03 a montou, e com razão, porque o denominador da
+## CPUE tinha de bater com o filtro de arte. Para o índice isso é correto.
+## Para a captura do JABBA é uma escolha diferente, e possivelmente errada:
+##   - a planilha histórica 1989-2014 tem uma coluna "Total" (cerco + linha
+##     de mão) que NAO foi exportada;
+##   - a parte artesanal / outras artes de 2015-2025 não está aqui;
+##   - a própria FAO (a fonte que você usou no CMSY/DBSRA) tem uma série de
+##     desembarques mais abrangente.
+##
+## TRES CAMINHOS, e o script aceita os três:
+##   "cerco"   usa o que está no CSV. Coerente com o índice, mas é UMA arte
+##             de UM segmento. Só é defensável se o cerco industrial for
+##             de fato quase toda a remoção de cavala — o que precisa ser
+##             verificado, não assumido.
+##   "externa" você aponta um CSV com a série total (ex.: a da FAO usada no
+##             CMSY). É o caminho recomendado se a série existir.
+##   "escala"  usa a do cerco multiplicada por um fator fixo, como
+##             aproximação declarada. Último recurso, e tem de ir para o
+##             texto como premissa.
+##
+## Stobberup & Erzini (2006), avaliando esta espécie em Cabo Verde, falavam
+## em captura sustentável da ordem de milhares de toneladas. Se a sua série
+## de cerco somar muito menos que isso, é sinal de que ela NAO representa a
+## remoção total — e a opção "cerco" vai enviesar tudo.
+## =========================================================================
+cat("\n===== 3) SERIE DE CAPTURA =====\n")
+
+## DECISAO REVERTIDA (set/2026): voltamos para "cerco". A série externa
+## (Luz & Vieira / FAO) só cobre até 2015, e o diagnóstico direto da CPUE
+## (log-CPUE contra captura acumulada) mostrou que o problema de ajuste NAO
+## é a série de captura — é que o índice em si não carrega sinal de
+## depleção em nenhum dos dois períodos (tendência positiva pré-2015, ligada
+## a artefatos de esforço; e pós-2015 o índice está confundido com a
+## proporção de cavala na captura da frota, correlação de 0,95). Cortar a
+## janela para 1989-2015 perde 10 anos e não resolve nada. "Cerco" cobre a
+## série toda (1989-2025) e é o que os cenários de comparação (J1-J12)
+## precisam para continuar cobrindo o período inteiro.
+FONTE_CAPTURA  <- c("cerco", "externa", "escala")[1]
+
+## Série externa. "Catch_Luz and Vieira.csv" é a compilação de desembarques
+## totais (a mesma linhagem de dado que alimentou o CMSY e o DBSRA), com
+## colunas "Year" e "Catch". É a opção recomendada, e a razão é específica:
+## o JABBA precisa de REMOÇÃO TOTAL no campo de captura, enquanto o índice
+## pode vir de UMA frota só (ele ganha um q próprio para isso). Captura de
+## todas as artes + índice de uma arte é o arranjo padrão, não um remendo.
+##
+## O QUE ISSO CUSTA, e tem de ir para o texto:
+##   - a avaliação deixa de ser independente do CMSY/DBSRA, porque passa a
+##     compartilhar a entrada de captura com eles;
+##   - é preciso conferir a resolução taxonômica da série (D. macarellus ou
+##     um agregado de Decapterus/Carangidae) e dizer qual é.
+ARQ_CAPT_EXT   <- "Catch_Luz and Vieira.csv"   # se FONTE_CAPTURA = "externa"
+FATOR_ESCALA   <- 1.0                          # se FONTE_CAPTURA = "escala"
+
+## >>> REGRA INEGOCIAVEL DESTE BLOCO <<<
+## A JANELA DO MODELO E A JANELA DA SERIE DE CAPTURA. Nada de estender o
+## modelo para além do último ano com captura observada.
+##
+## Por que isto está escrito em letra grande: a tentação é preencher os anos
+## do fim que a compilação externa não cobre (repetindo o último valor,
+## escalando a série do cerco, o que for) para que as figuras cheguem até
+## 2025. Isso INVENTA exatamente os anos que determinam o status terminal —
+## B/Bmsy e F/Fmsy do ano final saem de números que ninguém mediu — e destrói
+## a comparabilidade entre os cenários, porque cada um passa a ver um
+## pedaço diferente de dado real. Se a captura acaba em 2015, o modelo acaba
+## em 2015, e o que se reporta é o estado em 2015.
+##
+## Buraco NO MEIO da série é outra coisa: ali a interpolação é defensável,
+## porque existe observação dos dois lados ancorando. Ponta não tem âncora
+## de um dos lados; ponta se corta.
+MIN_ANOS_CAPTURA <- 15   # abaixo disso não vale rodar um modelo de produção
+## Definido aqui (não só na seção 6, que é onde é mais usado) porque a
+## seção 5.8 também precisa dele para decidir se a janela curta 2015-2025
+## tem observações suficientes de C5.
+MIN_OBS_INDICE   <- 5
+
+capt <- data.frame(Yr = cap_in$Yr, Catch = cap_in$Catch_macarellus_t)
+
+if (FONTE_CAPTURA == "externa") {
+  ext <- le(ARQ_CAPT_EXT)
+  
+  ## Identificação tolerante das colunas: o arquivo pode vir como
+  ## Year/Catch, Yr/Catch, ano/captura... Falhar aqui com mensagem clara é
+  ## melhor do que seguir com a coluna errada.
+  ca <- names(ext)
+  col_ano  <- ca[tolower(ca) %in% c("year", "yr", "ano", "anos")][1]
+  col_capt <- ca[tolower(ca) %in% c("catch", "captura", "capturas",
+                                    "landings", "desembarque", "desembarques")][1]
+  if (is.na(col_ano) || is.na(col_capt))
+    stop(sprintf("Em '%s' não achei as colunas de ano/captura. Colunas presentes: %s",
+                 ARQ_CAPT_EXT, paste(ca, collapse = ", ")))
+  ext <- data.frame(Yr = as.integer(ext[[col_ano]]),
+                    Catch = as.numeric(ext[[col_capt]]))
+  ext <- ext[!is.na(ext$Yr), ]
+  ext <- ext[order(ext$Yr), ]
+  cat(sprintf("Captura externa: %s | colunas '%s'/'%s' | %d anos (%d-%d)\n",
+              ARQ_CAPT_EXT, col_ano, col_capt, nrow(ext), min(ext$Yr), max(ext$Yr)))
+  
+  ## --- checagem de coerência contra a série do cerco --------------------
+  ## Duas coisas saem daqui, e as duas importam:
+  ##
+  ## (a) A RAZÃO total/cerco mede quanto a série do cerco deixava de fora.
+  ##
+  ## (b) Um ano em que a série "total" fica ABAIXO da série do cerco é
+  ##     LOGICAMENTE IMPOSSIVEL — o cerco é um subconjunto do total. Quando
+  ##     isso aparece, quase sempre é ano de cobertura incompleta da
+  ##     compilação (o caso clássico: os últimos anos, fechados antes de
+  ##     todos os reportes entrarem). Esses anos não podem entrar como se
+  ##     fossem remoção observada: com captura subestimada o modelo conclui
+  ##     que o estoque se recuperou, e o status terminal sai errado para o
+  ##     lado otimista.
+  cerco_ref <- data.frame(Yr = cap_in$Yr, cerco = cap_in$Catch_macarellus_t)
+  com <- merge(cerco_ref, data.frame(Yr = ext$Yr, total = ext$Catch), by = "Yr")
+  com <- com[!is.na(com$cerco) & !is.na(com$total) & com$cerco > 0, ]
+  anos_incoerentes <- integer(0)
+  if (nrow(com)) {
+    com$razao <- com$total / com$cerco
+    cat(sprintf("  razão total/cerco: mediana %.2f (%d anos em comum)\n",
+                median(com$razao), nrow(com)))
+    anos_incoerentes <- com$Yr[com$razao < 1]
+    if (length(anos_incoerentes)) {
+      cat(sprintf("  [INCOERENTE] total < cerco em %d ano(s): %s\n",
+                  length(anos_incoerentes), paste(anos_incoerentes, collapse = ", ")))
+      cat("     O cerco é subconjunto do total, então esses anos estão incompletos\n")
+      cat("     na compilação externa. Serão CORTADOS (ver CORTAR_INCOERENTES).\n")
+    }
+  } else {
+    cat("  [AVISO] nenhum ano em comum com a série do cerco — confira os anos do arquivo.\n")
+  }
+  
+  ## Cortar os anos incoerentes do FIM da série. Só do fim: um ano
+  ## incoerente no meio vira NA e cai na interpolação da seção 3.1, que ali
+  ## é defensável. Ponte-se para FALSE se quiser inspecioná-los antes.
+  CORTAR_INCOERENTES <- TRUE
+  if (CORTAR_INCOERENTES && length(anos_incoerentes)) {
+    ult_bom <- max(setdiff(ext$Yr, anos_incoerentes))
+    ## só corta a cauda: anos incoerentes que estejam depois do último ano bom
+    if (any(anos_incoerentes > ult_bom)) {
+      cat(sprintf("  -> cauda cortada: série externa passa a terminar em %d\n", ult_bom))
+      ext <- ext[ext$Yr <= ult_bom, ]
+    }
+    ainda <- intersect(anos_incoerentes, ext$Yr)
+    if (length(ainda)) {
+      cat(sprintf("  -> %d ano(s) incoerente(s) NO MEIO viram NA (serão interpolados): %s\n",
+                  length(ainda), paste(ainda, collapse = ", ")))
+      ext$Catch[ext$Yr %in% ainda] <- NA
+    }
+  }
+  
+  ## --- a janela do modelo passa a ser a da captura -----------------------
+  ## Aqui é onde a regra do topo do bloco é aplicada. Nada de união com a
+  ## janela antiga, nada de preencher o que vem depois do último ano
+  ## observado: corta-se e pronto.
+  obs_ext  <- ext$Yr[!is.na(ext$Catch)]
+  anos_mod <- seq(min(obs_ext), max(obs_ext))
+  capt <- data.frame(Yr = anos_mod, Catch = ext$Catch[match(anos_mod, ext$Yr)])
+  cat(sprintf("  >>> JANELA DO MODELO = %d-%d (era %d-%d com a série do cerco)\n",
+              min(anos_mod), max(anos_mod), min(cap_in$Yr), max(cap_in$Yr)))
+  cat(sprintf("      tudo daqui para a frente — índices, tabelas, figuras — fica\n"))
+  cat(sprintf("      cortado nessa janela. Não há status para depois de %d.\n",
+              max(anos_mod)))
+  if (length(anos_mod) < MIN_ANOS_CAPTURA)
+    stop(sprintf("Só %d anos de captura (mínimo %d). Série curta demais para um modelo de produção.",
+                 length(anos_mod), MIN_ANOS_CAPTURA))
+  
+} else if (FONTE_CAPTURA == "escala") {
+  capt$Catch <- capt$Catch * FATOR_ESCALA
+  cat(sprintf("Captura do cerco multiplicada por %.2f (PREMISSA — declarar no texto)\n",
+              FATOR_ESCALA))
+} else {
+  cat("Captura = rede de cerco industrial (ver a ressalva acima)\n")
+}
+
+## --- 3.1 o JABBA exige captura em TODO ano do modelo -------------------
+## Diferente do índice, que pode ter buracos (o JABBA simplesmente pula os
+## anos sem observação), a captura entra na equação de biomassa de todo ano.
+## Um NA ali quebra o balanço de massa daquele ano e o JAGS não roda.
+## PONTA SE CORTA, MEIO SE INTERPOLA. Se sobrou NA no começo ou no fim,
+## a janela encolhe até o primeiro/último ano observado — em nenhuma
+## hipótese o script extrapola captura para fora do que foi medido.
+falta <- is.na(capt$Catch)
+if (all(falta)) stop("Nenhum ano com captura observada.")
+if (any(falta)) {
+  obs <- which(!falta)
+  if (min(obs) > 1 || max(obs) < nrow(capt)) {
+    cortados <- c(capt$Yr[seq_len(min(obs) - 1)],
+                  if (max(obs) < nrow(capt)) capt$Yr[(max(obs) + 1):nrow(capt)])
+    cat(sprintf("Sem captura nas pontas -> janela encolhida para %d-%d (fora: %s)\n",
+                capt$Yr[min(obs)], capt$Yr[max(obs)], paste(cortados, collapse = ", ")))
+    capt  <- capt[min(obs):max(obs), , drop = FALSE]
+    falta <- is.na(capt$Catch)
+  }
+  ## O que restou é buraco interno: tem observação dos dois lados, então a
+  ## interpolação linear tem âncora. Continua sendo dado inventado e tem de
+  ## constar no texto, mas é uma invenção com suporte dos dois lados.
+  if (any(falta)) {
+    cat(sprintf("Buraco(s) no MEIO da série: %s\n",
+                paste(capt$Yr[falta], collapse = ", ")))
+    capt$Catch <- approx(capt$Yr[!falta], capt$Catch[!falta], xout = capt$Yr)$y
+    cat("  -> interpolados linearmente entre os vizinhos (declarar no texto)\n")
+  }
+  if (length(capt$Yr) < MIN_ANOS_CAPTURA)
+    stop(sprintf("Restaram %d anos de captura (mínimo %d).",
+                 length(capt$Yr), MIN_ANOS_CAPTURA))
+}
+## Anos com captura sabidamente frágil, herdados da parte 03.
+if ("confiavel" %in% names(cap_in)) {
+  frag <- cap_in$Yr[!as.logical(cap_in$confiavel)]
+  if (length(frag))
+    cat(sprintf("Anos de captura marcados frágeis na parte 03 (entram assim mesmo): %s\n",
+                paste(frag, collapse = ", ")))
+}
+
+ANOS <- capt$Yr
+cat(sprintf("\nSérie final: %d-%d | captura média %.1f t | máxima %.1f t (%d) | total %.0f t\n",
+            min(ANOS), max(ANOS), mean(capt$Catch), max(capt$Catch),
+            capt$Yr[which.max(capt$Catch)], sum(capt$Catch)))
+
+
+## =========================================================================
+## 4) INDICES E ERRO — a matriz que o JABBA espera
+## -------------------------------------------------------------------------
+## Formato exigido: data.frame(ano, indice1, indice2, ...) com a MESMA
+## sequência de anos da captura. Anos sem observação ficam NA.
+##
+## CV versus SE: o argumento `se` do JABBA quer o ERRO-PADRAO NA ESCALA LOG,
+## não o CV. A parte 03 guardou CV, calculado como cv = sqrt(exp(se^2)-1).
+## A volta exata é se = sqrt(log(1 + cv^2)). Para CV pequeno os dois quase
+## coincidem (CV 0,2 -> se 0,198), mas passar CV como se fosse SE infla o
+## erro assumido nos pontos mais incertos, e é justamente ali que o
+## deslocamento pesa. Fazemos a conversão explícita.
+## =========================================================================
+cat("\n===== 4) INDICES E ERRO =====\n")
+cv_para_se <- function(cv) sqrt(log(1 + cv^2))
+
+## Alinha as tabelas de índice ao calendário da captura (janela completa,
+## usada pela maioria dos cenários).
+lin <- match(ANOS, idx_in$Yr)
+idx_al <- idx_in[lin, , drop = FALSE]; idx_al$Yr <- ANOS
+cv_al  <- cv_in[lin,  , drop = FALSE]; cv_al$Yr  <- ANOS
+
+cat(sprintf("CV -> SE(log): CV 0,20 vira SE %.3f | CV 0,45 vira SE %.3f\n",
+            cv_para_se(0.20), cv_para_se(0.45)))
+
+## Monta o par (cpue, se) de um conjunto de colunas de cenário. `rotulos`
+## são os nomes que vão aparecer nas figuras do JABBA. `anos` default é a
+## janela completa do modelo, mas um cenário pode pedir uma janela mais
+## curta (ver `janela_ini` na grade da seção 6, usado pelos cenários
+## J13-J17 isolados em 2015-2025) — por isso a função realinha direto de
+## idx_in/cv_in em vez de usar idx_al/cv_al, que são fixos na janela cheia.
+monta_indices <- function(colunas, rotulos = colunas, anos = ANOS) {
+  lin_i <- match(anos, idx_in$Yr)
+  cp <- data.frame(Yr = anos)
+  sd <- data.frame(Yr = anos)
+  for (k in seq_along(colunas)) {
+    cp[[rotulos[k]]] <- idx_in[[colunas[k]]][lin_i]
+    sd[[rotulos[k]]] <- cv_para_se(cv_in[[colunas[k]]][lin_i])
+  }
+  list(cpue = cp, se = sd)
+}
+
+
+## =========================================================================
+## 5) PRIORS — de onde vem cada número
+## -------------------------------------------------------------------------
+## Num modelo de produção com dados escassos, o prior não é detalhe técnico:
+## é metade do resultado. Cada um abaixo vem com a sua origem.
+## =========================================================================
+cat("\n===== 5) PRIORS =====\n")
+
+## --- 5.1 r: taxa intrínseca de crescimento populacional ----------------
+## `r.dist = "range"` faz o JABBA converter um intervalo (mín, máx) numa
+## lognormal. `"lnorm"` esperaria (média, CV).
+##
+## ORIGEM DO INTERVALO: o FishBase classifica D. macarellus como resiliência
+## MEDIA (tempo mínimo de duplicação populacional de 1,4 a 4,4 anos;
+## K = 0,28-0,8; tm = 1-2). Na tabela de Froese et al. (2017), usada pelo
+## CMSY, resiliência média corresponde a r entre 0,2 e 0,8.
+##
+## >>> VOCE JA RODOU CMSY NESTE ESTOQUE. Se tem a posterior de r de lá, ela
+## é um prior MUITO melhor do que a faixa genérica: troque por
+## r.dist = "lnorm" e r.prior = c(mediana, CV). Só não use a posterior do
+## CMSY e depois apresente as duas avaliações como independentes — elas
+## deixam de ser.
+R_DIST  <- "range"
+R_PRIOR <- c(0.20, 0.80)
+
+## --- 5.2 K: biomassa não explorada (B0) --------------------------------
+## Raciocínio para uma faixa defensável, em vez de um chute:
+## no equilíbrio de Schaefer, MSY = r*K/4, logo K = 4*MSY/r. Se a pescaria
+## andou em torno do MSY, MSY é da ordem da captura média. Com r na faixa
+## acima, K cai entre 4*Cmed/0,8 e 4*Cmed/0,2 — ou seja, de 5 a 20 vezes a
+## captura média. Abrimos bem em volta disso para não amarrar o modelo.
+C_MED  <- mean(capt$Catch)
+K_PLAUS <- c(4 * C_MED / R_PRIOR[2], 4 * C_MED / R_PRIOR[1])
+K_DIST  <- "range"
+K_PRIOR <- c(max(capt$Catch), 60 * C_MED)
+cat(sprintf("Captura média %.1f t -> K plausível por MSY=rK/4: %.0f a %.0f t\n",
+            C_MED, K_PLAUS[1], K_PLAUS[2]))
+cat(sprintf("Prior de K adotado (bem mais largo): %.0f a %.0f t\n", K_PRIOR[1], K_PRIOR[2]))
+
+## --- 5.2b sensibilidade ao prior de K -----------------------------------
+## Por que isto entrou: na primeira rodada, TODOS os oito posteriores de K
+## caíram entre 0,74x e 1,28x da mediana do prior. Quando o posterior é o
+## prior de volta, e MSY = rK/4, o status que sai é o prior — não o dado.
+## O prior de r já tinha os seus dois cenários de sensibilidade (J7/J8); o
+## de K não tinha nenhum, e é ele que decide se as capturas históricas
+## ficaram acima ou abaixo do MSY.
+##
+## A faixa base tem mediana em torno de 12x a captura média. Os dois
+## cenários abaixo ficam a cerca de 3x para baixo e 3x para cima disso, que
+## é o mesmo espaçamento (em escala log) do par J7/J8 para r.
+##
+## O PISO NÃO É NEGOCIÁVEL: K menor que a maior captura de um único ano é
+## fisicamente impossível — o estoque teria sido removido inteiro naquele
+## ano. Por isso todo limite inferior passa por max(capt$Catch).
+## Extraída como função porque a seção 5.8 repete exatamente este raciocínio
+## para a janela curta (2015-2025, cenários J13-J17): o piso físico e o
+## espaçamento log-simétrico baixo/alto valem para qualquer sub-período,
+## só muda a captura média que ancora a escala.
+deriva_k_priors <- function(catch_vec) {
+  c_med <- mean(catch_vec)
+  piso  <- max(catch_vec)
+  list(c_med = c_med, piso = piso,
+       base  = c(piso, 60 * c_med),
+       baixo = c(piso, max(8 * c_med, piso * 4)),
+       alto  = c(max(20 * c_med, piso * 2), 100 * c_med))
+}
+K_PISO <- max(capt$Catch)
+K_PRIOR_BAIXO <- c(K_PISO, max(8 * C_MED, K_PISO * 4))
+K_PRIOR_ALTO  <- c(max(20 * C_MED, K_PISO * 2), 100 * C_MED)
+.gm <- function(v) sqrt(v[1] * v[2])   # o JABBA converte "range" usando a média geométrica
+cat(sprintf("Priors de K para sensibilidade (mediana implícita entre parênteses):\n"))
+cat(sprintf("  baixo: %.0f-%.0f t (%.0f) | base: %.0f-%.0f t (%.0f) | alto: %.0f-%.0f t (%.0f)\n",
+            K_PRIOR_BAIXO[1], K_PRIOR_BAIXO[2], .gm(K_PRIOR_BAIXO),
+            K_PRIOR[1], K_PRIOR[2], .gm(K_PRIOR),
+            K_PRIOR_ALTO[1], K_PRIOR_ALTO[2], .gm(K_PRIOR_ALTO)))
+cat(sprintf("  MSY implícito em cada um (Schaefer, r = %.2f): %.0f | %.0f | %.0f t/ano\n",
+            .gm(R_PRIOR), .gm(R_PRIOR) * .gm(K_PRIOR_BAIXO) / 4,
+            .gm(R_PRIOR) * .gm(K_PRIOR) / 4, .gm(R_PRIOR) * .gm(K_PRIOR_ALTO) / 4))
+cat(sprintf("  (compare com a captura média de %.0f t/ano: é isso que separa\n", C_MED))
+cat("   'a pescaria histórica esteve acima do MSY' de 'nunca chegou perto')\n")
+
+## --- 5.3 psi: depleção inicial B[1]/K ----------------------------------
+## Quão explorado já estava o estoque no primeiro ano da série (1989)?
+## psi = 1 significa virgem. A pescaria industrial de cerco em Cabo Verde
+## já operava antes de 1989, mas a série histórica não sugere um estoque
+## colapsado no início. 0,9 com CV 0,25 é um prior frouxo em torno de
+## "pouco explorado" — e é o default do JABBA.
+## ESTE PRIOR IMPORTA MUITO quando a série de índice não cobre o início,
+## que é exatamente o nosso caso nos cenários que só usam C4/C5.
+PSI_DIST  <- "lnorm"
+PSI_PRIOR <- c(0.90, 0.25)
+
+## --- 5.4 erro de processo ----------------------------------------------
+## O erro de processo é a variação da biomassa que a curva de produção não
+## explica (recrutamento variável, ambiente). `igamma = c(4, 0.01)` é uma
+## inversa-gama fracamente informativa — o default do JABBA. Vale conferir
+## o que ela implica antes de aceitar:
+IGAMMA <- c(4, 0.01)
+set.seed(1); .g <- 1 / rgamma(10000, IGAMMA[1], IGAMMA[2])
+cat(sprintf("Prior de erro de processo: sigma médio %.3f (CV %.2f), faixa 10-90%%: %.3f-%.3f\n",
+            sqrt(mean(.g)), sd(sqrt(.g)) / mean(sqrt(.g)),
+            quantile(sqrt(.g), 0.1), quantile(sqrt(.g), 0.9)))
+
+## --- 5.5 erro de observação --------------------------------------------
+## Erro total de observação = sqrt(SE^2 + sigma.est^2 + fixed.obsE^2).
+## Como passamos SE de verdade, `fixed.obsE` fica pequeno — ele existe para
+## o caso de não haver SE nenhum. `sigma.est = TRUE` deixa o modelo estimar
+## variância adicional por índice, o que é o certo quando se desconfia que
+## o SE da padronização subestima o erro real (e aqui subestima: ele não
+## contém a incerteza da tática inferida).
+FIXED_OBSE <- 0.01
+SIGMA_EST  <- TRUE
+
+## --- 5.6 erro na captura ------------------------------------------------
+## `add.catch.CV = TRUE` deixa o modelo tratar a captura como observada com
+## erro em vez de conhecida exatamente. Aqui isso é quase obrigatório: a
+## série emenda duas fontes (agregada até 2014, viagem a viagem depois),
+## tem um ano traduzido de outro formato (2018) e um ano sem esforço (2013).
+## 0,2 é deliberadamente maior que o default de 0,1.
+CATCH_CV <- 0.2
+
+## --- 5.8 janela curta 2015-2025: priors dedicados para o C5 isolado -----
+## Pedido explícito: testar o índice padronizado (C5) sozinho, isolado no
+## período em que ele existe, SEM a âncora da série histórica — e variar r
+## e K nele do mesmo jeito que já se faz no caso base (J7/J8, J10/J11).
+## Dois ajustes são obrigatórios em relação ao caso base, e os dois mudam o
+## que esses cenários conseguem responder:
+##
+##   (1) K: refeito com deriva_k_priors() usando a captura média DE
+##       2015-2025, não a da série toda — a frota mudou de alvo, a captura
+##       média do período recente é bem menor, e ancorar K num C_MED da
+##       série inteira (1989-2025) puxaria o prior para uma escala que este
+##       recorte de dados não tem como sustentar.
+##
+##   (2) psi (B[1989... ou aqui B[2015]/K): o prior base (0,90, CV 0,25)
+##       assume estoque pouco explorado NO PRIMEIRO ANO DO MODELO — razoável
+##       para 1989 (início da série), mas FALSO por construção para 2015: a
+##       pescaria de cerco já operava havia 26 anos. Não sabemos se em 2015
+##       o estoque estava perto do virgem, já bem reduzido, ou em algum
+##       ponto no meio — é exatamente essa ignorância que o prior tem de
+##       carregar. Por isso PSI_PRIOR_CURTO é deliberadamente vago (média
+##       0,5, CV alto), em vez de reciclar o prior de 1989.
+##
+## CONSEQUENCIA PARA A LEITURA DOS RESULTADOS: J13-J17 não têm como dar um
+## status absoluto do estoque — eles respondem só "dado que a depleção em
+## 2015 era X (desconhecido, por isso o prior largo), o que os últimos 10
+## anos de C5 mudam nisso, e o quanto r/K pesam nessa conta". Não são
+## comparáveis por DIC nem pelo painel de status aos cenários J1-J12 (janela
+## e prior de psi diferentes) — servem para a pergunta específica que foi
+## feita: o problema do ajuste é do período recente sozinho, ou é geral?
+ANO_CURTO_INICIO  <- 2015   # primeiro ano com C5 (padronizada com tática)
+capt_curto        <- capt[capt$Yr >= ANO_CURTO_INICIO, ]
+CURTO_VIAVEL       <- nrow(capt_curto) >= MIN_OBS_INDICE
+
+if (CURTO_VIAVEL) {
+  kp_curto <- deriva_k_priors(capt_curto$Catch)
+  PSI_PRIOR_CURTO <- c(0.5, 0.6)   # vago de propósito — ver comentário acima
+  cat(sprintf("\nJanela curta viável: %d-%d (%d anos, captura média %.1f t)\n",
+              min(capt_curto$Yr), max(capt_curto$Yr), nrow(capt_curto), kp_curto$c_med))
+  cat(sprintf("  K (base/baixo/alto) para a janela curta: %.0f-%.0f | %.0f-%.0f | %.0f-%.0f t\n",
+              kp_curto$base[1], kp_curto$base[2], kp_curto$baixo[1], kp_curto$baixo[2],
+              kp_curto$alto[1], kp_curto$alto[2]))
+  cat(sprintf("  psi vago adotado: media %.2f, CV %.2f (NAO é o prior de 1989 reciclado)\n",
+              PSI_PRIOR_CURTO[1], PSI_PRIOR_CURTO[2]))
+} else {
+  cat(sprintf("\n[AVISO] Janela curta 2015-2025 inviável nesta rodada (%d anos < mínimo de %d) —\n",
+              nrow(capt_curto), MIN_OBS_INDICE))
+  cat("        cenários J13-J17 não serão criados.\n")
+}
+
+
+## =========================================================================
+## 6) A GRADE DE CENARIOS
+## -------------------------------------------------------------------------
+## Cada linha é uma rodada do JABBA. O que muda entre elas:
+##
+##   QUAIS INDICES ENTRAM. Este é o ponto central, e vale entender por quê:
+##   C2 (nominal até 2014) e C3/C4/C5 (2015-2025) são períodos com
+##   CAPTURABILIDADE DIFERENTE — antes de 2015 a cavala era alvo, depois
+##   virou acompanhante. Pôr os dois num índice só (que é o que C1 faz)
+##   obriga o modelo a assumir um q constante atravessando justamente a
+##   quebra que sabemos existir. Pôr os dois como índices SEPARADOS deixa o
+##   JABBA estimar um q para cada um — é assim que se acomoda a mudança de
+##   alvo sem jogar fora a série histórica.
+##
+##   O PREÇO: C2 termina em 2014 e C5 começa em 2015, sem nenhum ano em
+##   comum. Índices que nunca se sobrepõem não têm como se calibrar
+##   mutuamente — quem liga os dois períodos é a série de CAPTURA e a
+##   dinâmica de produção. O modelo funciona, mas os priors de r e K pesam
+##   mais. Some isso ao achado de Stobberup & Erzini (2006) de que a
+##   posterior de r ficava igual à prior e fica claro por que a
+##   sensibilidade de prior (J6/J7) não é enfeite.
+##
+##   A FORMA DA CURVA DE PRODUCAO (`model.type`):
+##     Schaefer  parábola simétrica, Bmsy = K/2. O clássico.
+##     Fox       Bmsy = 0,37*K — produção máxima em biomassa mais baixa,
+##               costuma ser mais adequado a pelágicos pequenos produtivos.
+##     Pella     Pella-Tomlinson com o ponto de inflexão FIXO em `BmsyK`.
+##     Pella_m   idem, mas estimando a forma com prior CV = `shape.CV`.
+## =========================================================================
+cat("\n===== 6) CENARIOS =====\n")
+
+## Edite esta grade à vontade: o resto do script é dirigido por ela.
+## `indices` é uma string com as colunas separadas por "+".
+cenarios <- data.frame(
+  id      = c("J1_C1_ingenuo", "J2_C2C3_nominal", "J3_BASE_C2C5",
+              "J4_C2C4_semTat", "J5_soC5_curto", "J6_BASE_Fox",
+              "J7_BASE_rBaixo", "J8_BASE_rAlto",
+              "J9_soC3_curto", "J10_BASE_kBaixo", "J11_BASE_kAlto",
+              "J12_soC2_historico", "J18_BASE_C2C6"),
+  indices = c("C1_nominal_total",
+              "C2_nominal_pre_alvo+C3_nominal_pos_alvo",
+              "C2_nominal_pre_alvo+C5_padronizada_com_tatica",
+              "C2_nominal_pre_alvo+C4_padronizada_sem_tatica",
+              "C5_padronizada_com_tatica",
+              "C2_nominal_pre_alvo+C5_padronizada_com_tatica",
+              "C2_nominal_pre_alvo+C5_padronizada_com_tatica",
+              "C2_nominal_pre_alvo+C5_padronizada_com_tatica",
+              "C3_nominal_pos_alvo",
+              "C2_nominal_pre_alvo+C5_padronizada_com_tatica",
+              "C2_nominal_pre_alvo+C5_padronizada_com_tatica",
+              "C2_nominal_pre_alvo",
+              "C2_nominal_pre_alvo+C6_nominal_dirigida"),
+  modelo  = c("Schaefer", "Schaefer", "Schaefer", "Schaefer",
+              "Schaefer", "Fox", "Schaefer", "Schaefer",
+              "Schaefer", "Schaefer", "Schaefer", "Schaefer", "Schaefer"),
+  r_min   = c(0.20, 0.20, 0.20, 0.20, 0.20, 0.20, 0.10, 0.40,
+              0.20, 0.20, 0.20, 0.20, 0.20),
+  r_max   = c(0.80, 0.80, 0.80, 0.80, 0.80, 0.80, 0.50, 1.20,
+              0.80, 0.80, 0.80, 0.80, 0.80),
+  ## K por cenário: NA significa "usa o prior base K_PRIOR". Só os dois
+  ## cenários de sensibilidade de K preenchem isto.
+  k_min   = c(NA, NA, NA, NA, NA, NA, NA, NA,
+              NA, K_PRIOR_BAIXO[1], K_PRIOR_ALTO[1], NA, NA),
+  k_max   = c(NA, NA, NA, NA, NA, NA, NA, NA,
+              NA, K_PRIOR_BAIXO[2], K_PRIOR_ALTO[2], NA, NA),
+  ## janela_ini / psi_mu / psi_cv: NA em todos os cenários J1-J12/J18 (usam
+  ## a janela completa e o PSI_PRIOR de 1989). Só os cenários J13-J17/J19
+  ## (seção 5.8, anexados abaixo) preenchem isto.
+  janela_ini = NA_real_,
+  psi_mu     = NA_real_,
+  psi_cv     = NA_real_,
+  papel   = c("MODELO NULO do teste de capturabilidade: um q só atravessando a troca de alvo",
+              "nominal honesto: q separado por período",
+              "CASO BASE: nominal antes + padronizada com tática depois",
+              "REDUNDANTE com J3 (C4 x C5 correlacionam 0,994) — ver 6.2",
+              "índice recente sozinho, mas ainda ancorado na captura histórica",
+              "sensibilidade: forma da curva de produção (Fox)",
+              "sensibilidade: prior de r mais baixo (menos produtivo)",
+              "sensibilidade: prior de r mais alto (mais produtivo)",
+              "diagnóstico: só o índice NOMINAL recente (par do J5)",
+              "sensibilidade: prior de K mais baixo (estoque menor)",
+              "sensibilidade: prior de K mais alto (estoque maior)",
+              "CASO BASE da janela histórica: só C2, frota e alvo estáveis",
+              "sensibilidade: troca C5 (padronizada) por C6 (nominal, so esforco dirigido) no caso base"),
+  ## ATIVO: cenário desligado continua DOCUMENTADO na planilha do racional
+  ## (seção 6.2) — não some do registro, só não gasta uma rodada de MCMC.
+  ## Para religar, basta trocar para TRUE aqui.
+  ativo   = c(TRUE, TRUE, TRUE,
+              FALSE,                       # J4 — ver motivo abaixo
+              TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, TRUE),
+  stringsAsFactors = FALSE)
+cenarios$k_min[is.na(cenarios$k_min)] <- K_PRIOR[1]
+cenarios$k_max[is.na(cenarios$k_max)] <- K_PRIOR[2]
+
+## --- 6.1 anexa os cenários da janela curta (2015-2025), se viável -------
+## Mesma lógica de J7/J8 (r) e J10/J11 (K), só que aplicada a um índice
+## isolado na janela curta em vez de ao caso base na janela completa. Ver
+## seção 5.8 para a justificativa de psi vago e de K reancorado na
+## captura recente. J19 é o par de J13 com C6 (nominal esforço dirigido)
+## no lugar de C5 (padronizada) — mesmo tratamento de janela/psi/K, só
+## muda o índice, para isolar o efeito de TROCAR o índice do efeito de
+## ANCORAR (ou não) no histórico, do mesmo jeito que o quadrado J2/J9/J3/J5
+## já faz para C3/C5.
+if (CURTO_VIAVEL) {
+  cenarios_curto <- data.frame(
+    id      = c("J13_C5curto_base", "J14_C5curto_rBaixo", "J15_C5curto_rAlto",
+                "J16_C5curto_kBaixo", "J17_C5curto_kAlto", "J19_C6curto_base"),
+    indices = c(rep("C5_padronizada_com_tatica", 5), "C6_nominal_dirigida"),
+    modelo  = "Schaefer",
+    r_min   = c(R_PRIOR[1], 0.10, 0.40, R_PRIOR[1], R_PRIOR[1], R_PRIOR[1]),
+    r_max   = c(R_PRIOR[2], 0.50, 1.20, R_PRIOR[2], R_PRIOR[2], R_PRIOR[2]),
+    k_min   = c(kp_curto$base[1], kp_curto$base[1], kp_curto$base[1],
+                kp_curto$baixo[1], kp_curto$alto[1], kp_curto$base[1]),
+    k_max   = c(kp_curto$base[2], kp_curto$base[2], kp_curto$base[2],
+                kp_curto$baixo[2], kp_curto$alto[2], kp_curto$base[2]),
+    janela_ini = ANO_CURTO_INICIO,
+    psi_mu     = PSI_PRIOR_CURTO[1],
+    psi_cv     = PSI_PRIOR_CURTO[2],
+    papel   = c("JANELA CURTA 2015-2025: só C5, sem âncora na série histórica",
+                "janela curta: prior de r mais baixo",
+                "janela curta: prior de r mais alto",
+                "janela curta: prior de K mais baixo (ancorado na captura 2015-2025)",
+                "janela curta: prior de K mais alto (ancorado na captura 2015-2025)",
+                "JANELA CURTA 2015-2025: par do J13 trocando C5 por C6 (esforco dirigido)"),
+    ativo   = TRUE,
+    stringsAsFactors = FALSE)
+  cenarios <- rbind(cenarios, cenarios_curto)
+}
+
+## --- 6.2 a planilha do racional dos cenários ----------------------------
+## Esta tabela é um PRODUTO, não um log: é ela que um revisor lê para
+## entender por que a grade tem o tamanho que tem e o que cada rodada está
+## respondendo. Sai em CSV e em XLSX, antes de qualquer ajuste (para
+## existir mesmo se a rodada morrer no meio) e de novo na seção 8, aí já
+## com os resultados de cada cenário ao lado do racional.
+##
+## A COLUNA `contraste` É A MAIS IMPORTANTE: cenário de avaliação não tem
+## significado sozinho, só contra outro. É ela que diz com quem cada linha
+## deve ser lida em par — e é o que evita a leitura errada mais comum, que
+## é tratar um cenário isolado como "o resultado".
+doc_pergunta <- c(
+  J1_C1_ingenuo      = "A capturabilidade mudou na troca de alvo de 2015? J1 e o modelo NULO: um unico q atravessando a quebra.",
+  J2_C2C3_nominal    = "O que a CPUE NOMINAL diz quando se admite a quebra de capturabilidade (um q por periodo)?",
+  J3_BASE_C2C5       = "CASO BASE: nominal no periodo em que a cavala era alvo + padronizada no periodo recente, um q para cada.",
+  J4_C2C4_semTat     = "A covariavel de tatica na padronizacao muda a avaliacao?",
+  J5_soC5_curto      = "O indice recente padronizado sozinho, mas com toda a serie de CAPTURA 1989-2025 ainda ancorando a dinamica.",
+  J6_BASE_Fox        = "A conclusao depende da forma da curva de producao (Fox: Bmsy/K = 0,37 em vez de 0,5)?",
+  J7_BASE_rBaixo     = "O resultado vem do dado ou da prior de r? Lado menos produtivo.",
+  J8_BASE_rAlto      = "O resultado vem do dado ou da prior de r? Lado mais produtivo.",
+  J9_soC3_curto      = "O indice recente NOMINAL sozinho, com a captura historica ancorando a dinamica.",
+  J10_BASE_kBaixo    = "O resultado vem do dado ou da prior de K? Estoque menor.",
+  J11_BASE_kAlto     = "O resultado vem do dado ou da prior de K? Estoque maior.",
+  J12_soC2_historico = "So o periodo em que a cavala era alvo: o que a serie historica diz sozinha?",
+  J18_BASE_C2C6      = "Corrigir o direcionamento por SUBSETTING (C6, so esforco da tatica-cavala) em vez de por PADRONIZACAO (C5) muda a conclusao?",
+  J13_C5curto_base   = "Sem nenhuma ancora historica (nem indice nem captura): o que os 10 anos recentes dizem sozinhos?",
+  J14_C5curto_rBaixo = "Na janela curta, o resultado vem do dado ou da prior de r? Lado menos produtivo.",
+  J15_C5curto_rAlto  = "Na janela curta, o resultado vem do dado ou da prior de r? Lado mais produtivo.",
+  J16_C5curto_kBaixo = "Na janela curta, o resultado vem do dado ou da prior de K? Estoque menor.",
+  J17_C5curto_kAlto  = "Na janela curta, o resultado vem do dado ou da prior de K? Estoque maior.",
+  J19_C6curto_base   = "Na janela curta, trocar o indice padronizado (C5) pelo nominal dirigido (C6) muda a conclusao?")
+
+doc_contraste <- c(
+  J1_C1_ingenuo      = "J2. J1 usa OS MESMOS 35 pontos de indice que J2 (C1 e C2 e C3 renormalizados: razao constante, conferida) e esta ANINHADO nele — J2 = J1 + 1 q + 1 variancia. E a UNICA comparacao de DIC formalmente valida da grade.",
+  J2_C2C3_nominal    = "J1 (um q so) e J3 (mesma estrutura, indice recente padronizado).",
+  J3_BASE_C2C5       = "J2 (recente nominal), J18 (recente dirigido), J6 (forma da curva), J7/J8 e J10/J11 (priors).",
+  J4_C2C4_semTat     = "J3. DESLIGADO por redundancia: C4 e C5 correlacionam 0,994 (r em log 0,987) e a propria parte 03 ja imprime esse numero. Rodar os dois no JABBA repete um resultado que a correlacao entre indices ja da, e da de forma mais limpa.",
+  J5_soC5_curto      = "J3 (com indice historico) e J13 (mesmo indice, sem ancora nenhuma). O par J5 x J13 separa o efeito de perder o INDICE historico do de perder a CAPTURA historica.",
+  J6_BASE_Fox        = "J3 (Schaefer, mesmos dados) — comparacao de DIC valida.",
+  J7_BASE_rBaixo     = "J3 e J8. Se a posterior de r seguir a prior nos tres, r nao foi estimado (ver secao 12).",
+  J8_BASE_rAlto      = "J3 e J7.",
+  J9_soC3_curto      = "J2 (mesmo indice, com o historico) e J5 (mesma posicao, indice padronizado). Fecha o quadrado J2/J9/J3/J5.",
+  J10_BASE_kBaixo    = "J3 e J11.",
+  J11_BASE_kAlto     = "J3 e J10.",
+  J12_soC2_historico = "J9/J5/J13 — e o polo OPOSTO do contraste de ancora: so o periodo antigo contra so o periodo recente.",
+  J18_BASE_C2C6      = "J3 (padronizacao) e J19 (mesmo indice C6, sem ancora).",
+  J13_C5curto_base   = "J5 (mesmo indice, com a captura historica) e J19 (mesma janela, indice C6).",
+  J14_C5curto_rBaixo = "J13 e J15.",
+  J15_C5curto_rAlto  = "J13 e J14.",
+  J16_C5curto_kBaixo = "J13 e J17.",
+  J17_C5curto_kAlto  = "J13 e J16.",
+  J19_C6curto_base   = "J13 (mesma janela, indice padronizado) e J18 (mesmo indice, com ancora historica).")
+
+doc_familia <- c(rep("janela completa 1989-2025", 13), rep("janela curta 2015-2025", 6))
+names(doc_familia) <- c("J1_C1_ingenuo","J2_C2C3_nominal","J3_BASE_C2C5","J4_C2C4_semTat",
+                        "J5_soC5_curto","J6_BASE_Fox","J7_BASE_rBaixo","J8_BASE_rAlto",
+                        "J9_soC3_curto","J10_BASE_kBaixo","J11_BASE_kAlto","J12_soC2_historico",
+                        "J18_BASE_C2C6","J13_C5curto_base","J14_C5curto_rBaixo",
+                        "J15_C5curto_rAlto","J16_C5curto_kBaixo","J17_C5curto_kAlto",
+                        "J19_C6curto_base")
+
+## `cenarios_todos` guarda a grade INTEIRA (inclusive o que está desligado),
+## porque a planilha do racional tem de registrar também o que ficou de fora
+## e por quê — essa é metade da justificativa do desenho.
+cenarios_todos <- cenarios
+monta_doc <- function(g) {
+  data.frame(
+    id        = g$id,
+    familia   = ifelse(g$id %in% names(doc_familia), doc_familia[g$id], NA),
+    ativo     = g$ativo,
+    pergunta  = ifelse(g$id %in% names(doc_pergunta),  doc_pergunta[g$id],  NA),
+    contraste = ifelse(g$id %in% names(doc_contraste), doc_contraste[g$id], NA),
+    papel     = g$papel,
+    indices   = g$indices,
+    janela    = ifelse(is.na(g$janela_ini), sprintf("%d-%d", min(ANOS), max(ANOS)),
+                       sprintf("%d-%d", g$janela_ini, max(ANOS))),
+    curva     = g$modelo,
+    prior_r   = sprintf("range [%.2f, %.2f] (mediana %.2f)", g$r_min, g$r_max,
+                        sqrt(g$r_min * g$r_max)),
+    prior_K   = sprintf("range [%.0f, %.0f] t (mediana %.0f)", g$k_min, g$k_max,
+                        sqrt(g$k_min * g$k_max)),
+    prior_psi = ifelse(is.na(g$psi_mu),
+                       sprintf("lnorm(%.2f, CV %.2f) - estoque pouco explorado em %d",
+                               PSI_PRIOR[1], PSI_PRIOR[2], min(ANOS)),
+                       sprintf("lnorm(%.2f, CV %.2f) - VAGO: nao se sabe a depleção em %d",
+                               g$psi_mu, g$psi_cv, ifelse(is.na(g$janela_ini), min(ANOS), g$janela_ini))),
+    row.names = NULL, stringsAsFactors = FALSE)
+}
+doc_cenarios <- monta_doc(cenarios_todos)
+escreve_csv_utf8(doc_cenarios, file.path(DIR_SAIDA, "jabba_cenarios_racional.csv"))
+if (tem_writexl)
+  writexl::write_xlsx(list(racional_cenarios = doc_cenarios),
+                      file.path(DIR_SAIDA, "jabba_cenarios_racional.xlsx"))
+cat(sprintf("\nRacional dos cenários gravado (CSV + XLSX): %d linhas\n", nrow(doc_cenarios)))
+
+## --- filtro de cenários desligados --------------------------------------
+if (any(!cenarios$ativo)) {
+  cat("\nCenários DESLIGADOS por redundância (continuam documentados na planilha):\n")
+  for (i in which(!cenarios$ativo))
+    cat(sprintf("  %-18s %s\n", cenarios$id[i], cenarios$papel[i]))
+  cenarios <- cenarios[cenarios$ativo, ]
+}
+
+## POR QUE J9 EXISTE. Ele fecha um quadrado que estava com três lados:
+##
+##                  com histórico (C2 +)      sozinho (2015-2025)
+##   nominal        J2                        J9   <- novo
+##   padronizado    J3                        J5
+##
+## Na primeira rodada, J2 (nominal + histórico) deu B/B0 = 0,95 e J3
+## (padronizado + histórico) deu 0,055 — mesma captura, mesmos priors, só
+## mudando o índice recente. J5 (padronizado sozinho) deu 0,51. Faltava
+## saber o que o índice nominal sozinho diz. Com as quatro células dá para
+## separar o efeito de PADRONIZAR do efeito de ANCORAR no histórico, que
+## hoje estão confundidos.
+##
+## POR QUE J12 EXISTE, e por que ele é o caso base quando a captura vem da
+## compilação externa. Se a série de captura acaba em 2015, os índices de
+## 2015-2025 ficam fora da janela e todos os cenários que dependem deles
+## caem no filtro logo abaixo. Sobra a janela histórica — e nela C2 é o
+## índice certo: mesmo período que a captura, mesma frota, e um período em
+## que a cavala era alvo do começo ao fim, sem quebra de capturabilidade
+## dentro. É a combinação mais internamente coerente que estes dados
+## permitem. O que ele NAO dá é status atual: dá r, K, MSY e o estado do
+## estoque no último ano da série de captura.
+##
+## POR QUE J10 E J11 EXISTEM. São para K o que J7/J8 são para r: mesma
+## configuração do caso base, mexendo só no prior de K. Se B/Bmsy andar
+## junto com o prior, K não está sendo estimado — está sendo assumido, e o
+## status é consequência dessa premissa. Os dois lados importam: com só o
+## lado baixo você não distingue "K manda no resultado" de "K baixo manda
+## no resultado".
+
+## Um cenário só pode rodar se (a) as colunas que ele pede existirem e
+## (b) cada uma delas tiver observação suficiente DENTRO DA JANELA DO
+## MODELO. O (b) passou a importar quando a janela virou a da captura: com
+## a série externa terminando em 2015, os índices de 2015-2025 sobram com
+## um ponto ou nenhum, e um índice de um ponto não informa trajetória
+## nenhuma — só serve para o modelo estimar um q que passe por ele. Rodar
+## assim produz um resultado que PARECE um cenário e não é.
+disp <- setdiff(names(idx_in), "Yr")
+n_obs_janela <- vapply(disp, function(cn) {
+  v <- idx_in[[cn]][match(ANOS, idx_in$Yr)]
+  sum(!is.na(v))
+}, integer(1))
+
+cat("Observações de cada índice dentro da janela completa do modelo:\n")
+for (cn in disp)
+  cat(sprintf("  %-28s %2d %s\n", cn, n_obs_janela[[cn]],
+              if (n_obs_janela[[cn]] < MIN_OBS_INDICE) "<<< insuficiente" else ""))
+
+## A checagem é por cenário, não só por índice: um cenário com `janela_ini`
+## preenchido (J13-J17) usa uma janela mais curta que a completa, e é contra
+## ESSA janela que a cobertura do índice tem de ser conferida.
+verifica_cenario <- function(indices_str, janela_ini) {
+  anos_i <- if (is.na(janela_ini)) ANOS else ANOS[ANOS >= janela_ini]
+  v <- strsplit(indices_str, "+", fixed = TRUE)[[1]]
+  if (!all(v %in% disp)) return("coluna inexistente")
+  n_obs <- vapply(v, function(cn) sum(!is.na(idx_in[[cn]][match(anos_i, idx_in$Yr)])), integer(1))
+  ruins <- v[n_obs < MIN_OBS_INDICE]
+  if (length(ruins))
+    return(sprintf("índice com < %d obs na janela %d-%d: %s", MIN_OBS_INDICE,
+                   min(anos_i), max(anos_i), paste(ruins, collapse = ", ")))
+  ""
+}
+motivo <- mapply(verifica_cenario, cenarios$indices, cenarios$janela_ini)
+
+if (any(motivo != "")) {
+  cat("\nCenários DESCARTADOS nesta janela:\n")
+  for (i in which(motivo != ""))
+    cat(sprintf("  %-16s %s\n", cenarios$id[i], motivo[i]))
+  cat("  (não é erro: são cenários que dependem de um período que a série de\n")
+  cat("   captura desta rodada não cobre. Para rodá-los é preciso captura\n")
+  cat("   naquele período — ver a seção 3.)\n\n")
+  cenarios <- cenarios[motivo == "", ]
+}
+if (!nrow(cenarios))
+  stop("Nenhum cenário viável nesta janela. Reveja FONTE_CAPTURA na seção 3.")
+cat(sprintf("%d cenários a rodar:\n", nrow(cenarios)))
+for (i in seq_len(nrow(cenarios)))
+  cat(sprintf("  %-16s %-9s r~[%.2f,%.2f] K~[%.0f,%.0f]  %s\n",
+              cenarios$id[i], cenarios$modelo[i], cenarios$r_min[i], cenarios$r_max[i],
+              cenarios$k_min[i], cenarios$k_max[i], cenarios$papel[i]))
+
+## Rótulo curto e legível para cada índice nas figuras.
+rot_curto <- c(C1_nominal_total = "C1 nom total",
+               C2_nominal_pre_alvo = "C2 nom pre",
+               C3_nominal_pos_alvo = "C3 nom pos",
+               C4_padronizada_sem_tatica = "C4 padr s/tat",
+               C5_padronizada_com_tatica = "C5 padr c/tat",
+               C6_nominal_dirigida = "C6 nom dirigida")
+
+
+## =========================================================================
+## 7) AJUSTE
+## -------------------------------------------------------------------------
+## `build_jabba()` monta o objeto de entrada e escreve o modelo em código
+## JAGS; `fit_jabba()` roda o MCMC. Separar os dois é útil: o mesmo
+## `jbinput` serve para o ajuste, para a retrospectiva e para a projeção.
+##
+## `sets.q = 1:n` dá um q a cada índice (o default, e o que queremos).
+## Para forçar dois índices a COMPARTILHAREM um q — por exemplo, se você
+## quisesse testar que a mudança de alvo não alterou a capturabilidade —
+## seria sets.q = c(1,1).
+## =========================================================================
+cat("\n===== 7) AJUSTE =====\n")
+
+fits    <- list()   # os ajustes
+jbinputs <- list()  # as entradas correspondentes (a retrospectiva da seção 10 precisa delas)
+for (i in seq_len(nrow(cenarios))) {
+  cn   <- cenarios[i, ]
+  cols <- strsplit(cn$indices, "+", fixed = TRUE)[[1]]
+  rots <- ifelse(cols %in% names(rot_curto), rot_curto[cols], cols)
+  
+  ## Janela deste cenário: a completa, salvo os J13-J17 (janela_ini
+  ## preenchido na seção 6.1), que rodam só em 2015-2025.
+  anos_i <- if (is.na(cn$janela_ini)) ANOS else ANOS[ANOS >= cn$janela_ini]
+  capt_i <- capt[capt$Yr %in% anos_i, , drop = FALSE]
+  mi     <- monta_indices(cols, rots, anos = anos_i)
+  
+  ## psi deste cenário: o prior de 1989 (PSI_PRIOR), salvo se o cenário
+  ## pediu um vago próprio (psi_mu/psi_cv — ver seção 5.8).
+  psi_prior_i <- c(if (is.na(cn$psi_mu)) PSI_PRIOR[1] else cn$psi_mu,
+                   if (is.na(cn$psi_cv)) PSI_PRIOR[2] else cn$psi_cv)
+  
+  cat(sprintf("\n--- [%d/%d] %s | %s | %d índice(s) | janela %d-%d | r ~ [%.2f, %.2f] | K ~ [%.0f, %.0f] | psi ~ (%.2f, cv %.2f) ---\n",
+              i, nrow(cenarios), cn$id, cn$modelo, length(cols),
+              min(anos_i), max(anos_i), cn$r_min, cn$r_max,
+              cn$k_min, cn$k_max, psi_prior_i[1], psi_prior_i[2]))
+  
+  jbin <- try(build_jabba(
+    catch        = capt_i,
+    cpue         = mi$cpue,
+    se           = mi$se,
+    assessment   = ASSESSMENT,
+    scenario     = cn$id,
+    model.type   = cn$modelo,
+    add.catch.CV = TRUE,
+    catch.cv     = CATCH_CV,
+    r.dist       = R_DIST,
+    r.prior      = c(cn$r_min, cn$r_max),
+    K.dist       = K_DIST,
+    K.prior      = c(cn$k_min, cn$k_max),
+    psi.dist     = PSI_DIST,
+    psi.prior    = psi_prior_i,
+    sigma.est    = SIGMA_EST,
+    fixed.obsE   = FIXED_OBSE,
+    sigma.proc   = TRUE,
+    igamma       = IGAMMA,
+    sets.q       = seq_along(cols),
+    sets.var     = seq_along(cols),
+    catch.metric = "(t)",
+    verbose      = TRUE), silent = TRUE)
+  
+  if (inherits(jbin, "try-error")) {
+    cat("  [ERRO] build_jabba falhou:\n  ", conditionMessage(attr(jbin, "condition")), "\n")
+    next
+  }
+  
+  ft <- try(fit_jabba(jbin,
+                      ni = MCMC_NI, nb = MCMC_NB, nt = MCMC_NT, nc = MCMC_NC,
+                      quickmcmc  = RODADA_RAPIDA,
+                      save.jabba = TRUE,
+                      save.csvs  = TRUE,
+                      output.dir = DIR_SAIDA,
+                      verbose    = FALSE), silent = TRUE)
+  
+  if (inherits(ft, "try-error")) {
+    cat("  [ERRO] fit_jabba falhou:\n  ", conditionMessage(attr(ft, "condition")), "\n")
+    next
+  }
+  ## Guardados em listas SEPARADAS de propósito: pendurar o jbinput como
+  ## atributo do ajuste funcionaria, mas o objeto `fits` é passado inteiro
+  ## para funções do JABBA e é melhor não modificá-lo.
+  fits[[cn$id]]     <- ft
+  jbinputs[[cn$id]] <- jbin
+  cat(sprintf("  ok | MSY = %.1f t | B/Bmsy final = %.2f | F/Fmsy final = %.2f\n",
+              ft$refpts$msy[1],
+              ft$timeseries[nrow(ft$timeseries), "mu", "BBmsy"],
+              ft$timeseries[nrow(ft$timeseries), "mu", "FFmsy"]))
+}
+
+if (length(fits) == 0) stop("Nenhum cenário ajustou. Veja as mensagens de erro acima.")
+cat(sprintf("\n%d de %d cenários ajustaram.\n", length(fits), nrow(cenarios)))
+
+
+## =========================================================================
+## 8) CONSOLIDACAO — os resultados de todos os cenários numa planilha só
+## -------------------------------------------------------------------------
+## O objeto que o fit_jabba devolve tem tudo, mas espalhado. Aqui ele vira
+## quatro tabelas retangulares, que é o formato em que se escreve artigo:
+##   tab_refpts    pontos de referência por cenário (K, r, MSY, Bmsy, Fmsy)
+##   tab_status    situação no ano final + probabilidades dos quadrantes Kobe
+##   tab_series    as trajetórias completas, formato longo
+##   tab_ajuste    qualidade do ajuste e convergência
+## =========================================================================
+cat("\n===== 8) CONSOLIDACAO =====\n")
+
+## --- 8.1 pontos de referência ------------------------------------------
+## `$estimates` traz mu/lci/uci com os parâmetros nas linhas. Puxamos pelo
+## nome da linha para não depender da ordem.
+pega <- function(est, alvo) {
+  i <- match(tolower(alvo), tolower(rownames(est)))
+  if (is.na(i)) return(c(NA, NA, NA))
+  as.numeric(est[i, c("mu", "lci", "uci")])
+}
+tab_refpts <- do.call(rbind, lapply(names(fits), function(nm) {
+  f <- fits[[nm]]; e <- f$estimates
+  linha <- function(par) { v <- pega(e, par)
+  data.frame(cenario = nm, parametro = par, mu = v[1], lci = v[2], uci = v[3],
+             row.names = NULL, stringsAsFactors = FALSE) }
+  do.call(rbind, lapply(c("K", "r", "psi", "sigma.proc", "m",
+                          "Hmsy", "SBmsy", "MSY", "BmsyK"), linha))
+}))
+tab_refpts <- tab_refpts[!is.na(tab_refpts$mu), ]
+cat("\n--- pontos de referência ---\n")
+print(transform(tab_refpts, mu = signif(mu, 4), lci = signif(lci, 4), uci = signif(uci, 4)),
+      row.names = FALSE)
+
+## --- 8.2 situação final e probabilidades de Kobe -----------------------
+## `$kobe` guarda as AMOSTRAS POSTERIORES do ano final (stock = B/Bmsy,
+## harvest = F/Fmsy). Contar a fração das amostras em cada quadrante dá
+## direto a probabilidade — que é o jeito bayesiano de responder "qual a
+## chance de o estoque estar sobrepescado?", e é bem mais informativo do
+## que reportar só o ponto estimado.
+tab_status <- do.call(rbind, lapply(names(fits), function(nm) {
+  f <- fits[[nm]]; k <- f$kobe; n <- nrow(f$timeseries)
+  data.frame(
+    cenario     = nm,
+    ano_final   = f$yr[length(f$yr)],
+    BBmsy       = f$timeseries[n, "mu",  "BBmsy"],
+    BBmsy_lci   = f$timeseries[n, "lci", "BBmsy"],
+    BBmsy_uci   = f$timeseries[n, "uci", "BBmsy"],
+    FFmsy       = f$timeseries[n, "mu",  "FFmsy"],
+    FFmsy_lci   = f$timeseries[n, "lci", "FFmsy"],
+    FFmsy_uci   = f$timeseries[n, "uci", "FFmsy"],
+    BB0         = f$timeseries[n, "mu",  "BB0"],
+    ## quadrantes: verde = saudável e sem sobrepesca; vermelho = os dois problemas
+    P_verde     = mean(k$stock >= 1 & k$harvest <  1),
+    P_amarelo   = mean(k$stock >= 1 & k$harvest >= 1),
+    P_laranja   = mean(k$stock <  1 & k$harvest <  1),
+    P_vermelho  = mean(k$stock <  1 & k$harvest >= 1),
+    P_sobrepescado    = mean(k$stock  <  1),   # B < Bmsy
+    P_sofrendo_pesca  = mean(k$harvest >= 1),  # F > Fmsy
+    row.names = NULL, stringsAsFactors = FALSE)
+}))
+cat("\n--- situação no ano final (probabilidades vêm da posterior) ---\n")
+print(transform(tab_status,
+                BBmsy = round(BBmsy, 2), BBmsy_lci = round(BBmsy_lci, 2),
+                BBmsy_uci = round(BBmsy_uci, 2), FFmsy = round(FFmsy, 2),
+                FFmsy_lci = round(FFmsy_lci, 2), FFmsy_uci = round(FFmsy_uci, 2),
+                BB0 = round(BB0, 2), P_verde = round(P_verde, 3),
+                P_amarelo = round(P_amarelo, 3), P_laranja = round(P_laranja, 3),
+                P_vermelho = round(P_vermelho, 3),
+                P_sobrepescado = round(P_sobrepescado, 3),
+                P_sofrendo_pesca = round(P_sofrendo_pesca, 3)), row.names = FALSE)
+
+## --- 8.3 trajetórias completas -----------------------------------------
+tab_series <- do.call(rbind, lapply(names(fits), function(nm) {
+  f <- fits[[nm]]; ts <- f$timeseries
+  do.call(rbind, lapply(dimnames(ts)[[3]], function(v)
+    data.frame(cenario = nm, ano = as.numeric(dimnames(ts)[[1]]), variavel = v,
+               mu = ts[, "mu", v], lci = ts[, "lci", v], uci = ts[, "uci", v],
+               row.names = NULL, stringsAsFactors = FALSE)))
+}))
+cat(sprintf("\n--- trajetórias: %d linhas (%s) ---\n", nrow(tab_series),
+            paste(unique(tab_series$variavel), collapse = ", ")))
+
+## --- 8.4 ajuste e convergência -----------------------------------------
+## `$stats` traz SDNR, RMSE e DIC. (Cuidado: no JABBA a coluna se chama
+## literalmente "Stastistic", com o erro de digitação — usamos o nome real.)
+##
+## COMO LER:
+##   RMSE   erro médio do ajuste ao índice, em %. Abaixo de ~30% é bom.
+##   SDNR   desvio-padrão dos resíduos normalizados. Perto de 1 significa
+##          que o erro assumido bate com o erro observado; muito acima de 1
+##          quer dizer que você disse ao modelo que os dados eram mais
+##          precisos do que são.
+##   DIC    critério de comparação entre modelos com os MESMOS dados. NÃO
+##          serve para comparar cenários com índices diferentes — J1 e J3
+##          não são comparáveis por DIC, só J3 contra J6 (mesma entrada,
+##          curva diferente).
+##   Geweke / Heidelberger: diagnósticos de CONVERGENCIA do MCMC, por
+##          parâmetro. p pequeno é sinal de cadeia que não convergiu — aí o
+##          resultado não vale, independente de quão bonito esteja o ajuste.
+tab_ajuste <- do.call(rbind, lapply(names(fits), function(nm) {
+  f <- fits[[nm]]
+  s <- f$stats; v <- setNames(s[[2]], s[[1]])
+  pv <- f$pars
+  data.frame(cenario = nm,
+             N = v[["N"]], RMSE = v[["RMSE"]], SDNR = v[["SDNR"]], DIC = v[["DIC"]],
+             min_Geweke_p = if ("Geweke.p" %in% names(pv)) min(pv$Geweke.p, na.rm = TRUE) else NA,
+             min_Heidel_p = if ("Heidel.p" %in% names(pv)) min(pv$Heidel.p, na.rm = TRUE) else NA,
+             row.names = NULL, stringsAsFactors = FALSE)
+}))
+cat("\n--- ajuste e convergência ---\n")
+print(transform(tab_ajuste, RMSE = round(RMSE, 1), SDNR = round(SDNR, 3),
+                DIC = round(DIC, 1), min_Geweke_p = round(min_Geweke_p, 3),
+                min_Heidel_p = round(min_Heidel_p, 3)), row.names = FALSE)
+if (any(!is.na(tab_ajuste$min_Geweke_p) & tab_ajuste$min_Geweke_p < 0.05))
+  cat("[AVISO] há cenário com Geweke p < 0,05: cadeia possivelmente não convergida.\n",
+      "        Aumente MCMC_NI/MCMC_NB (e desligue RODADA_RAPIDA) antes de interpretar.\n")
+
+## --- 8.5 resíduos por índice -------------------------------------------
+tab_residuos <- do.call(rbind, lapply(names(fits), function(nm) {
+  d <- fits[[nm]]$diags
+  if (is.null(d)) return(NULL)
+  data.frame(cenario = nm, indice = d$name, ano = d$year,
+             observado = d$obs, ajustado = d$hat, residuo_log = d$residual,
+             row.names = NULL, stringsAsFactors = FALSE)
+}))
+
+## --- 8.6 escrita -------------------------------------------------------
+## Racional + resultado na MESMA planilha: é assim que ela vira tabela de
+## artigo (o leitor vê, na mesma linha, a pergunta que o cenário responde e
+## o número que ele produziu) em vez de duas tabelas que ninguém cruza.
+doc_cenarios_result <- merge(
+  doc_cenarios,
+  merge(tab_ajuste[, c("cenario", "N", "RMSE", "SDNR", "DIC")],
+        tab_status[, c("cenario", "ano_final", "BBmsy", "BBmsy_lci", "BBmsy_uci",
+                       "FFmsy", "BB0", "P_sobrepescado")],
+        by = "cenario", all = TRUE),
+  by.x = "id", by.y = "cenario", all.x = TRUE)
+doc_cenarios_result <- doc_cenarios_result[match(doc_cenarios$id, doc_cenarios_result$id), ]
+doc_cenarios_result$rodou <- !is.na(doc_cenarios_result$RMSE)
+escreve_csv_utf8(doc_cenarios_result, file.path(DIR_SAIDA, "jabba_cenarios_racional.csv"))
+if (tem_writexl)
+  writexl::write_xlsx(list(racional_cenarios = doc_cenarios_result),
+                      file.path(DIR_SAIDA, "jabba_cenarios_racional.xlsx"))
+cat("Racional dos cenários REGRAVADO com os resultados (CSV + XLSX)\n")
+
+escreve_csv_utf8(tab_refpts,   file.path(DIR_SAIDA, "jabba_pontos_referencia.csv"))
+escreve_csv_utf8(tab_status,   file.path(DIR_SAIDA, "jabba_status_final.csv"))
+escreve_csv_utf8(tab_series,   file.path(DIR_SAIDA, "jabba_trajetorias.csv"))
+escreve_csv_utf8(tab_ajuste,   file.path(DIR_SAIDA, "jabba_ajuste_convergencia.csv"))
+if (!is.null(tab_residuos))
+  escreve_csv_utf8(tab_residuos, file.path(DIR_SAIDA, "jabba_residuos.csv"))
+if (tem_writexl) {
+  abas <- list(racional_cenarios = doc_cenarios_result,
+               pontos_referencia = tab_refpts, status_final = tab_status,
+               trajetorias = tab_series, ajuste = tab_ajuste, cenarios = cenarios_todos)
+  if (!is.null(tab_residuos)) abas$residuos <- tab_residuos
+  writexl::write_xlsx(abas, file.path(DIR_SAIDA, "JABBA_macarellus_resultados.xlsx"))
+}
+cat(sprintf("\nPlanilhas gravadas em %s\n", DIR_SAIDA))
+
+
+## =========================================================================
+## 9) FIGURAS
+## -------------------------------------------------------------------------
+## Duas famílias: as do próprio JABBA (uma pasta por cenário, completas) e
+## um painel comparativo construído aqui a partir das tabelas consolidadas —
+## esse último é o que costuma ir para o artigo.
+## =========================================================================
+cat("\n===== 9) FIGURAS =====\n")
+
+## --- 9.1 o pacote completo, por cenário ---------------------------------
+## jabba_plots() escreve de uma vez: ajuste aos índices, resíduos, teste de
+## runs, distribuições prior-posterior, trajetórias, fase de produção, Kobe.
+for (nm in names(fits)) {
+  d <- file.path(DIR_SAIDA, nm); dir.create(d, showWarnings = FALSE)
+  try(jabba_plots(jabba = fits[[nm]], output.dir = d), silent = TRUE)
+}
+cat("Figuras padrão do JABBA: uma subpasta por cenário.\n")
+
+## --- 9.2 comparação entre cenários (função do próprio JABBA) ------------
+try({
+  jbplot_summary(fits, prefix = "comparacao_cenarios", as.png = TRUE,
+                 save.summary = TRUE, output.dir = DIR_SAIDA)
+  cat("PNG salvo: comparacao_cenarios (jbplot_summary)\n")
+}, silent = TRUE)
+
+## --- 9.3 painel comparativo próprio -------------------------------------
+## Quatro quadros: captura, B/Bmsy, F/Fmsy e o plano de Kobe com o ponto
+## final de cada cenário. É a figura que responde "a conclusão muda conforme
+## o cenário?" — que é a pergunta real quando se roda um conjunto deles.
+## Cores geradas dinamicamente para o número de cenários que de fato
+## ajustaram (a grade cresceu de 8 para até 17 com J13-J17): uma paleta fixa
+## e curta recicla cor quando a grade passa do seu tamanho, e duas linhas da
+## mesma cor no painel comparativo tornariam a figura ilegível justamente
+## onde ela precisa ser lida.
+cor_cen <- setNames(grDevices::hcl.colors(length(fits), palette = "Dark 3"),
+                    names(fits))
+
+png(file.path(DIR_SAIDA, "jabba_painel_cenarios.png"),
+    width = 26, height = 22, res = 300, antialias = AA, units = "cm")
+op <- par(mfrow = c(2, 2), mar = c(4.2, 4.4, 2.6, 1), bty = "l",
+          cex.main = 0.95, cex = 0.8)
+
+## (A) captura. Mostra a série completa; os cenários J13-J17 (janela curta,
+## 2015-2025) usam só o trecho final dela — ver seção 5.8.
+plot(capt$Yr, capt$Catch, type = "h", lwd = 4, lend = 1, col = COR_NEU,
+     ylim = c(0, max(capt$Catch) * 1.05),
+     xlab = "Ano", ylab = "Captura (t)",
+     main = "A. Remocoes usadas no modelo (J13-J17 usam so 2015-2025)")
+
+## (B) e (C) trajetórias
+quadro <- function(v, ylab, titulo, ref = 1) {
+  s <- tab_series[tab_series$variavel == v, ]
+  plot(NA, xlim = range(s$ano), ylim = c(0, max(s$uci, na.rm = TRUE) * 1.05),
+       xlab = "Ano", ylab = ylab, main = titulo)
+  abline(h = ref, lty = 2, col = "grey40")
+  for (nm in names(fits)) {
+    d <- s[s$cenario == nm, ]
+    lines(d$ano, d$mu, lwd = 2.2, col = cor_cen[nm])
+  }
+}
+quadro("BBmsy", "B / Bmsy", "B. Biomassa relativa")
+quadro("FFmsy", "F / Fmsy", "C. Mortalidade por pesca relativa")
+
+## (D) Kobe — só o ponto final de cada cenário, sobre os quadrantes
+s_max <- max(c(tab_status$BBmsy_uci, 2), na.rm = TRUE)
+f_max <- max(c(tab_status$FFmsy_uci, 2), na.rm = TRUE)
+plot(NA, xlim = c(0, s_max), ylim = c(0, f_max), xlab = "B / Bmsy", ylab = "F / Fmsy",
+     main = "D. Kobe - ano final por cenario")
+rect(0, 1, 1, f_max, col = adjustcolor("#D7301F", 0.18), border = NA)  # vermelho
+rect(1, 0, s_max, 1, col = adjustcolor("#4DAF4A", 0.18), border = NA)  # verde
+rect(0, 0, 1, 1, col = adjustcolor("#FF7F00", 0.15), border = NA)      # laranja
+rect(1, 1, s_max, f_max, col = adjustcolor("#FFD92F", 0.20), border = NA) # amarelo
+abline(h = 1, v = 1, lty = 2, col = "grey30")
+for (nm in names(fits)) {
+  r <- tab_status[tab_status$cenario == nm, ]
+  segments(r$BBmsy_lci, r$FFmsy, r$BBmsy_uci, r$FFmsy, col = cor_cen[nm], lwd = 1.4)
+  segments(r$BBmsy, r$FFmsy_lci, r$BBmsy, r$FFmsy_uci, col = cor_cen[nm], lwd = 1.4)
+  points(r$BBmsy, r$FFmsy, pch = 21, bg = cor_cen[nm], col = "white", cex = 1.8, lwd = 1.5)
+}
+## Legenda com fundo: sem ele os rótulos somem dentro do quadrante colorido.
+legend("topright", names(fits), col = cor_cen, pch = 19, pt.cex = 1.2, cex = 0.58,
+       bg = adjustcolor("white", 0.82), box.col = NA)
+par(op); dev.off()
+cat("PNG salvo: jabba_painel_cenarios.png\n")
+
+
+## =========================================================================
+## 10) DIAGNOSTICO — retrospectiva e validacao por hindcast
+## -------------------------------------------------------------------------
+## Ajuste bom não é o mesmo que modelo confiável. Dois testes separam as
+## duas coisas, e ambos são exigidos em avaliação séria hoje (Carvalho et
+## al. 2021, "A cookbook for using model diagnostics in integrated stock
+## assessments", Fish. Res. 240:105959):
+##
+##   RETROSPECTIVA: reajusta o modelo removendo 1, 2, ... anos do fim e vê
+##   se a estimativa do mesmo ano MUDA quando chegam dados novos. Um padrão
+##   sistemático (sempre revisando a biomassa para baixo, por exemplo) é
+##   viés retrospectivo. Resume-se no rho de Mohn; a referência usual é
+##   |rho| dentro de cerca de 0,15-0,20.
+##
+##   HINDCAST CROSS-VALIDATION: mesma poda, mas em vez de olhar o parâmetro
+##   olha a PREVISÃO do índice nos anos removidos, e compara com o
+##   observado. O resumo é o MASE: MASE < 1 significa que o modelo prevê
+##   melhor do que a regra ingênua de "ano que vem é igual a este ano".
+##   MASE > 1 significa que ele não tem poder preditivo — e aí o índice
+##   provavelmente não está informando o modelo.
+##
+## Rode isto no CASO BASE e nos cenários que você pretende apresentar, não
+## em todos: cada um custa (n_peels + 1) ajustes.
+## =========================================================================
+if (RODAR_DIAGNOSTICO) {
+  cat("\n===== 10) DIAGNOSTICO =====\n")
+  CEN_DIAG <- intersect(c("J3_BASE_C2C5", "J2_C2C3_nominal"), names(fits))
+  diag_dir <- file.path(DIR_SAIDA, "diagnostico")
+  dir.create(diag_dir, showWarnings = FALSE)
+  resumo_diag <- list()
+  
+  for (nm in CEN_DIAG) {
+    cat(sprintf("\n--- %s ---\n", nm))
+    jbin <- jbinputs[[nm]]
+    hc <- try(hindcast_jabba(jbinput = jbin, fit = fits[[nm]], peels = 1:5), silent = TRUE)
+    if (inherits(hc, "try-error")) {
+      cat("  hindcast falhou: ", conditionMessage(attr(hc, "condition")), "\n"); next
+    }
+    rho  <- try(jbplot_retro(hc,  as.png = TRUE, single.plots = FALSE, output.dir = diag_dir),
+                silent = TRUE)
+    mase <- try(jbplot_hcxval(hc, as.png = TRUE, single.plots = FALSE, output.dir = diag_dir),
+                silent = TRUE)
+    if (!inherits(rho, "try-error"))  { cat("  rho de Mohn:\n"); print(rho) }
+    if (!inherits(mase, "try-error")) { cat("  MASE:\n");        print(mase) }
+    resumo_diag[[nm]] <- list(rho = rho, mase = mase)
+  }
+  
+  ## Teste de runs nos resíduos: procura SEQUENCIAS de resíduos do mesmo
+  ## sinal. Resíduo que fica anos seguidos acima e depois anos seguidos
+  ## abaixo indica que o modelo não está acompanhando a tendência do índice
+  ## — falha estrutural, que o RMSE sozinho não pega.
+  for (nm in names(fits)) {
+    rt <- try(jbplot_runstest(fits[[nm]], as.png = TRUE, output.dir = diag_dir), silent = TRUE)
+    if (!inherits(rt, "try-error") && !is.null(rt)) {
+      cat(sprintf("\nteste de runs — %s\n", nm)); print(rt)
+    }
+  }
+  saveRDS(resumo_diag, file.path(diag_dir, "resumo_diagnostico.rds"))
+} else {
+  cat("\n[10] Diagnóstico desligado (RODAR_DIAGNOSTICO = FALSE).\n",
+      "     Ligue antes de fechar os resultados: sem retrospectiva e hindcast\n",
+      "     a avaliação não tem como ser defendida.\n")
+}
+
+
+## =========================================================================
+## 11) PROJECOES — o que acontece com o estoque sob capturas alternativas
+## -------------------------------------------------------------------------
+## `TACs` é o vetor de capturas anuais constantes a testar; o modelo projeta
+## a biomassa para cada uma. É o insumo direto de recomendação de manejo:
+## a saída responde "com captura de X toneladas, qual a probabilidade de
+## B > Bmsy em N anos?".
+##   TACint  captura do ano-ponte (entre o fim dos dados e a implementação)
+##   imp.yr  primeiro ano em que a TAC vale
+##   pyrs    quantos anos projetar
+## =========================================================================
+if (RODAR_PROJECAO) {
+  cat("\n===== 11) PROJECOES =====\n")
+  ## Preferência: o caso base da janela que de fato rodou. Com a captura
+  ## externa (janela histórica) o J3 nem existe — quem manda é o J12. Os
+  ## cenários J13-J17 (janela curta, psi vago) ficam de fora desta escolha
+  ## de propósito: projetar a partir de um psi deliberadamente vago não dá
+  ## uma base defensável para recomendação de manejo.
+  CEN_PROJ_CANDIDATOS <- setdiff(names(fits), grep("^J1[3-7]_", names(fits), value = TRUE))
+  CEN_PROJ <- c("J3_BASE_C2C5", "J12_soC2_historico", CEN_PROJ_CANDIDATOS[1])
+  CEN_PROJ <- CEN_PROJ[CEN_PROJ %in% names(fits)][1]
+  cn <- cenarios[cenarios$id == CEN_PROJ, ]
+  cols <- strsplit(cn$indices, "+", fixed = TRUE)[[1]]
+  rots <- ifelse(cols %in% names(rot_curto), rot_curto[cols], cols)
+  anos_proj <- if (is.na(cn$janela_ini)) ANOS else ANOS[ANOS >= cn$janela_ini]
+  capt_proj <- capt[capt$Yr %in% anos_proj, , drop = FALSE]
+  mi <- monta_indices(cols, rots, anos = anos_proj)
+  psi_prior_proj <- c(if (is.na(cn$psi_mu)) PSI_PRIOR[1] else cn$psi_mu,
+                      if (is.na(cn$psi_cv)) PSI_PRIOR[2] else cn$psi_cv)
+  
+  ## Grade de TAC em torno da captura recente: nada de números redondos
+  ## arbitrários — ancorar no que a pescaria de fato retira torna a leitura
+  ## da figura imediata.
+  C_REC <- mean(tail(capt_proj$Catch, 3))
+  TACS  <- round(seq(0.4 * C_REC, 1.6 * C_REC, length.out = 7))
+  cat(sprintf("Cenário projetado: %s | Captura média dos últimos 3 anos: %.1f t | TACs testadas: %s\n",
+              CEN_PROJ, C_REC, paste(TACS, collapse = ", ")))
+  
+  jbp <- build_jabba(catch = capt_proj, cpue = mi$cpue, se = mi$se,
+                     assessment = ASSESSMENT, scenario = paste0(CEN_PROJ, "_proj"),
+                     model.type = cn$modelo, add.catch.CV = TRUE, catch.cv = CATCH_CV,
+                     r.dist = R_DIST, r.prior = c(cn$r_min, cn$r_max),
+                     K.dist = K_DIST, K.prior = c(cn$k_min, cn$k_max),
+                     psi.dist = PSI_DIST, psi.prior = psi_prior_proj,
+                     sigma.est = SIGMA_EST, fixed.obsE = FIXED_OBSE,
+                     sigma.proc = TRUE, igamma = IGAMMA,
+                     sets.q = seq_along(cols), sets.var = seq_along(cols),
+                     projection = TRUE, TACs = TACS,
+                     TACint = C_REC, imp.yr = max(anos_proj) + 1, pyrs = 10,
+                     catch.metric = "(t)", verbose = FALSE)
+  
+  fit_proj <- fit_jabba(jbp, ni = MCMC_NI, nb = MCMC_NB, nt = MCMC_NT, nc = MCMC_NC,
+                        quickmcmc = RODADA_RAPIDA, save.csvs = TRUE,
+                        output.dir = DIR_SAIDA, verbose = FALSE)
+  
+  ## jbplot_prj() é outra função "antiga" do JABBA (mesma família da
+  ## jbplot_summary() que deu problema na seção 9): ela tenta ler
+  ## fit_proj$projections, um campo de array que a versão atual do pacote —
+  ## a que usa build_jabba()/fit_jabba() — nunca chega a criar. Conferi o
+  ## código-fonte de fit_jabba() no repositório: o bloco de projeção
+  ## ("compiling Future Projections under fixed quota") escreve as
+  ## trajetórias projetadas dentro de fit_proj$kbtrj (a mesma tabela usada
+  ## pelas figuras do painel da seção 9), marcando type="prj" e usando a
+  ## coluna `run` para guardar o rótulo da TAC (formato "C<valor>"). Como
+  ## fit_proj$projections nunca é preenchido, jbplot_prj() indexa um array
+  ## vazio e o max()/min() internos dele reclamam "no non-missing arguments"
+  ## — o aviso não é um problema do seu ajuste, é a função de plot que está
+  ## desatualizada em relação ao objeto que fit_jabba() retorna hoje.
+  ##
+  ## Solução: montar o gráfico direto de fit_proj$kbtrj, do mesmo jeito que
+  ## o JABBA monta internamente, só que sem depender da função quebrada.
+  kbtrj_proj <- fit_proj$kbtrj[fit_proj$kbtrj$run %in% paste0("C", TACS), ]
+  kbtrj_proj$run <- factor(as.character(kbtrj_proj$run),
+                           levels = paste0("C", TACS))
+  
+  ## mediana e IC95% por ano e por TAC, pra cada variável de interesse
+  resume_kb <- function(kb, var) {
+    do.call(rbind, lapply(split(kb, list(kb$year, kb$run), drop = TRUE), function(d) {
+      data.frame(ano = d$year[1], TAC = as.character(d$run[1]),
+                 mediana = median(d[[var]], na.rm = TRUE),
+                 li = as.numeric(quantile(d[[var]], 0.025, na.rm = TRUE)),
+                 ls = as.numeric(quantile(d[[var]], 0.975, na.rm = TRUE)))
+    }))
+  }
+  res_stock   <- resume_kb(kbtrj_proj, "stock")   # B/Bmsy
+  res_harvest <- resume_kb(kbtrj_proj, "harvest") # F/Fmsy
+  
+  ## rampa de cor: verde (TAC mais conservadora) -> cinza -> laranja (TAC
+  ## mais agressiva), na mesma paleta usada no resto do script
+  cores_tac <- colorRampPalette(c(COR_S2, COR_NEU, COR_AUX))(length(TACS))
+  names(cores_tac) <- paste0("C", TACS)
+  
+  plot_proj <- function(res, ylab) {
+    plot(res$ano, res$mediana, type = "n",
+         xlim = range(res$ano), ylim = range(0, res$li, res$ls, na.rm = TRUE),
+         xlab = "Ano", ylab = ylab, bty = "l")
+    abline(h = 1, lty = 2, col = COR_NEU)
+    for (tac in levels(kbtrj_proj$run)) {
+      d <- res[res$TAC == tac, ]
+      d <- d[order(d$ano), ]
+      if (nrow(d) < 2) next
+      polygon(c(d$ano, rev(d$ano)), c(d$li, rev(d$ls)),
+              col = adjustcolor(cores_tac[tac], 0.15), border = NA)
+      lines(d$ano, d$mediana, col = cores_tac[tac], lwd = 2)
+    }
+    legend("topleft", legend = TACS, col = cores_tac, lwd = 2, bty = "n",
+           title = "TAC (t)", cex = 0.7, ncol = 2)
+  }
+  
+  png(file.path(DIR_SAIDA, "jabba_projecoes.png"), width = 26, height = 11,
+      res = 300, antialias = AA, units = "cm")
+  op <- par(mfrow = c(1, 2), mar = c(4.2, 4.4, 2.6, 1), bty = "l", cex = 0.8)
+  plot_proj(res_stock,   "B/Bmsy projetado")
+  plot_proj(res_harvest, "F/Fmsy projetado")
+  par(op); dev.off()
+  cat("PNG salvo: jabba_projecoes.png\n")
+} else {
+  cat("\n[11] Projeções desligadas (RODAR_PROJECAO = FALSE).\n")
+}
+
+
+## =========================================================================
+## 12) PRIORI x POSTERIORI, POSTERIORES COMPARADAS, RESIDUOS E TORNADO
+## -------------------------------------------------------------------------
+## Esta seção existe para responder, com figura e não com adjetivo, a
+## pergunta central desta avaliação: O MODELO APRENDEU ALGUMA COISA COM OS
+## DADOS, ou devolveu a prior de volta? Stobberup & Erzini (2006) já haviam
+## reportado, neste mesmo estoque, que "a posterior marginal de r era quase
+## idêntica à prior". Aqui isso deixa de ser citação e vira medida.
+##
+## DE ONDE VEM A PRIOR DESENHADA NAS FIGURAS: não é recalculada a partir da
+## grade de cenários — é lida de dentro do próprio objeto ajustado, em
+## `fit$settings`, onde o JABBA guarda os parâmetros JÁ CONVERTIDOS para a
+## parametrização que o JAGS usou:
+##   r.pr   = c(mediana, desvio-padrão em log)  <- de r.dist="range", a
+##            mediana é sqrt(min*max) e o sd em log é log(max/min)/4
+##   K.pr   = idem para K
+##   psi.pr = c(mediana, sd em log)  <- o CV informado já vem convertido
+##            por sqrt(log(1+CV^2))
+##   igamma = c(forma, taxa) da inversa-gama do erro de processo: o JAGS
+##            amostra 1/sigma2 ~ dgamma(igamma[1], igamma[2])
+## Ler do objeto em vez de reconstruir elimina a classe de erro mais chata
+## aqui: desenhar uma prior que não é a que o modelo usou.
+##
+## O q FICA DE FORA DO TESTE PRIORI x POSTERIORI, e o motivo está no próprio
+## objeto: `settings$q1.pr` é c(1e-30, 1e+20) — cinquenta ordens de
+## grandeza, ou seja, a prior de q é deliberadamente não-informativa. Dizer
+## que "a posterior de q atualizou em relação à prior" seria verdadeiro e
+## vazio. O que INTERESSA no q é outra coisa, e essa sim vai para a figura:
+## o valor de cada q e, nos cenários com dois índices, a RAZÃO entre eles —
+## que é a medida direta do salto de capturabilidade de 2015.
+## =========================================================================
+cat("\n===== 12) PRIORI x POSTERIORI E FIGURAS COMPARATIVAS =====\n")
+
+DIR_FIG <- file.path(DIR_SAIDA, "figuras_posteriores")
+dir.create(DIR_FIG, showWarnings = FALSE, recursive = TRUE)
+
+## --- 12.1 utilitários ----------------------------------------------------
+
+## Nome de arquivo seguro (o id do cenário pode ganhar caracteres estranhos
+## se a grade for editada à mão).
+arquivo_seguro <- function(x) {
+  x <- gsub("[/\\\\]", "-", x); x <- gsub("[()]", "", x)
+  gsub("[^A-Za-z0-9_.-]", "_", x)
+}
+
+## Amostra da PRIOR de cada parâmetro, na mesma parametrização do JAGS.
+## `n` alto porque a densidade da prior de K/MSY é muito espalhada e com
+## poucas amostras o desenho fica serrilhado.
+amostra_priori <- function(fit, n = 20000) {
+  s <- fit$settings; out <- list()
+  if (!is.null(s$r.pr))   out$r   <- rlnorm(n, log(s$r.pr[1]),   s$r.pr[2])
+  if (!is.null(s$K.pr))   out$K   <- rlnorm(n, log(s$K.pr[1]),   s$K.pr[2])
+  ## psi só entra se a prior for lognormal (é o nosso caso sempre; se algum
+  ## dia virar "beta" esta amostragem não valeria e o painel some sozinho).
+  if (!is.null(s$psi.pr) && identical(s$psi.dist, "lnorm"))
+    out$psi <- rlnorm(n, log(s$psi.pr[1]), s$psi.pr[2])
+  ## erro de processo: só faz sentido desenhar a prior se ele foi ESTIMADO.
+  if (isTRUE(s$sigma.proc) && !is.null(s$igamma))
+    out$sigma2 <- 1 / rgamma(n, s$igamma[1], s$igamma[2])
+  ## MSY implícito pela prior: a mesma fórmula de Pella-Tomlinson que o
+  ## JABBA usa, com o m do cenário. Schaefer (m=2) cai em rK/4; Fox (m->1)
+  ## cai em rK/e. É isto que torna o painel de MSY comparável ao do CMSY.
+  m  <- if (!is.null(s$mu.m)) s$mu.m else 2
+  bk <- if (abs(m - 1) < 1e-6) exp(-1) else (1 / m)^(1 / (m - 1))
+  if (!is.null(out$r) && !is.null(out$K)) out$MSY <- out$r * out$K * bk / m
+  out
+}
+
+## Amostras da POSTERIOR, já reunidas por cenário.
+draws_cen <- function(nm) {
+  f  <- fits[[nm]]
+  pp <- f$pars_posterior
+  rp <- f$refpts_posterior
+  qs <- pp[, grep("^q($|\\.)", names(pp)), drop = FALSE]
+  ## B/K do último ano: vem das trajetórias por iteração (kbtrj), que é
+  ## onde o JABBA guarda a posterior completa ano a ano. Usar a coluna BB0
+  ## do último ano ajustado (type == "fit") dá o análogo exato do "Bt/K do
+  ## último ano" que o CMSY++ reporta.
+  bb0 <- NULL
+  if (!is.null(f$kbtrj)) {
+    kbf <- f$kbtrj[f$kbtrj$type == "fit", ]
+    if (nrow(kbf)) bb0 <- kbf$BB0[kbf$year == max(kbf$year)]
+  }
+  list(r = pp$r, K = pp$K, MSY = rp$MSY, psi = pp$psi,
+       sigma2 = if ("sigma2" %in% names(pp)) pp$sigma2 else NULL,
+       BB0 = bb0, q = qs)
+}
+
+## Densidade normalizada ao pico, com a opção de trabalhar em escala log.
+## POR QUE A ESCALA LOG PARA K, MSY E sigma2: a prior desses parâmetros é
+## larga de propósito (K varia mais de uma ordem de grandeza dentro da
+## própria prior). Desenhada em escala linear, a posterior vira um risco
+## vertical e a figura não mostra nada. Em log, as duas curvas ficam
+## legíveis e a COMPARAÇÃO — que é o objetivo — aparece. A densidade é
+## calculada em log e convertida de volta pela mudança de variável
+## f_X(x) = f_U(u)/x, com u = log(x), como no script do CMSY++.
+dens_pico <- function(x, log_x = FALSE, from = NULL, to = NULL, adjust = 1.2) {
+  x <- x[is.finite(x)]
+  if (log_x) x <- x[x > 0]
+  if (length(x) < 10) return(NULL)
+  if (log_x) {
+    d  <- density(log(x), adjust = adjust)
+    xs <- exp(d$x); ys <- d$y / xs
+  } else {
+    d  <- if (!is.null(from) && !is.null(to))
+      density(x, adjust = adjust, from = from, to = to) else density(x, adjust = adjust)
+    xs <- d$x; ys <- d$y
+  }
+  list(x = xs, y = ys / max(ys))
+}
+
+## Um painel priori x posteriori.
+## A JANELA DO EIXO X sai dos quantis 0,5%-99,5% das DUAS amostras juntas,
+## não do intervalo total: uma única amostra extrema da prior de K (que é
+## lognormal e tem cauda pesada) esticaria o eixo até deixar tudo ilegível.
+## A prior continua existindo fora da janela; a legenda avisa.
+painel_pri_post <- function(prior, post, xlab, col_post, main, log_x = FALSE,
+                            lim01 = FALSE) {
+  if (is.null(post) || !length(post)) { plot.new(); title(main = main, cex.main = 0.85)
+    text(0.5, 0.5, "sem amostras", cex = 0.8, col = COR_NEU); return(invisible(NULL)) }
+  vals <- c(if (!is.null(prior)) prior, post)
+  vals <- vals[is.finite(vals)]
+  xl <- as.numeric(quantile(vals, c(0.005, 0.995), na.rm = TRUE))
+  if (lim01) xl <- c(0, 1)
+  dp  <- if (!is.null(prior)) dens_pico(prior, log_x) else NULL
+  dpo <- dens_pico(post, log_x, from = if (lim01) 0 else NULL, to = if (lim01) 1 else NULL)
+  plot(NA, xlim = xl, ylim = c(0, 1.08), xlab = xlab,
+       ylab = "densidade (normalizada ao pico)", main = main,
+       bty = "l", log = if (log_x) "x" else "", cex.main = 0.85)
+  if (!is.null(dp))  { polygon(c(dp$x, rev(dp$x)), c(dp$y, rep(0, length(dp$y))),
+                               col = adjustcolor("grey45", 0.12), border = NA)
+    lines(dp$x, dp$y, col = "grey45", lwd = 2.6, lty = 2) }
+  lines(dpo$x, dpo$y, col = col_post, lwd = 2.6)
+  ## Medianas marcadas: é delas que sai a razão posterior/prior do teste.
+  if (!is.null(prior)) abline(v = median(prior), col = "grey45", lty = 3)
+  abline(v = median(post), col = col_post, lty = 3)
+  legend("topright", c(if (!is.null(prior)) "Priori", "Posteriori"),
+         col = c(if (!is.null(prior)) "grey45", col_post),
+         lty = c(if (!is.null(prior)) 2, 1), lwd = 2.2, bty = "n", cex = 0.72)
+}
+
+## Cores por cenário, geradas para o número de cenários que de fato rodou.
+cor_cen_fig <- setNames(grDevices::hcl.colors(length(fits), palette = "Dark 3"),
+                        names(fits))
+
+## --- 12.2 painel priori x posteriori, um PNG por cenário -----------------
+## Layout dinâmico: 6 painéis fixos (r, K, MSY, psi, sigma2, B/K final) +
+## um painel por q do cenário. Cenário de 1 índice fica com 7; de 2 índices,
+## com 8.
+##
+## COMO LER ESTA FIGURA, que é o ponto de tê-la: se a curva colorida
+## (posterior) tiver praticamente a mesma forma e a mesma mediana da curva
+## cinza (prior), aquele parâmetro NÃO foi estimado — foi assumido. Aí o
+## MSY que sai dele, e o status que sai do MSY, são consequência da premissa
+## e não do dado. A tabela `tab_atualizacao` logo abaixo põe número nisso.
+cat("\n--- 12.2 priori x posteriori por cenário ---\n")
+
+tab_atualizacao <- NULL
+for (nm in names(fits)) {
+  f  <- fits[[nm]]
+  pr <- amostra_priori(f)
+  po <- draws_cen(nm)
+  nq <- ncol(po$q)
+  
+  paineis <- list(
+    list(pri = pr$r,      pos = po$r,      lab = "r",              cor = COR_MAC, log = FALSE),
+    list(pri = pr$K,      pos = po$K,      lab = "K (t)",          cor = COR_AUX, log = TRUE),
+    list(pri = pr$MSY,    pos = po$MSY,    lab = "MSY (t/ano)",    cor = COR_S2,  log = TRUE),
+    list(pri = pr$psi,    pos = po$psi,    lab = "psi (B inicial/K)", cor = COR_S3, log = FALSE),
+    list(pri = pr$sigma2, pos = po$sigma2, lab = "sigma2 (erro de processo)", cor = COR_S2D, log = TRUE),
+    list(pri = NULL,      pos = po$BB0,    lab = "B/K no ultimo ano", cor = "#B03060", log = FALSE, lim01 = TRUE))
+  for (j in seq_len(nq))
+    paineis[[length(paineis) + 1]] <- list(pri = NULL, pos = po$q[[j]],
+                                           lab = sprintf("%s (capturabilidade)", names(po$q)[j]),
+                                           cor = "#8C6D31", log = TRUE)
+  
+  nc <- 4; nr <- ceiling(length(paineis) / nc)
+  png(file.path(DIR_FIG, sprintf("priori_posteriori_%s.png", arquivo_seguro(nm))),
+      width = 9 * nc, height = 8.2 * nr, res = 300, antialias = AA, units = "cm")
+  op <- par(mfrow = c(nr, nc), mar = c(4.2, 4.4, 2.8, 1), oma = c(0, 0, 2.2, 0),
+            bty = "l", cex = 0.72)
+  for (p in paineis)
+    painel_pri_post(p$pri, p$pos, p$lab, p$cor,
+                    main = sprintf("%s - %s", sub(" .*", "", p$lab), nm),
+                    log_x = isTRUE(p$log), lim01 = isTRUE(p$lim01))
+  mtext(sprintf("Priori x posteriori - %s", nm), outer = TRUE, cex = 0.85, font = 2)
+  par(op); dev.off()
+  
+  ## --- o teste em número, não em figura ---------------------------------
+  ## razao = mediana(posterior) / mediana(prior). Perto de 1 = o dado não
+  ## moveu o parâmetro. `sobrepos` é a fração da posterior que cai dentro
+  ## do intervalo de 95% da prior: 1 significa que a posterior é um
+  ## subconjunto da prior (nenhuma informação nova sobre a região), e
+  ## valores baixos significam que o dado empurrou o parâmetro para fora.
+  linha <- function(par, pri, pos) {
+    if (is.null(pri) || is.null(pos)) return(NULL)
+    ic <- quantile(pri, c(0.025, 0.975), na.rm = TRUE)
+    data.frame(cenario = nm, parametro = par,
+               mediana_priori = median(pri, na.rm = TRUE),
+               mediana_posterior = median(pos, na.rm = TRUE),
+               razao_post_priori = median(pos, na.rm = TRUE) / median(pri, na.rm = TRUE),
+               reducao_IC95_pct = 100 * (1 - (diff(quantile(pos, c(0.025, 0.975), na.rm = TRUE)) /
+                                                diff(ic))),
+               fracao_dentro_IC95_priori = mean(pos >= ic[1] & pos <= ic[2], na.rm = TRUE),
+               row.names = NULL, stringsAsFactors = FALSE)
+  }
+  tab_atualizacao <- rbind(tab_atualizacao,
+                           linha("r", pr$r, po$r), linha("K", pr$K, po$K),
+                           linha("MSY", pr$MSY, po$MSY), linha("psi", pr$psi, po$psi),
+                           linha("sigma2", pr$sigma2, po$sigma2))
+}
+cat(sprintf("PNGs salvos: priori_posteriori_<cenario>.png (%d cenários) em %s\n",
+            length(fits), basename(DIR_FIG)))
+
+cat("\n--- quanto o dado moveu cada parâmetro (razão posterior/priori) ---\n")
+cat("razão ~1 + redução de IC ~0 = parâmetro NÃO estimado, apenas assumido\n")
+print(transform(tab_atualizacao,
+                mediana_priori = signif(mediana_priori, 4),
+                mediana_posterior = signif(mediana_posterior, 4),
+                razao_post_priori = round(razao_post_priori, 3),
+                reducao_IC95_pct = round(reducao_IC95_pct, 1),
+                fracao_dentro_IC95_priori = round(fracao_dentro_IC95_priori, 3)),
+      row.names = FALSE)
+escreve_csv_utf8(tab_atualizacao, file.path(DIR_SAIDA, "jabba_priori_posteriori.csv"))
+if (tem_writexl)
+  writexl::write_xlsx(list(priori_posteriori = tab_atualizacao),
+                      file.path(DIR_SAIDA, "jabba_priori_posteriori.xlsx"))
+
+## --- 12.2a a posterior de B/K é unimodal? --------------------------------
+## POR QUE ESTA CHECAGEM ENTROU: no painel do caso base a posterior de B/K
+## do último ano saiu com DOIS PICOS — um perto de 0,05 (estoque colapsado)
+## e outro perto de 0,95 (estoque quase virgem) — e quase nenhuma massa no
+## meio. Isso tem uma consequência direta que nenhuma tabela de mediana
+## mostra: A MEDIANA CAI NO VALE. Reportar "B/Bmsy = 0,92" para um cenário
+## assim é reportar justamente o valor em que o modelo acredita MENOS; o
+## que ele está dizendo é "ou o estoque colapsou, ou está intacto, e os
+## dados não escolhem". Um intervalo de credibilidade de 0,05 a 2,15 não
+## avisa disso — parece apenas incerteza larga.
+##
+## O teste é deliberadamente simples e sem pacote extra: mede a massa da
+## posterior em três faixas. Se as duas pontas têm massa relevante e o meio
+## não, a distribuição é bimodal e a mediana não resume nada.
+tab_bimodal <- do.call(rbind, lapply(names(fits), function(nm) {
+  b <- draws_cen(nm)$BB0
+  if (is.null(b) || !length(b)) return(NULL)
+  p_baixo <- mean(b < 0.2); p_meio <- mean(b >= 0.2 & b <= 0.8); p_alto <- mean(b > 0.8)
+  data.frame(cenario = nm,
+             P_BK_menor_0.2 = p_baixo, P_BK_entre = p_meio, P_BK_maior_0.8 = p_alto,
+             mediana_BK = median(b),
+             bimodal = (p_baixo > 0.15 & p_alto > 0.15 & p_meio < 0.5),
+             row.names = NULL, stringsAsFactors = FALSE)
+}))
+cat("\n--- a posterior de B/K final é unimodal? ---\n")
+cat("bimodal = TRUE: a MEDIANA cai no vale entre dois picos e NAO resume o resultado\n")
+print(transform(tab_bimodal, P_BK_menor_0.2 = round(P_BK_menor_0.2, 3),
+                P_BK_entre = round(P_BK_entre, 3), P_BK_maior_0.8 = round(P_BK_maior_0.8, 3),
+                mediana_BK = round(mediana_BK, 3)), row.names = FALSE)
+if (any(tab_bimodal$bimodal)) {
+  cat(sprintf("[ATENCAO] %d cenário(s) com posterior BIMODAL de B/K: %s\n",
+              sum(tab_bimodal$bimodal),
+              paste(tab_bimodal$cenario[tab_bimodal$bimodal], collapse = ", ")))
+  cat("          Nesses, reportar as DUAS soluções e a probabilidade de cada uma,\n")
+  cat("          não a mediana nem o IC de 95% (que atravessa o vale).\n")
+}
+escreve_csv_utf8(tab_bimodal, file.path(DIR_SAIDA, "jabba_bimodalidade_BK.csv"))
+
+## --- 12.2b capturabilidade: o q e o salto de 2015 ------------------------
+## Nos cenários de dois índices, q.1 é do índice histórico e q.2 do recente.
+## A razão q.2/q.1 é a medida direta de quanto a capturabilidade mudou na
+## troca de alvo — e é um número que o texto precisa, porque é ele que
+## justifica ter separado os q em vez de emendar a série.
+tab_q <- do.call(rbind, lapply(names(fits), function(nm) {
+  q <- draws_cen(nm)$q
+  if (!ncol(q)) return(NULL)
+  ## a coluna da razão existe sempre (NA quando o cenário tem um índice só),
+  ## senão o rbind entre cenários de 1 e de 2 índices quebra
+  d <- data.frame(cenario = nm, q = names(q),
+                  mediana = sapply(q, median),
+                  lci = sapply(q, function(z) quantile(z, 0.025)),
+                  uci = sapply(q, function(z) quantile(z, 0.975)),
+                  razao_q2_q1 = NA_real_,
+                  row.names = NULL, stringsAsFactors = FALSE)
+  if (ncol(q) == 2) d$razao_q2_q1[2] <- median(q[[2]] / q[[1]])
+  d
+}))
+cat("\n--- capturabilidade (q) por cenário ---\n")
+print(transform(tab_q, mediana = signif(mediana, 3), lci = signif(lci, 3),
+                uci = signif(uci, 3)), row.names = FALSE)
+escreve_csv_utf8(tab_q, file.path(DIR_SAIDA, "jabba_capturabilidade_q.csv"))
+
+## --- 12.3 boxplots das posteriores, todos os cenários lado a lado --------
+## Mesma figura que existe no CMSY++ e no DB-SRA, para o conjunto ficar
+## comparável entre os três métodos.
+cat("\n--- 12.3 boxplots das posteriores por cenário ---\n")
+vars_box <- list(r = "r", K = "K (t)", MSY = "MSY (t/ano)", BB0 = "B/K no ultimo ano")
+draws_todos <- setNames(lapply(names(fits), draws_cen), names(fits))
+
+png(file.path(DIR_FIG, "jabba_boxplots_posteriores.png"),
+    width = 30, height = 24, res = 300, antialias = AA, units = "cm")
+op <- par(mfrow = c(2, 2), mar = c(7.5, 5, 3, 1), oma = c(5, 0, 0, 0),
+          bty = "l", cex = 0.78, cex.main = 0.9)
+for (v in names(vars_box)) {
+  lst <- lapply(names(fits), function(nm) {
+    z <- draws_todos[[nm]][[v]]; if (is.null(z)) NA_real_ else z[is.finite(z)] })
+  ## escala log em K e MSY pelo mesmo motivo do painel individual
+  usa_log <- v %in% c("K", "MSY")
+  boxplot(lst, names = names(fits), main = vars_box[[v]], col = "#8FAADC",
+          outline = FALSE, ylab = vars_box[[v]], xaxt = "n", bty = "l",
+          log = if (usa_log) "y" else "")
+  if (v == "BB0") abline(h = 0.5, col = "firebrick", lty = 2)
+  axis(1, at = seq_along(fits), labels = FALSE)
+  text(x = seq_along(fits), y = par("usr")[3], labels = names(fits),
+       srt = 45, adj = 1, xpd = NA, cex = 0.6)
+}
+par(op); dev.off()
+cat("PNG salvo: jabba_boxplots_posteriores.png\n")
+
+## --- 12.4 densidade conjunta de MSY e de B/K final -----------------------
+## ATENÇÃO METODOLOGICA, e ela precisa ir para a legenda da figura: juntar
+## num pool único as posteriores de cenários que discordam ESTRUTURALMENTE
+## (aqui o B/Bmsy final varia de 0,07 a 2,6 conforme o cenário) não produz
+## "a" distribuição do MSY — produz uma mistura, cuja largura é o desacordo
+## entre cenários, não a incerteza de um modelo. Ela é útil exatamente como
+## isso: uma medida visual do tamanho do desacordo. Por isso o pool exclui
+## por padrão a família de janela curta, que responde a outra pergunta e
+## nem sequer cobre os mesmos anos.
+CEN_POOL <- names(fits)[is.na(cenarios$janela_ini[match(names(fits), cenarios$id)])]
+if (!length(CEN_POOL)) CEN_POOL <- names(fits)
+cat(sprintf("\n--- 12.4 densidades conjuntas (pool de %d cenários de janela completa) ---\n",
+            length(CEN_POOL)))
+
+dens_conjunta <- function(x, log_x, xlab, titulo, arquivo, lim01 = FALSE) {
+  x <- x[is.finite(x)]; if (log_x) x <- x[x > 0]
+  q <- quantile(x, c(0.025, 0.25, 0.5, 0.75, 0.975))
+  d <- dens_pico(x, log_x, from = if (lim01) 0 else NULL, to = if (lim01) 1 else NULL, adjust = 2)
+  png(file.path(DIR_FIG, arquivo), width = 25, height = 16, res = 300,
+      antialias = AA, units = "cm")
+  op <- par(mar = c(4.8, 5, 3.4, 1), bty = "l", cex.main = 0.9)
+  plot(d$x, d$y, type = "n", log = if (log_x) "x" else "",
+       xlim = if (lim01) c(0, 1) else range(d$x),
+       xlab = xlab, ylab = "densidade (normalizada ao pico)", main = titulo)
+  faixa <- d$x >= q[1] & d$x <= q[5]
+  polygon(c(d$x[faixa], rev(d$x[faixa])), c(d$y[faixa], rep(0, sum(faixa))),
+          col = adjustcolor(COR_MAC, 0.18), border = NA)
+  lines(d$x, d$y, col = COR_MAC, lwd = 2.4)
+  abline(v = q[c(1, 5)], col = COR_AUX, lty = 2, lwd = 1.6)
+  abline(v = q[3], col = COR_MAC, lty = 1, lwd = 1.8)
+  mtext("pool de cenários: a largura mede o DESACORDO entre cenários, não a incerteza de um modelo",
+        side = 3, line = 0.2, cex = 0.62, col = "grey30")
+  legend("topright", c("densidade conjunta", "faixa de 95%", "mediana"),
+         col = c(COR_MAC, adjustcolor(COR_MAC, 0.4), COR_MAC),
+         lwd = c(2.4, 8, 1.8), bty = "n", cex = 0.72)
+  par(op); dev.off()
+  data.frame(quantil = c("2.5%", "25%", "mediana (50%)", "75%", "97.5%"),
+             valor = as.numeric(q), row.names = NULL)
+}
+
+msy_pool <- unlist(lapply(CEN_POOL, function(nm) draws_todos[[nm]]$MSY))
+btk_pool <- unlist(lapply(CEN_POOL, function(nm) draws_todos[[nm]]$BB0))
+q_msy <- dens_conjunta(msy_pool, TRUE, "MSY (t/ano)",
+                       "Distribuicao conjunta do MSY - cenarios de janela completa (JABBA)",
+                       "jabba_msy_densidade_conjunta.png")
+q_btk <- dens_conjunta(btk_pool, FALSE, "B/K no ultimo ano",
+                       "Distribuicao conjunta de B/K final - cenarios de janela completa (JABBA)",
+                       "jabba_btk_densidade_conjunta.png", lim01 = TRUE)
+names(q_msy)[2] <- "MSY"; names(q_btk)[2] <- "BK_final"
+cat("\nQuantis do MSY (pool):\n");     print(transform(q_msy, MSY = round(MSY, 1)), row.names = FALSE)
+cat("\nQuantis do B/K final (pool):\n"); print(transform(q_btk, BK_final = round(BK_final, 3)), row.names = FALSE)
+escreve_csv_utf8(q_msy, file.path(DIR_SAIDA, "jabba_quantis_msy_conjunto.csv"))
+escreve_csv_utf8(q_btk, file.path(DIR_SAIDA, "jabba_quantis_btk_conjunto.csv"))
+if (tem_writexl)
+  writexl::write_xlsx(list(msy_conjunto = q_msy, btk_conjunto = q_btk,
+                           capturabilidade_q = tab_q),
+                      file.path(DIR_SAIDA, "jabba_posteriores_conjuntas.xlsx"))
+
+## --- 12.5 trajetórias de biomassa de todos os cenários -------------------
+## Dois painéis, como no CMSY++: relativa (B/Bmsy, comparável entre
+## cenários) e absoluta (em toneladas, que é o que o manejo lê). As faixas
+## são o IC de 95% — e aqui elas são o assunto da figura, não o enfeite:
+## é a sobreposição delas que mostra que os cenários não se distinguem.
+cat("\n--- 12.5 trajetórias de biomassa ---\n")
+png(file.path(DIR_FIG, "jabba_trajetorias_biomassa.png"),
+    width = 32, height = 15, res = 300, antialias = AA, units = "cm")
+op <- par(mfrow = c(1, 2), mar = c(4.5, 4.8, 3, 1), bty = "l", cex = 0.8, cex.main = 0.9)
+for (v in c("BBmsy", "B")) {
+  s <- tab_series[tab_series$variavel == v, ]
+  plot(NA, xlim = range(s$ano), ylim = c(0, quantile(s$uci, 0.995, na.rm = TRUE) * 1.05),
+       xlab = "Ano", ylab = if (v == "BBmsy") "B / Bmsy" else "Biomassa (t)",
+       main = if (v == "BBmsy") "Biomassa relativa (B/Bmsy)" else "Biomassa absoluta (t)")
+  for (nm in names(fits)) {
+    d <- s[s$cenario == nm, ]; d <- d[order(d$ano), ]
+    if (!nrow(d)) next
+    polygon(c(d$ano, rev(d$ano)), c(d$lci, rev(d$uci)),
+            col = adjustcolor(cor_cen_fig[nm], 0.10), border = NA)
+  }
+  for (nm in names(fits)) {
+    d <- s[s$cenario == nm, ]; d <- d[order(d$ano), ]
+    if (nrow(d)) lines(d$ano, d$mu, col = cor_cen_fig[nm], lwd = 2.6)
+  }
+  if (v == "BBmsy") abline(h = 1, col = "firebrick", lty = 2)
+  legend("topright", names(fits), col = cor_cen_fig, lwd = 2.4, bty = "n", cex = 0.5)
+}
+par(op); dev.off()
+cat("PNG salvo: jabba_trajetorias_biomassa.png\n")
+
+## --- 12.6 resíduos de todos os cenários numa figura só -------------------
+## O QUE ESTA FIGURA RESPONDE: o ajuste ruim é culpa da CONFIGURAÇÃO do
+## modelo (índice escolhido, prior, forma da curva) ou é do DADO? Se cada
+## cenário errasse em anos diferentes, seria configuração. Se todos erram
+## nos MESMOS anos, na mesma direção, o problema está no índice — nenhuma
+## reconfiguração vai resolver. As caixas cinza por ano mostram a dispersão
+## ENTRE cenários; as linhas coloridas, cada cenário.
+cat("\n--- 12.6 resíduos por índice + RMSE ---\n")
+if (!is.null(tab_residuos) && nrow(tab_residuos)) {
+  idxs <- unique(tab_residuos$indice)
+  nc <- min(2, length(idxs)); nr <- ceiling(length(idxs) / nc)
+  lay <- matrix(seq_len(nr * nc), nrow = nr, byrow = TRUE)
+  lay[lay > length(idxs)] <- 0
+  lay <- rbind(lay, matrix(max(lay) + 1, nrow = 1, ncol = nc))
+  
+  png(file.path(DIR_FIG, "jabba_residuos_cenarios.png"),
+      width = 13 * nc, height = 8 * nr + 9, res = 300, antialias = AA, units = "cm")
+  op <- par(mar = c(4, 4.6, 2.8, 1), bty = "l", cex = 0.72)
+  layout(lay, heights = c(rep(1, nr), 1.15))
+  
+  for (ix in idxs) {
+    d <- tab_residuos[tab_residuos$indice == ix, ]
+    anos_ix <- sort(unique(d$ano))
+    plot(NA, xlim = range(anos_ix), ylim = range(d$residuo_log, na.rm = TRUE) * 1.1,
+         xlab = "Ano", ylab = "Residuo (log)",
+         main = sprintf("%s  (n = %d anos, %d cenarios)", ix, length(anos_ix),
+                        length(unique(d$cenario))))
+    ## dispersão entre cenários, ano a ano
+    if (length(unique(d$cenario)) > 2)
+      boxplot(residuo_log ~ ano, data = d, add = TRUE, at = anos_ix, boxwex = 0.55,
+              col = adjustcolor("grey60", 0.25), border = "grey55", outline = FALSE,
+              axes = FALSE)
+    abline(h = 0, col = "firebrick", lty = 2, lwd = 1.4)
+    for (nm in unique(d$cenario)) {
+      dd <- d[d$cenario == nm, ]; dd <- dd[order(dd$ano), ]
+      lines(dd$ano, dd$residuo_log, col = adjustcolor(cor_cen_fig[nm], 0.9), lwd = 1.5)
+      points(dd$ano, dd$residuo_log, col = cor_cen_fig[nm], pch = 16, cex = 0.55)
+    }
+    ## sequência de resíduos do mesmo sinal = o modelo não acompanha a
+    ## tendência do índice (é o que o teste de runs formaliza na seção 10)
+    med_ano <- tapply(d$residuo_log, d$ano, median)
+    lines(as.numeric(names(med_ano)), med_ano, col = "grey20", lwd = 2.4, lty = 1)
+  }
+  
+  ## painel inferior: RMSE por cenário, com o SDNR anotado
+  par(mar = c(4.2, 11, 3, 2))
+  ta <- tab_ajuste[order(tab_ajuste$RMSE), ]
+  bp <- barplot(ta$RMSE, horiz = TRUE, names.arg = ta$cenario, las = 1,
+                col = cor_cen_fig[ta$cenario], border = NA, xlim = c(0, max(ta$RMSE) * 1.25),
+                xlab = "RMSE (%)", main = "Erro de ajuste ao indice por cenario (RMSE) e SDNR",
+                cex.names = 0.62)
+  abline(v = 30, col = "forestgreen", lty = 2, lwd = 1.6)
+  text(max(ta$RMSE) * 1.02, bp, sprintf("SDNR %.2f", ta$SDNR), cex = 0.6, adj = 0, xpd = NA)
+  mtext("linha verde = 30%, referencia usual de bom ajuste | SDNR ~1 = o erro assumido bate com o observado",
+        side = 3, line = 0.15, cex = 0.58, col = "grey30", adj = 0)
+  par(op); layout(1); dev.off()
+  cat("PNG salvo: jabba_residuos_cenarios.png\n")
+} else {
+  cat("[aviso] sem tabela de resíduos — figura de resíduos não gerada.\n")
+}
+
+## --- 12.7 tornado: o que mais move o resultado ---------------------------
+## A LOGICA, e ela é diferente da do CMSY++: lá os dois eixos de cenário
+## (método de r, método de bk) são colunas explícitas. Aqui os cenários
+## diferem do caso base em campos diferentes da grade, então o fator é
+## DEDUZIDO: para cada cenário, compara-se a linha dele com a do caso base
+## e vê-se quais campos mudaram. Só entram no tornado os cenários que
+## mudaram EXATAMENTE UM campo — que é a condição para o efeito ser
+## atribuível àquele fator. Cenário que muda dois campos ao mesmo tempo
+## (a família de janela curta muda janela, psi e K juntos) não é
+## interpretável num tornado e sai, com aviso.
+cat("\n--- 12.7 tornado de sensibilidade ---\n")
+
+campos_fator <- c(indices = "Indice usado", modelo = "Forma da curva de producao",
+                  r_min = "Prior de r", r_max = "Prior de r",
+                  k_min = "Prior de K", k_max = "Prior de K",
+                  janela_ini = "Janela do modelo", psi_mu = "Prior de psi",
+                  psi_cv = "Prior de psi")
+
+tornado <- function(base_id, metrica, metrica_nome, arquivo) {
+  if (!base_id %in% names(fits)) { cat(sprintf("  [pulado] base %s não ajustou\n", base_id)); return(NULL) }
+  cb <- cenarios[cenarios$id == base_id, ]
+  val <- function(nm) {
+    d <- draws_todos[[nm]]
+    switch(metrica, MSY = median(d$MSY), BB0 = median(d$BB0),
+           r = median(d$r), K = median(d$K),
+           BBmsy = tab_status$BBmsy[tab_status$cenario == nm])
+  }
+  v_base <- val(base_id)
+  linhas <- NULL
+  for (nm in setdiff(names(fits), base_id)) {
+    cc <- cenarios[cenarios$id == nm, ]
+    difs <- names(campos_fator)[sapply(names(campos_fator), function(k) {
+      a <- cb[[k]]; b <- cc[[k]]
+      !isTRUE(all.equal(a, b)) && !(is.na(a) && is.na(b)) })]
+    fatores <- unique(campos_fator[difs])
+    if (length(fatores) != 1) next          # muda mais de um fator: não entra
+    linhas <- rbind(linhas, data.frame(
+      fator = fatores, nivel = nm, cenario_id = nm, valor = val(nm),
+      delta_pct = 100 * (val(nm) - v_base) / v_base,
+      row.names = NULL, stringsAsFactors = FALSE))
+  }
+  if (is.null(linhas)) { cat("  [pulado] nenhum cenário de fator único\n"); return(NULL) }
+  
+  ## empilha os níveis de cada fator dos dois lados do zero (convenção de
+  ## leiaute, igual à do CMSY++: não representa soma de efeitos)
+  empilhar <- function(df) {
+    df <- df[order(abs(df$delta_pct)), ]
+    neg <- df[df$delta_pct < 0, , drop = FALSE]; pos <- df[df$delta_pct >= 0, , drop = FALSE]
+    if (nrow(neg)) { cum <- 0; for (i in seq_len(nrow(neg))) {
+      neg$xmax[i] <- cum; cum <- cum + neg$delta_pct[i]; neg$xmin[i] <- cum } }
+    if (nrow(pos)) { cum <- 0; for (i in seq_len(nrow(pos))) {
+      pos$xmin[i] <- cum; cum <- cum + pos$delta_pct[i]; pos$xmax[i] <- cum } }
+    rbind(neg, pos)
+  }
+  te <- do.call(rbind, lapply(split(linhas, linhas$fator), empilhar))
+  amp <- sapply(split(te, te$fator), function(d) max(d$xmax) - min(d$xmin))
+  ordem_f <- names(sort(amp, decreasing = TRUE))
+  te$y <- match(te$fator, rev(ordem_f))
+  
+  cores_n <- setNames(grDevices::hcl.colors(length(unique(te$nivel)), palette = "Dynamic"),
+                      unique(te$nivel))
+  xl <- range(c(te$xmin, te$xmax, 0)) * 1.15
+  
+  png(file.path(DIR_FIG, arquivo), width = 30, height = 4 + 3.2 * length(ordem_f),
+      res = 300, antialias = AA, units = "cm")
+  op <- par(mar = c(4.6, 13, 5, 13), bty = "l")
+  plot(NA, xlim = xl, ylim = c(0.5, length(ordem_f) + 0.5), yaxt = "n", ylab = "",
+       xlab = sprintf("Variacao da mediana de %s em relacao ao cenario base (%%)", metrica_nome))
+  mtext(sprintf("Tornado - sensibilidade de %s (JABBA)", metrica_nome),
+        side = 3, line = 2.6, cex = 1.05, font = 2, adj = 0)
+  mtext(sprintf("Base: %s | mediana de %s = %.3g", base_id, metrica_nome, v_base),
+        side = 3, line = 1.1, cex = 0.8, adj = 0)
+  abline(v = pretty(xl), col = "grey92"); abline(v = 0, col = "black", lwd = 1.4)
+  for (i in seq_len(nrow(te))) rect(te$xmin[i], te$y[i] - 0.32, te$xmax[i], te$y[i] + 0.32,
+                                    col = cores_n[te$nivel[i]], border = "white")
+  axis(2, at = seq_along(ordem_f), labels = rev(ordem_f), las = 1, tick = FALSE, cex.axis = 0.82)
+  legend(x = xl[2] * 1.08, y = length(ordem_f) + 0.5, xpd = NA, legend = names(cores_n),
+         fill = cores_n, bty = "n", cex = 0.72, title = "Cenario alternativo", xjust = 0)
+  par(op); dev.off()
+  cat(sprintf("PNG salvo: %s\n", arquivo))
+  cbind(base = base_id, metrica = metrica_nome, te[, c("fator", "nivel", "valor", "delta_pct")])
+}
+
+BASE_TORNADO       <- if ("J3_BASE_C2C5" %in% names(fits)) "J3_BASE_C2C5" else names(fits)[1]
+BASE_TORNADO_CURTO <- if ("J13_C5curto_base" %in% names(fits)) "J13_C5curto_base" else NA
+
+tab_tornado <- rbind(
+  tornado(BASE_TORNADO, "MSY",   "MSY",     "jabba_tornado_msy.png"),
+  tornado(BASE_TORNADO, "BBmsy", "B/Bmsy final", "jabba_tornado_bbmsy.png"),
+  if (!is.na(BASE_TORNADO_CURTO))
+    tornado(BASE_TORNADO_CURTO, "MSY", "MSY (janela curta)", "jabba_tornado_msy_curto.png"))
+
+if (!is.null(tab_tornado)) {
+  cat("\n--- variação em relação ao cenário base ---\n")
+  print(transform(tab_tornado, valor = signif(valor, 4), delta_pct = round(delta_pct, 1)),
+        row.names = FALSE)
+  escreve_csv_utf8(tab_tornado, file.path(DIR_SAIDA, "jabba_tornado_sensibilidade.csv"))
+  if (tem_writexl)
+    writexl::write_xlsx(list(tornado = tab_tornado),
+                        file.path(DIR_SAIDA, "jabba_tornado_sensibilidade.xlsx"))
+}
+
+cat(sprintf("\nFiguras da seção 12 em: %s\n", DIR_FIG))
+
+
+## =========================================================================
+## 13) COMO REPORTAR
+## =========================================================================
+cat("\n===== COMO REPORTAR =====\n")
+cat("1. Apresentar os cenários como ALTERNATIVAS, nunca escolher um e\n")
+cat("   esconder os outros. A pergunta que o leitor faz é 'a conclusão\n")
+cat("   depende de qual cenário?' — a figura do painel responde isso.\n")
+cat("2. O caso base (J3) usa índices com q SEPARADO por período. Explicar\n")
+cat("   que isso é o que acomoda a mudança de alvo de 2015, e que os dois\n")
+cat("   índices NAO se sobrepõem em nenhum ano — quem liga os períodos é a\n")
+cat("   série de captura e a dinâmica, não os dados de abundância.\n")
+cat("3. DECLARAR o que a série de captura cobre. Se ficou só a rede de\n")
+cat("   cerco industrial, dizer isso e dizer o que sobrou de fora; K e MSY\n")
+cat("   valem para as remoções que entraram, não para o estoque inteiro.\n")
+cat("   Se usou a série externa (Luz & Vieira), dizer a resolução taxonômica\n")
+cat("   dela e que a avaliação deixa de ser independente do CMSY/DBSRA.\n")
+cat("4. Reportar a SENSIBILIDADE AOS PRIORS DE r (J7/J8) E DE K (J10/J11)\n")
+cat("   junto com o caso base. Stobberup & Erzini (2006) mostraram, neste\n")
+cat("   mesmo estoque, que a posterior de r saía praticamente igual à prior.\n")
+cat("   O TESTE: comparar a mediana de cada posterior com a mediana do prior\n")
+cat("   que aquele cenário usou (raiz de r_min*r_max, idem para K). Se a\n")
+cat("   razão for ~1 em todos, o modelo não atualizou o parâmetro — MSY =\n")
+cat("   rK/4 vira premissa, e o status com ela. Isso NAO invalida o\n")
+cat("   trabalho: é um resultado, e é o argumento técnico para pedir ao IMar\n")
+cat("   a série de desembarques completa.\n")
+cat("4b. O quadrado J2/J9/J3/J5 separa duas coisas que estavam confundidas:\n")
+cat("   o efeito de PADRONIZAR o índice recente e o de ANCORAR no histórico.\n")
+cat("   Reportar as quatro células juntas, não só a que deu o caso base.\n")
+cat("4c. J13-J17 (janela curta 2015-2025, só C5, psi vago) respondem uma\n")
+cat("   pergunta diferente dos demais: 'o problema de ajuste é do período\n")
+cat("   recente sozinho, ou aparece em qualquer recorte?'. NÃO reportar\n")
+cat("   B/Bmsy ou status do estoque a partir deles — o psi vago (seção 5.8)\n")
+cat("   torna o nível absoluto de biomassa não identificável; só a REACAO\n")
+cat("   do ajuste às mudanças de prior de r/K é informativa aqui, e só é\n")
+cat("   comparável entre J13-J17/J19, nunca contra J1-J12/J18 (janela e\n")
+cat("   prior de psi diferentes tornam DIC e status incomparáveis).\n")
+cat("4d. J18 (BASE trocando C5 por C6) e J19 (par de J13 trocando C5 por C6\n")
+cat("   na janela curta) testam se o índice muda de conclusão quando o\n")
+cat("   viés de tática é corrigido por SUBSETTING (C6: só esforço da tática\n")
+cat("   mais associada à cavala) em vez de por PADRONIZAÇÃO (C5: GLM com a\n")
+cat("   tática como covariável, toda viagem dentro). Ver a parte 03, seção\n")
+cat("   'C6', para a ressalva: nenhuma tática desta frota é de fato\n")
+cat("   DOMINADA pela cavala, então C6 mede 'esforço da tática que mais\n")
+cat("   encontra cavala', não 'esforço dirigido' no sentido estrito.\n")
+cat("5. Reportar convergência (Geweke/Heidelberger), ajuste (RMSE, SDNR) e\n")
+cat("   diagnóstico (rho de Mohn, MASE, teste de runs). Um modelo com MASE\n")
+cat("   acima de 1 não prevê o índice melhor que uma regra ingênua.\n")
+cat("6. Reportar as probabilidades de Kobe, não só o ponto estimado: é a\n")
+cat("   vantagem de ser bayesiano e é o que o manejo consegue usar.\n")
+cat("7. Declarar as premissas de preenchimento: anos de captura interpolados\n")
+cat("   e anos marcados frágeis na parte 03 (2013 sem esforço, 2018 de\n")
+cat("   levantamento diferente) entraram na série mesmo assim.\n")
+cat("8. DIC só compara cenários com os MESMOS dados de entrada. Serve para\n")
+cat("   Schaefer contra Fox (J3 x J6); não serve para J1 contra J3.\n")
+cat("8b. A COMPARACAO MAIS LIMPA DA GRADE E J1 x J2, e ela merece estar no\n")
+cat("   texto: C1 e literalmente C2 e C3 renormalizados (a razao C1/C2 e\n")
+cat("   C1/C3 e constante ano a ano), entao J1 e J2 ajustam OS MESMOS 35\n")
+cat("   pontos e J1 (um q) esta ANINHADO em J2 (dois q). A diferenca de DIC\n")
+cat("   entre eles e o teste formal de que a capturabilidade mudou em 2015 —\n")
+cat("   e o que justifica separar os q em vez de emendar a serie.\n")
+cat("9. Confirmar que os resultados finais NAO saíram de RODADA_RAPIDA.\n")
+cat("10. REPORTAR O TESTE PRIORI x POSTERIORI (secao 12) como resultado, nao\n")
+cat("   como diagnostico interno. jabba_priori_posteriori.csv traz, por\n")
+cat("   cenario e parametro, a razao entre as medianas e a reducao do IC de\n")
+cat("   95%. Razao perto de 1 COM reducao de IC perto de zero = parametro\n")
+cat("   assumido, nao estimado — e ai o MSY que sai dele e premissa. E a\n")
+cat("   versao quantitativa do achado de Stobberup & Erzini (2006) neste\n")
+cat("   mesmo estoque.\n")
+cat("11. CHECAR A BIMODALIDADE (jabba_bimodalidade_BK.csv) ANTES de citar\n")
+cat("   qualquer mediana de B/K ou B/Bmsy. Quando a posterior tem um pico\n")
+cat("   perto de zero e outro perto de um, a mediana cai no VALE: e o valor\n")
+cat("   em que o modelo acredita MENOS. Nesses cenarios reporte as duas\n")
+cat("   solucoes e a probabilidade de cada uma, nunca o ponto nem o IC.\n")
+cat("12. Reportar a RAZAO ENTRE OS q (jabba_capturabilidade_q.csv) nos\n")
+cat("   cenarios de dois indices: e a medida direta do salto de\n")
+cat("   capturabilidade na troca de alvo e da suporte numerico ao item 8b.\n")
+cat("13. A planilha jabba_cenarios_racional.csv/.xlsx traz, na mesma linha,\n")
+cat("   a pergunta que cada cenario responde, com quem ele deve ser lido em\n")
+cat("   par (coluna `contraste`) e o resultado que ele produziu. Cenario de\n")
+cat("   avaliacao nao tem significado sozinho, so contra outro.\n")
+
+cat("\n===== FIM =====\n")
 

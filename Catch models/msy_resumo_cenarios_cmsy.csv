@@ -1,17 +1,17 @@
 "cenario_id","bk_method","r_method","mediana","p2.5","p97.5","n_simulacoes"
-"NN_CMSY_Euler-lotka methods","NN_CMSY","Euler-lotka methods",1730.64737836804,1282.74848422246,2488.96524488205,6000
-"NN_CMSY_Higher resilience","NN_CMSY","Higher resilience",1878.98022550538,1602.1847029827,2183.21152600047,6000
-"NN_CMSY_lower resilience","NN_CMSY","lower resilience",2010.82082157279,1377.17906583666,2948.60756777178,6000
-"NN_CMSY_Non-informative_r","NN_CMSY","Non-informative_r",1691.24563515584,1286.56966022438,2360.9538228475,6000
-"Target_switch_Euler-lotka methods","Target_switch","Euler-lotka methods",1937.65423783849,1409.45554405966,2746.56488321551,6000
-"Target_switch_Higher resilience","Target_switch","Higher resilience",2030.3241540224,1714.12540040592,2491.31013516824,6000
-"Target_switch_lower resilience","Target_switch","lower resilience",2146.7007102959,1436.27333059755,3160.90292472635,6000
-"Target_switch_Non-informative_r","Target_switch","Non-informative_r",1927.34148567465,1400.05686591663,2711.56235268858,6000
-"Uninformative_bk_Euler-lotka methods","Uninformative_bk","Euler-lotka methods",2051.41854168801,1425.12949518163,3079.20201596889,6000
-"Uninformative_bk_Higher resilience","Uninformative_bk","Higher resilience",2090.50106640643,1722.60331147635,2815.67742946918,6000
-"Uninformative_bk_lower resilience","Uninformative_bk","lower resilience",2160.54177626098,1449.86586754235,3285.94494811674,6000
-"Uninformative_bk_Non-informative_r","Uninformative_bk","Non-informative_r",2003.5854500475,1330.84332542926,2956.0307790325,6000
-"zBRT_Euler-lotka methods","zBRT","Euler-lotka methods",1910.44556871566,1387.06290167743,2772.29196146375,6000
-"zBRT_Higher resilience","zBRT","Higher resilience",2009.52131217528,1678.51230993865,2535.02062765306,6000
-"zBRT_lower resilience","zBRT","lower resilience",2164.59122540205,1423.84900177673,3156.60035237706,6000
-"zBRT_Non-informative_r","zBRT","Non-informative_r",1844.82073353007,1341.17814890643,2603.6276632827,6000
+"NN_CMSY_Euler-lotka methods","NN_CMSY","Euler-lotka methods",1252.5365223986,1013.0797295623,1564.43687535472,6000
+"NN_CMSY_Higher resilience","NN_CMSY","Higher resilience",1427.20837159651,1247.16784020668,1693.05094449004,6000
+"NN_CMSY_lower resilience","NN_CMSY","lower resilience",1578.35841866223,1081.63617882071,2325.16306915389,6000
+"NN_CMSY_Non-informative_r","NN_CMSY","Non-informative_r",1285.21126909667,949.692647225009,1812.04482918243,6000
+"Target_switch_Euler-lotka methods","Target_switch","Euler-lotka methods",1288.70090730588,1047.86999989041,1606.04744454232,6000
+"Target_switch_Higher resilience","Target_switch","Higher resilience",1435.071618454,1226.81938286894,1670.33544823462,6000
+"Target_switch_lower resilience","Target_switch","lower resilience",1542.95874271649,1056.60018799478,2337.91997549696,6000
+"Target_switch_Non-informative_r","Target_switch","Non-informative_r",1284.5040280893,941.578443503317,1869.79889988667,6000
+"Uninformative_bk_Euler-lotka methods","Uninformative_bk","Euler-lotka methods",1312.2419440263,1040.87683968676,1719.95311067138,6000
+"Uninformative_bk_Higher resilience","Uninformative_bk","Higher resilience",1459.96651021782,1245.07514783672,1723.0838491068,6000
+"Uninformative_bk_lower resilience","Uninformative_bk","lower resilience",1544.23928135601,1041.18268688601,2291.86963988618,6000
+"Uninformative_bk_Non-informative_r","Uninformative_bk","Non-informative_r",1479.07880947101,1101.85162753606,2062.203152736,6000
+"zBRT_Euler-lotka methods","zBRT","Euler-lotka methods",1260.73744343646,1015.25299315885,1592.27381902794,6000
+"zBRT_Higher resilience","zBRT","Higher resilience",1423.18198601764,1235.01541949573,1661.06879551554,6000
+"zBRT_lower resilience","zBRT","lower resilience",1474.61256303506,989.190350954937,2249.58471225305,6000
+"zBRT_Non-informative_r","zBRT","Non-informative_r",1337.7031280299,952.123331839141,1948.63158061432,6000

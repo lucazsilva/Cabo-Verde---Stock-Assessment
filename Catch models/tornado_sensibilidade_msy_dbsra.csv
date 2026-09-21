@@ -1,6 +1,6 @@
 "fator","nivel","cenario_id","valor","delta_pct"
-"M (mortalidade natural)","M_Santos(2005-2018)","Target_switch_M_Santos(2005-2018)",2097.49896178802,0.126588721225097
-"M (mortalidade natural)","M_Vieira(1988-2018)","Target_switch_M_Vieira(1988-2018)",2120.4475833564,1.22206825916872
-"Bt/K (metodo de depleção)","NN_CMSY","NN_CMSY_M_Jardim(1981-1994)",1896.76940960781,-9.4554733829727
-"Bt/K (metodo de depleção)","zBRT","zBRT_M_Jardim(1981-1994)",2081.93630398228,-0.61631311849569
-"Bt/K (metodo de depleção)","Uninformative_bk","Uninformative_bk_M_Jardim(1981-1994)",2201.94916344533,5.1126423850016
+"M (mortalidade natural)","M_Santos(2005-2018)","Target_switch_M_Santos(2005-2018)",1341.84504993097,0.324491565943444
+"M (mortalidade natural)","M_Vieira(1988-2018)","Target_switch_M_Vieira(1988-2018)",1374.82805778702,2.79050170149863
+"Bt/K (metodo de depleção)","NN_CMSY","NN_CMSY_M_Jardim(1981-1994)",1218.98693895739,-8.86112753278181
+"Bt/K (metodo de depleção)","zBRT","zBRT_M_Jardim(1981-1994)",1230.76234764619,-7.98072640916037
+"Bt/K (metodo de depleção)","Uninformative_bk","Uninformative_bk_M_Jardim(1981-1994)",1403.80287902019,4.95683544367071

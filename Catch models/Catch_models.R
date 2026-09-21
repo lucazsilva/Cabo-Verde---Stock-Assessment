@@ -86,7 +86,10 @@ library(scales)
 setwd("C:/Users/mathe/OneDrive/Documents/Cabo-Verde---Stock-Assessment/Catch models")
 
 ### lendo os dados de capturas... ###
-ct<- read.csv("Catch_Luz and Vieira.csv",sep = ",",dec = ".")
+#ct<- read.csv("Catch_Luz and Vieira.csv",sep = ",",dec = ".")#CAPTURAS FAO
+ct<- read.csv("desembarques_macarellus_1989_2025.csv",sep = ",",dec = ".") #CAPTURAS DE ESFORÇO MACARELLUS
+ct<- data.frame(Year=ct$Yr, Catch=ct$Catch_macarellus_t)#filtrar só macarellus
+
 # lendo dados de história de vida... ##
 lh<- read_xlsx("Parametros_Historia_de_vida.xlsx")
 #carregar ffnn.bin (parametros da rede neural do CMSY)
@@ -949,7 +952,7 @@ run_depletion_hypotheses <- function(
 bk_macarellus <- run_depletion_hypotheses(
   data = ct,
   target_years = c(
-    2015
+    2025
   )
 )
 # ===========================
@@ -1069,7 +1072,7 @@ estimate_r_boot <- function(sp_row, nboot = 1000,
   L500  <- mean(na.omit(sp_row$l50_fl)) / 10    # <-- era `L50(mm)TL`
   M0    <- mean(na.omit(sp_row$m))              # <-- era M
   tmax0 <- mean(na.omit(sp_row$tmax))           # <-- era `Tmáx`
-  ls0   <- 4   # default (não existe em lh)
+  ls0   <- 6   # default (não existe em lh)
   f     <- 1   # default (não existe em lh)
   # -----------------------------------------------------------------
   
@@ -1171,7 +1174,8 @@ estimate_r_boot <- function(sp_row, nboot = 1000,
 species_list <- unique(lh$especie)
 
 res_list <- map(species_list, function(sp) {
-  sp_row <- lh %>% filter(especie == sp)
+  sp_row <- lh %>% filter(especie == sp,
+                          fonte %in% c("Costa et al. (2020)", "Vieira (2019)") )
   estimate_r_boot(sp_row, nboot = 1000)
 })
 
@@ -1188,13 +1192,15 @@ r_methods <- map_dfr(res_list, "summary")
 
 #-------------------------------------------------
 # 2) Agregação baseline (mesma lógica de antes)
+# maior parte da sensibilidade cai entre 0.2-0.8
+#resiliecia media, testada em todos os modelos
 #-------------------------------------------------
 r_base <- r_methods %>%
   dplyr::group_by(specie) %>%
   dplyr::summarise(
     r_median = median(r_median, na.rm = TRUE),
-    r_min    = pmax(median(r_q025, na.rm = TRUE), 0.1),
-    r_max    = pmin(median(r_q975, na.rm = TRUE), 1.5),
+    r_min    = 0.2,#pmax(median(r_q025, na.rm = TRUE)),
+    r_max    = 0.8,#pmin(median(r_q975, na.rm = TRUE)),
     .groups  = "drop"
   )
 
@@ -1487,6 +1493,18 @@ print(idade_maturacao) # 2 anos arredondando pq o DB-SRA so aceita numero inteir
 #===============================
 #*******Rodando o modelo ******
 #===============================
+# AVISO sobre um efeito colateral do pacote fishmethods: internamente,
+# dbsra() grava CADA simulacao (aceita ou nao) em "Biotraj-dbsra.csv" no
+# diretorio de trabalho (via write.table(..., append = nn>1)), sem
+# nenhuma coluna dizendo de qual cenario/rodada e cada linha. Como aqui
+# os 12 cenarios rodam em PARALELO (future_lapply/multisession), varios
+# processos R escrevem/reabrem esse MESMO arquivo ao mesmo tempo -- o
+# resultado e uma mistura de linhas de cenarios diferentes, sem como
+# separar depois, e pode ate ter linhas cortadas por causa da concorrencia.
+# Esse arquivo NAO deve ser usado como fonte da trajetoria de biomassa
+# (por isso reconstruimos a trajetoria manualmente mais abaixo, na secao
+# "Trajetorias de biomassa reconstruidas"). Pode apagar/ignorar o
+# Biotraj-dbsra.csv que aparecer na pasta.
 library(future.apply)
 plan(multisession, workers = min(nrow(cenarios_macarellus_dbsra), parallel::detectCores() - 1))
 
@@ -1497,7 +1515,14 @@ resultados_dbsra <- future_lapply(seq_len(nrow(cenarios_macarellus_dbsra)), func
     agemat = 2,
     k     = list(low = 3000, up = 60000, tol = 0.01, permax = 1000),
     b1k   = list(dist = "unif", low = 0.8, up = 0.99, mean = 1, sd = 0.1),
-    btk   = list(dist = "unif", low = cen$bk_lo, up = cen$bk_hi, refyr = 2015),
+    # refyr atualizado para 2025 (ultimo ano da serie de capturas apos a
+    # extensao dos dados) -- antes estava em 2015, que era o fim (ou perto
+    # do fim) da serie antiga; isso fazia o BtK aceito pelo dbsra() (e por
+    # tabela, K/MSY/Bmsy/OFLT1, todos calculados em funcao de BtK) refletir
+    # a depleção de 2015, nao a atual, mesmo com a serie agora indo ate 2025.
+    # O bloco de reconstrucao de biomassa (mais abaixo, refyr <- 2025) ja
+    # assumia 2025 -- agora os dois batem.
+    btk   = list(dist = "unif", low = cen$bk_lo, up = cen$bk_hi, refyr = 2025),
     fmsym = list(dist = "lnorm", low = 0.1, up = 2, mean = log(0.8), sd = 0.3),
     bmsyk = list(dist = "beta", low = 0.05, up = 0.95, mean = 0.4, sd = 0.1),
     M     = list(dist = "lnorm", low = cen$M * 0.7, up = cen$M * 1.3, mean = log(cen$M), sd = 0.10),
@@ -1767,7 +1792,7 @@ cat("\nPos-processamento concluido.\n")
 stopifnot(exists("resultados_dbsra"), exists("cenarios_macarellus_dbsra"), exists("ct"))
 
 agemat <- 2          # mesmo valor usado no dbsra()
-refyr  <- 2015        # mesmo refyr usado no btk
+refyr  <- 2025        # mesmo refyr usado no btk
 anos   <- ct$year
 catches <- ct$ct
 n_anos <- length(anos)
@@ -1779,17 +1804,45 @@ n_amostra_por_cenario <- 10000   # quantas trajetorias aceitas usar (amostra, p/
 ## ---------------------------------------------------------------------
 ## Reconstroi UMA trajetoria de biomassa a partir de 1 linha de res$Values
 ## ---------------------------------------------------------------------
-reconstruir_biomassa <- function(K, n, g, B1K, MSY, catches, agemat) {
-  n_t <- length(catches)
+# Com a serie de capturas estendida ate 2025 (mais longa e mais irregular
+# no final -- ver capturas_Decapterus_macarellus.png), algumas combinacoes
+# de K/g/n/B1K/MSY que o dbsra() aceitou (aceitas com base so na
+# profundidade final, BtK no refyr) sao dinamicamente INCONSISTENTES com
+# essa serie: reconstruindo ano a ano, a captura acumulada excede o que
+# B[t-1]+P suporta e a biomassa reconstruida cairia abaixo de zero. Como
+# 'n' (o expoente de Pella-Tomlinson) normalmente NAO e inteiro, uma razao
+# B/K negativa elevada a 'n' vira NaN em R -- e essa NaN se propaga para
+# todos os anos seguintes daquele sorteio (cada B[t] depende de B[t-1]),
+# o que e o que estava disparando o erro do quantile().
+#
+# Fisicamente uma biomassa nao pode ficar negativa (o estoque colapsaria
+# antes disso), entao o piso abaixo trata isso como colapso numerico:
+# a trajetoria e mantida (nao descartada), mas com B travado num piso
+# proximo de zero dali em diante, e o sorteio fica marcado como
+# "colapsou" para que reconstruir_cenario() possa contar/reportar quantos
+# sorteios aceitos pelo dbsra() sao, na pratica, incompativeis com a
+# dinamica completa da serie -- isso e informativo por si so: uma fracao
+# grande sinaliza que aquela combinacao de hipoteses (bk x M) tem
+# dificuldade para acomodar as capturas observadas.
+reconstruir_biomassa <- function(K, n, g, B1K, MSY, catches, agemat, piso_rel = 1e-6) {
+  n_t  <- length(catches)
+  piso <- piso_rel * K
   B <- numeric(n_t)
-  B[1] <- B1K * K
+  colapsou <- FALSE
+  B[1] <- max(B1K * K, piso)
   for (t in 2:n_t) {
     lag_idx <- t - agemat
     B_lag <- if (lag_idx >= 1) B[lag_idx] else B[1]
-    razao <- B_lag / K
+    razao <- B_lag / K            # sempre >= 0 por construcao (B_lag nunca < piso)
     P <- g * MSY * razao - g * MSY * razao^n
-    B[t] <- B[t - 1] + P - catches[t - 1]
+    B_novo <- B[t - 1] + P - catches[t - 1]
+    if (!is.finite(B_novo) || B_novo <= piso) {
+      B_novo <- piso
+      colapsou <- TRUE
+    }
+    B[t] <- B_novo
   }
+  attr(B, "colapsou") <- colapsou
   B
 }
 
@@ -1799,40 +1852,59 @@ reconstruir_biomassa <- function(K, n, g, B1K, MSY, catches, agemat) {
 reconstruir_cenario <- function(res, catches, agemat, idx_refyr, n_amostra) {
   vals <- res$Values
   acc  <- vals[vals$ll == 1, ] #só aceita trajetórias válidas
-  
+
   vars_necessarias <- c("K", "n", "g", "B1K", "MSY", "BtK")
   faltando <- setdiff(vars_necessarias, names(acc))
   if (length(faltando) > 0) {
     stop("res$Values esta sem as colunas: ", paste(faltando, collapse = ", "),
          " -- confira names(resultados[[1]]$Values)")
   }
-  
+
   if (nrow(acc) > n_amostra) {
     acc <- acc[sample(nrow(acc), n_amostra), ]
   }
-  
-  mat <- t(mapply(function(K, n, g, B1K, MSY) {
+
+  trajs <- mapply(function(K, n, g, B1K, MSY) {
     reconstruir_biomassa(K, n, g, B1K, MSY, catches, agemat)
-  }, acc$K, acc$n, acc$g, acc$B1K, acc$MSY))
-  
+  }, acc$K, acc$n, acc$g, acc$B1K, acc$MSY, SIMPLIFY = FALSE)
+  mat <- do.call(rbind, trajs)   # linhas = sorteios, colunas = anos
+
+  colapsou   <- vapply(trajs, function(x) isTRUE(attr(x, "colapsou")), logical(1))
+  n_colapso  <- sum(colapsou)
+  frac_colapso <- n_colapso / length(trajs)
+  if (n_colapso > 0) {
+    cat(sprintf(
+      "\n  [aviso] %d de %d trajetorias amostradas (%.1f%%) tocaram o piso de biomassa (colapso numerico) em pelo menos um ano -- as capturas da serie superam o que aquela combinacao de K/g/n/B1K/MSY sustenta dinamicamente. Mantidas no piso (nao descartadas); trate a FORMA da trajetoria dessas com cautela.",
+      n_colapso, length(trajs), 100 * frac_colapso))
+  }
+
   # validacao: BtK reconstruido no refyr vs BtK reportado pelo dbsra()
-  btk_reconstruido <- mat[, idx_refyr] / acc$K
-  residuo <- btk_reconstruido - acc$BtK
-  diagnostico <- c(erro_medio_abs = mean(abs(residuo)),
-                   erro_max_abs  = max(abs(residuo)))
-  
+  # (usa apenas sorteios que NAO colapsaram -- comparar um BtK travado no
+  # piso contra o BtK original so infla o erro sem acrescentar informacao)
+  ok <- !colapsou
+  if (any(ok)) {
+    btk_reconstruido <- mat[ok, idx_refyr] / acc$K[ok]
+    residuo <- btk_reconstruido - acc$BtK[ok]
+    diagnostico <- c(erro_medio_abs = mean(abs(residuo)),
+                     erro_max_abs  = max(abs(residuo)))
+  } else {
+    diagnostico <- c(erro_medio_abs = NA_real_, erro_max_abs = NA_real_)
+  }
+
   mat_bk <- sweep(mat, 1, acc$K, "/")   # biomassa relativa (B/K), por linha
-  
+
   list(
     biomassa   = mat,
     biomassa_bk = mat_bk,
-    mediana_B  = apply(mat, 2, median),
-    p2.5_B     = apply(mat, 2, quantile, 0.025),
-    p97.5_B    = apply(mat, 2, quantile, 0.975),
-    mediana_BK = apply(mat_bk, 2, median),
-    p2.5_BK    = apply(mat_bk, 2, quantile, 0.025),
-    p97.5_BK   = apply(mat_bk, 2, quantile, 0.975),
-    diagnostico = diagnostico
+    mediana_B  = apply(mat, 2, median, na.rm = TRUE),
+    p2.5_B     = apply(mat, 2, quantile, probs = 0.025, na.rm = TRUE),
+    p97.5_B    = apply(mat, 2, quantile, probs = 0.975, na.rm = TRUE),
+    mediana_BK = apply(mat_bk, 2, median, na.rm = TRUE),
+    p2.5_BK    = apply(mat_bk, 2, quantile, probs = 0.025, na.rm = TRUE),
+    p97.5_BK   = apply(mat_bk, 2, quantile, probs = 0.975, na.rm = TRUE),
+    diagnostico = diagnostico,
+    n_colapso  = n_colapso,
+    frac_colapso = frac_colapso
   )
 }
 
@@ -1858,6 +1930,25 @@ if (any(erros > 0.05)) {
 } else {
   cat("\nValidacao OK em todos os cenarios (erro medio no Bt/K reconstruido <= 0.02).\n\n")
 }
+
+## ---------------------------------------------------------------------
+## Resumo de colapso numerico por cenario (ver aviso em reconstruir_cenario)
+## ---------------------------------------------------------------------
+tab_colapso <- data.frame(
+  cenario      = names(trajetorias),
+  n_colapso    = sapply(trajetorias, function(x) x$n_colapso),
+  frac_colapso = sapply(trajetorias, function(x) x$frac_colapso))
+tab_colapso <- tab_colapso[order(-tab_colapso$frac_colapso), ]
+cat("Fracao de trajetorias amostradas que colapsaram (tocaram o piso de biomassa) por cenario:\n")
+print(tab_colapso, row.names = FALSE)
+if (any(tab_colapso$frac_colapso > 0.10)) {
+  cat("\n[AVISO] Em pelo menos um cenario mais de 10% dos sorteios aceitos pelo dbsra()",
+      "colapsam ao serem reconstruidos ano a ano com a serie de capturas completa.",
+      "Isso indica que boa parte dos sorteios aceitos so pela profundidade final (BtK)",
+      "nao sustenta dinamicamente a serie de capturas completa -- vale checar se a",
+      "hipotese de M/bk correspondente ainda faz sentido com os dados novos.\n\n")
+}
+write.csv(tab_colapso, "colapso_reconstrucao_biomassa_dbsra.csv", row.names = FALSE)
 
 ## ---------------------------------------------------------------------
 ## Grafico unico -- todos os cenarios sobrepostos (mediana + IC 95%)

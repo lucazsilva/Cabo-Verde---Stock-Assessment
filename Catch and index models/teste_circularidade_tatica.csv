@@ -1,0 +1,4 @@
+"representacao","AIC","dAIC_vs_discreta","r_com_discreta","n_linhas","concordancia_kmeans_pct"
+"discreta (alvo)","9570.9","0","1","7829","96"
+"continua PCs COM cavala","7494.2","-2076.7","0.678","7829","96"
+"continua PCs SEM cavala","9612.4","41.5","0.986","7829","96"
