@@ -1,0 +1,2 @@
+Continent;Region;Subregion;Stock;Group;Name;ScientificName;SpecCode;Source;MinOfYear;MaxOfYear;StartYear;EndYear;Flim;Fpa;Blim;Bpa;Bmsy;MSYBtrigger;Fmsy;last_F;Resilience;r.low;r.hi;stb.low;stb.hi;int.yr;intb.low;intb.hi;endb.low;endb.hi;btype;e.creep;force.cmsy;Comments
+South America;South America Brazil;Southeast Brazil;seabobshrimp_s;Shrimp;pink;X.kroyeri;seabob;Silva;1950;2015;1950;2015;NA;NA;NA;NA;NA;NA;NA;NA;Medium;0.8;0.9;0.8;1;NA;NA;NA;NA;NA;None;NA;FALSE;NA
