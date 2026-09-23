@@ -1,7 +1,7 @@
 "fator","nivel","cenario_id","valor","delta_pct"
-"Método de r (resiliência)","lower resilience","Target_switch_lower resilience",1.54295874271649,19.7297785676394
-"Método de r (resiliência)","Higher resilience","Target_switch_Higher resilience",1.435071618454,11.3580048185206
-"Método de r (resiliência)","Non-informative_r","Target_switch_Non-informative_r",1.2845040280893,-0.325667437090094
-"Método Bt/K (depleção)","NN_CMSY","NN_CMSY_Euler-lotka methods",1.2525365223986,-2.80626673747628
-"Método Bt/K (depleção)","zBRT","zBRT_Euler-lotka methods",1.26073744343646,-2.16989556776828
-"Método Bt/K (depleção)","Uninformative_bk","Uninformative_bk_Euler-lotka methods",1.3122419440263,1.82672616950618
+"Método de r (resiliência)","lower resilience","Target_switch_lower resilience",1.82322707232206,8.50996019563719
+"Método de r (resiliência)","Higher resilience","Target_switch_Higher resilience",1.907976256733,13.5538358415443
+"Método de r (resiliência)","Non-informative_r","Target_switch_Non-informative_r",1.66114407908697,-1.1364625738151
+"Método Bt/K (depleção)","NN_CMSY","NN_CMSY_Euler-lotka methods",1.68548383583328,0.312126072002825
+"Método Bt/K (depleção)","zBRT","zBRT_Euler-lotka methods",1.6789510387947,-0.0766754971399985
+"Método Bt/K (depleção)","Uninformative_bk","Uninformative_bk_Euler-lotka methods",1.70836195530609,1.67372489369207

@@ -98,6 +98,7 @@ load("ffnn.bin")
 #correções na serie de capturas
 names(ct) <- c("Year", "Catch")
 ct <- ct[ct$Year <= 2023, ]
+ano_final<- 2023
 print(ct)
 
 # 2018 tem metodologia distinta (discrepância absurda: 2362 t vs vizinhos
@@ -939,11 +940,11 @@ run_depletion_hypotheses <- function(
           "redução proporcional da biomassa. Intervalo amplo de B/K."
         ),
       
-      bk_lo = 0.20,
+      bk_lo = 0.01,
       
-      bk_hi = 0.70,
+      bk_hi = 0.50,
       
-      bk = 0.45
+      bk = 0.25
     )
     
     # ==============================
@@ -1013,7 +1014,7 @@ run_depletion_hypotheses <- function(
 bk_macarellus <- run_depletion_hypotheses(
   data = ct,
   target_years = c(
-    2025
+    ano_final
   )
 )
 # ===========================
@@ -1496,7 +1497,7 @@ cenarios_macarellus_dbsra <- cbind(
 rownames(cenarios_macarellus_dbsra) <- NULL
 
 cenarios_macarellus_dbsra$cenario_id <- paste(cenarios_macarellus_dbsra$hipotese,
-                                              cenarios_macarellus_dbsra$m_hipotese, sep = "_")
+                                              cenarios_macarellus_dbsra$m_fonte, sep = "_")
 
 # reordena pra ficar fácil de ler (hipótese de bk como bloco externo)
 cenarios_macarellus_dbsra <- cenarios_macarellus_dbsra[order(cenarios_macarellus_dbsra$hipotese,
@@ -1576,14 +1577,7 @@ resultados_dbsra <- future_lapply(seq_len(nrow(cenarios_macarellus_dbsra)), func
     agemat = 2,
     k     = list(low = 3000, up = 60000, tol = 0.01, permax = 1000),
     b1k   = list(dist = "unif", low = 0.8, up = 0.99, mean = 1, sd = 0.1),
-    # refyr atualizado para 2025 (ultimo ano da serie de capturas apos a
-    # extensao dos dados) -- antes estava em 2015, que era o fim (ou perto
-    # do fim) da serie antiga; isso fazia o BtK aceito pelo dbsra() (e por
-    # tabela, K/MSY/Bmsy/OFLT1, todos calculados em funcao de BtK) refletir
-    # a depleção de 2015, nao a atual, mesmo com a serie agora indo ate 2025.
-    # O bloco de reconstrucao de biomassa (mais abaixo, refyr <- 2025) ja
-    # assumia 2025 -- agora os dois batem.
-    btk   = list(dist = "unif", low = cen$bk_lo, up = cen$bk_hi, refyr = 2025),
+    btk   = list(dist = "unif", low = cen$bk_lo, up = cen$bk_hi, refyr = ano_final),
     fmsym = list(dist = "lnorm", low = 0.1, up = 2, mean = log(0.8), sd = 0.3),
     bmsyk = list(dist = "beta", low = 0.05, up = 0.95, mean = 0.4, sd = 0.1),
     M     = list(dist = "lnorm", low = cen$M * 0.7, up = cen$M * 1.3, mean = log(cen$M), sd = 0.10),
@@ -1592,7 +1586,7 @@ resultados_dbsra <- future_lapply(seq_len(nrow(cenarios_macarellus_dbsra)), func
 }, future.seed = TRUE)
 
 names(resultados_dbsra) <- cenarios_macarellus_dbsra$cenario_id
-plan(sequential)  # libera os workers no final
+plan(sequential)
 
 
 # =====================================================================
@@ -1853,14 +1847,14 @@ cat("\nPos-processamento concluido.\n")
 stopifnot(exists("resultados_dbsra"), exists("cenarios_macarellus_dbsra"), exists("ct"))
 
 agemat <- 2          # mesmo valor usado no dbsra()
-refyr  <- 2025        # mesmo refyr usado no btk
+refyr  <- ano_final        # mesmo refyr usado no btk
 anos   <- ct$year
 catches <- ct$ct
 n_anos <- length(anos)
 idx_refyr <- which(anos == refyr)
 stopifnot(length(idx_refyr) == 1)
 
-n_amostra_por_cenario <- 10000   # quantas trajetorias aceitas usar (amostra, p/ nao pesar)
+n_amostra_por_cenario <- 1000   # quantas trajetorias aceitas usar (amostra, p/ nao pesar)
 
 ## ---------------------------------------------------------------------
 ## Reconstroi UMA trajetoria de biomassa a partir de 1 linha de res$Values
@@ -2525,9 +2519,9 @@ op <- par(mar = c(4.5, 13, 4.5, 12), xpd = FALSE, bty="l",cex.main=0.6)
 plot(NA, xlim = xlim_plot, ylim = c(0.5, length(ordem_fatores) + 0.5),
      yaxt = "n", ylab = "", xlab = sprintf("Variação da mediana de %s em relação ao cenário Base (%%)", metrica),
      main = "")
-mtext(sprintf("Gráfico tornado — sensibilidade da mediana de %s", metrica), side = 3, line = 2.3, cex = 1.15, font = 2, adj = 0)
+mtext(sprintf("Gráfico tornado — sensibilidade da mediana de %s", metrica), side = 3, line = 2.3, cex = 1.5, font = 2, adj = 0)
 mtext(sprintf("Referência (cenário BASE: %s): mediana de %s = %.1f", id_base, metrica, valor_base),
-      side = 3, line = 0.8, cex = 0.85, adj = 0)
+      side = 3, line = 0.8, cex = 1, adj = 0)
 
 abline(v = 0, col = "black", lwd = 1.4)
 abline(v = pretty(xlim_plot), col = "grey90", lty = 1)
@@ -2539,10 +2533,10 @@ for (i in seq_len(nrow(tab_emp))) {
        col = cores[r$nivel], border = "white")
 }
 
-axis(2, at = seq_along(ordem_fatores), labels = rev(ordem_fatores), las = 1, tick = FALSE, cex.axis = 0.85)
+axis(2, at = seq_along(ordem_fatores), labels = rev(ordem_fatores), las = 1, tick = FALSE, cex.axis = 1)
 
 legend(x = xlim_plot[2] * 1.1, y = length(ordem_fatores) + 0.5, xpd = NA,
-       legend = niveis_unicos, fill = cores[niveis_unicos], bty = "n", cex = 0.95,
+       legend = niveis_unicos, fill = cores[niveis_unicos], bty = "n", cex = 1,
        title = "Nível testado", xjust = 0)
 
 par(op)

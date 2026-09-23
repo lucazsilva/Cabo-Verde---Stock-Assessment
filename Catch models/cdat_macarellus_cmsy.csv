@@ -1,593 +1,561 @@
 "Stock","yr","ct","bt"
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1989,165.696,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1990,207.517,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1991,242.225,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1992,1116.246,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1993,148.56,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1994,671.263,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1995,868.654,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1996,966.037,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1997,2194.416,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1998,1882.119,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1999,1622.012,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2000,1075.395,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2001,847.7,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2002,1751.447,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2003,1398.02,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2004,1085.991,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2005,1460.566,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2006,1937.453,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2007,2292.716,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2008,2033.549,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2009,1373.338,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2010,1442.3,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2011,1911.578,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2012,2488.848,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2013,2210.106,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2014,1273.775,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2015,24.05,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2016,186.57,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2017,621.994,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2018,2216.99,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2019,793.841,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2020,411.605,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2021,155.539,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2022,151.855,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2023,214.405,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2024,286.399,NA
-"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2025,61.892,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",1989,165.696,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",1990,207.517,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",1991,242.225,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",1992,1116.246,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",1993,148.56,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",1994,671.263,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",1995,868.654,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",1996,966.037,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",1997,2194.416,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",1998,1882.119,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",1999,1622.012,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2000,1075.395,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2001,847.7,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2002,1751.447,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2003,1398.02,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2004,1085.991,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2005,1460.566,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2006,1937.453,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2007,2292.716,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2008,2033.549,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2009,1373.338,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2010,1442.3,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2011,1911.578,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2012,2488.848,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2013,2210.106,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2014,1273.775,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2015,24.05,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2016,186.57,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2017,621.994,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2018,2216.99,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2019,793.841,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2020,411.605,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2021,155.539,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2022,151.855,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2023,214.405,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2024,286.399,NA
-"Decapterus macarellus_NN_CMSY_Higher resilience",2025,61.892,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",1989,165.696,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",1990,207.517,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",1991,242.225,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",1992,1116.246,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",1993,148.56,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",1994,671.263,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",1995,868.654,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",1996,966.037,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",1997,2194.416,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",1998,1882.119,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",1999,1622.012,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2000,1075.395,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2001,847.7,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2002,1751.447,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2003,1398.02,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2004,1085.991,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2005,1460.566,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2006,1937.453,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2007,2292.716,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2008,2033.549,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2009,1373.338,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2010,1442.3,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2011,1911.578,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2012,2488.848,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2013,2210.106,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2014,1273.775,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2015,24.05,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2016,186.57,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2017,621.994,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2018,2216.99,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2019,793.841,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2020,411.605,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2021,155.539,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2022,151.855,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2023,214.405,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2024,286.399,NA
-"Decapterus macarellus_NN_CMSY_lower resilience",2025,61.892,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",1989,165.696,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",1990,207.517,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",1991,242.225,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",1992,1116.246,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",1993,148.56,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",1994,671.263,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",1995,868.654,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",1996,966.037,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",1997,2194.416,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",1998,1882.119,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",1999,1622.012,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2000,1075.395,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2001,847.7,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2002,1751.447,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2003,1398.02,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2004,1085.991,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2005,1460.566,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2006,1937.453,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2007,2292.716,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2008,2033.549,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2009,1373.338,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2010,1442.3,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2011,1911.578,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2012,2488.848,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2013,2210.106,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2014,1273.775,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2015,24.05,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2016,186.57,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2017,621.994,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2018,2216.99,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2019,793.841,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2020,411.605,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2021,155.539,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2022,151.855,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2023,214.405,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2024,286.399,NA
-"Decapterus macarellus_NN_CMSY_Non-informative_r",2025,61.892,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",1989,165.696,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",1990,207.517,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",1991,242.225,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",1992,1116.246,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",1993,148.56,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",1994,671.263,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",1995,868.654,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",1996,966.037,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",1997,2194.416,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",1998,1882.119,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",1999,1622.012,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2000,1075.395,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2001,847.7,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2002,1751.447,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2003,1398.02,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2004,1085.991,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2005,1460.566,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2006,1937.453,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2007,2292.716,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2008,2033.549,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2009,1373.338,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2010,1442.3,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2011,1911.578,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2012,2488.848,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2013,2210.106,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2014,1273.775,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2015,24.05,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2016,186.57,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2017,621.994,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2018,2216.99,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2019,793.841,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2020,411.605,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2021,155.539,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2022,151.855,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2023,214.405,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2024,286.399,NA
-"Decapterus macarellus_Target_switch_Euler-lotka methods",2025,61.892,NA
-"Decapterus macarellus_Target_switch_Higher resilience",1989,165.696,NA
-"Decapterus macarellus_Target_switch_Higher resilience",1990,207.517,NA
-"Decapterus macarellus_Target_switch_Higher resilience",1991,242.225,NA
-"Decapterus macarellus_Target_switch_Higher resilience",1992,1116.246,NA
-"Decapterus macarellus_Target_switch_Higher resilience",1993,148.56,NA
-"Decapterus macarellus_Target_switch_Higher resilience",1994,671.263,NA
-"Decapterus macarellus_Target_switch_Higher resilience",1995,868.654,NA
-"Decapterus macarellus_Target_switch_Higher resilience",1996,966.037,NA
-"Decapterus macarellus_Target_switch_Higher resilience",1997,2194.416,NA
-"Decapterus macarellus_Target_switch_Higher resilience",1998,1882.119,NA
-"Decapterus macarellus_Target_switch_Higher resilience",1999,1622.012,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2000,1075.395,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2001,847.7,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2002,1751.447,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2003,1398.02,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2004,1085.991,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2005,1460.566,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2006,1937.453,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2007,2292.716,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2008,2033.549,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2009,1373.338,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2010,1442.3,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2011,1911.578,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2012,2488.848,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2013,2210.106,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2014,1273.775,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2015,24.05,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2016,186.57,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2017,621.994,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2018,2216.99,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2019,793.841,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2020,411.605,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2021,155.539,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2022,151.855,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2023,214.405,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2024,286.399,NA
-"Decapterus macarellus_Target_switch_Higher resilience",2025,61.892,NA
-"Decapterus macarellus_Target_switch_lower resilience",1989,165.696,NA
-"Decapterus macarellus_Target_switch_lower resilience",1990,207.517,NA
-"Decapterus macarellus_Target_switch_lower resilience",1991,242.225,NA
-"Decapterus macarellus_Target_switch_lower resilience",1992,1116.246,NA
-"Decapterus macarellus_Target_switch_lower resilience",1993,148.56,NA
-"Decapterus macarellus_Target_switch_lower resilience",1994,671.263,NA
-"Decapterus macarellus_Target_switch_lower resilience",1995,868.654,NA
-"Decapterus macarellus_Target_switch_lower resilience",1996,966.037,NA
-"Decapterus macarellus_Target_switch_lower resilience",1997,2194.416,NA
-"Decapterus macarellus_Target_switch_lower resilience",1998,1882.119,NA
-"Decapterus macarellus_Target_switch_lower resilience",1999,1622.012,NA
-"Decapterus macarellus_Target_switch_lower resilience",2000,1075.395,NA
-"Decapterus macarellus_Target_switch_lower resilience",2001,847.7,NA
-"Decapterus macarellus_Target_switch_lower resilience",2002,1751.447,NA
-"Decapterus macarellus_Target_switch_lower resilience",2003,1398.02,NA
-"Decapterus macarellus_Target_switch_lower resilience",2004,1085.991,NA
-"Decapterus macarellus_Target_switch_lower resilience",2005,1460.566,NA
-"Decapterus macarellus_Target_switch_lower resilience",2006,1937.453,NA
-"Decapterus macarellus_Target_switch_lower resilience",2007,2292.716,NA
-"Decapterus macarellus_Target_switch_lower resilience",2008,2033.549,NA
-"Decapterus macarellus_Target_switch_lower resilience",2009,1373.338,NA
-"Decapterus macarellus_Target_switch_lower resilience",2010,1442.3,NA
-"Decapterus macarellus_Target_switch_lower resilience",2011,1911.578,NA
-"Decapterus macarellus_Target_switch_lower resilience",2012,2488.848,NA
-"Decapterus macarellus_Target_switch_lower resilience",2013,2210.106,NA
-"Decapterus macarellus_Target_switch_lower resilience",2014,1273.775,NA
-"Decapterus macarellus_Target_switch_lower resilience",2015,24.05,NA
-"Decapterus macarellus_Target_switch_lower resilience",2016,186.57,NA
-"Decapterus macarellus_Target_switch_lower resilience",2017,621.994,NA
-"Decapterus macarellus_Target_switch_lower resilience",2018,2216.99,NA
-"Decapterus macarellus_Target_switch_lower resilience",2019,793.841,NA
-"Decapterus macarellus_Target_switch_lower resilience",2020,411.605,NA
-"Decapterus macarellus_Target_switch_lower resilience",2021,155.539,NA
-"Decapterus macarellus_Target_switch_lower resilience",2022,151.855,NA
-"Decapterus macarellus_Target_switch_lower resilience",2023,214.405,NA
-"Decapterus macarellus_Target_switch_lower resilience",2024,286.399,NA
-"Decapterus macarellus_Target_switch_lower resilience",2025,61.892,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",1989,165.696,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",1990,207.517,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",1991,242.225,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",1992,1116.246,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",1993,148.56,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",1994,671.263,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",1995,868.654,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",1996,966.037,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",1997,2194.416,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",1998,1882.119,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",1999,1622.012,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2000,1075.395,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2001,847.7,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2002,1751.447,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2003,1398.02,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2004,1085.991,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2005,1460.566,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2006,1937.453,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2007,2292.716,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2008,2033.549,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2009,1373.338,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2010,1442.3,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2011,1911.578,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2012,2488.848,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2013,2210.106,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2014,1273.775,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2015,24.05,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2016,186.57,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2017,621.994,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2018,2216.99,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2019,793.841,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2020,411.605,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2021,155.539,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2022,151.855,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2023,214.405,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2024,286.399,NA
-"Decapterus macarellus_Target_switch_Non-informative_r",2025,61.892,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1989,165.696,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1990,207.517,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1991,242.225,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1992,1116.246,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1993,148.56,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1994,671.263,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1995,868.654,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1996,966.037,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1997,2194.416,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1998,1882.119,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1999,1622.012,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2000,1075.395,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2001,847.7,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2002,1751.447,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2003,1398.02,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2004,1085.991,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2005,1460.566,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2006,1937.453,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2007,2292.716,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2008,2033.549,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2009,1373.338,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2010,1442.3,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2011,1911.578,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2012,2488.848,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2013,2210.106,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2014,1273.775,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2015,24.05,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2016,186.57,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2017,621.994,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2018,2216.99,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2019,793.841,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2020,411.605,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2021,155.539,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2022,151.855,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2023,214.405,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2024,286.399,NA
-"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2025,61.892,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",1989,165.696,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",1990,207.517,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",1991,242.225,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",1992,1116.246,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",1993,148.56,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",1994,671.263,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",1995,868.654,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",1996,966.037,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",1997,2194.416,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",1998,1882.119,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",1999,1622.012,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2000,1075.395,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2001,847.7,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2002,1751.447,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2003,1398.02,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2004,1085.991,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2005,1460.566,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2006,1937.453,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2007,2292.716,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2008,2033.549,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2009,1373.338,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2010,1442.3,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2011,1911.578,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2012,2488.848,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2013,2210.106,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2014,1273.775,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2015,24.05,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2016,186.57,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2017,621.994,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2018,2216.99,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2019,793.841,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2020,411.605,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2021,155.539,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2022,151.855,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2023,214.405,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2024,286.399,NA
-"Decapterus macarellus_Uninformative_bk_Higher resilience",2025,61.892,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",1989,165.696,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",1990,207.517,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",1991,242.225,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",1992,1116.246,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",1993,148.56,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",1994,671.263,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",1995,868.654,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",1996,966.037,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",1997,2194.416,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",1998,1882.119,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",1999,1622.012,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2000,1075.395,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2001,847.7,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2002,1751.447,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2003,1398.02,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2004,1085.991,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2005,1460.566,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2006,1937.453,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2007,2292.716,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2008,2033.549,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2009,1373.338,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2010,1442.3,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2011,1911.578,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2012,2488.848,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2013,2210.106,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2014,1273.775,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2015,24.05,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2016,186.57,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2017,621.994,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2018,2216.99,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2019,793.841,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2020,411.605,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2021,155.539,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2022,151.855,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2023,214.405,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2024,286.399,NA
-"Decapterus macarellus_Uninformative_bk_lower resilience",2025,61.892,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",1989,165.696,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",1990,207.517,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",1991,242.225,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",1992,1116.246,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",1993,148.56,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",1994,671.263,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",1995,868.654,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",1996,966.037,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",1997,2194.416,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",1998,1882.119,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",1999,1622.012,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2000,1075.395,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2001,847.7,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2002,1751.447,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2003,1398.02,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2004,1085.991,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2005,1460.566,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2006,1937.453,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2007,2292.716,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2008,2033.549,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2009,1373.338,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2010,1442.3,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2011,1911.578,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2012,2488.848,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2013,2210.106,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2014,1273.775,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2015,24.05,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2016,186.57,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2017,621.994,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2018,2216.99,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2019,793.841,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2020,411.605,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2021,155.539,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2022,151.855,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2023,214.405,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2024,286.399,NA
-"Decapterus macarellus_Uninformative_bk_Non-informative_r",2025,61.892,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",1989,165.696,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",1990,207.517,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",1991,242.225,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",1992,1116.246,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",1993,148.56,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",1994,671.263,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",1995,868.654,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",1996,966.037,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",1997,2194.416,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",1998,1882.119,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",1999,1622.012,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2000,1075.395,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2001,847.7,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2002,1751.447,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2003,1398.02,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2004,1085.991,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2005,1460.566,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2006,1937.453,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2007,2292.716,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2008,2033.549,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2009,1373.338,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2010,1442.3,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2011,1911.578,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2012,2488.848,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2013,2210.106,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2014,1273.775,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2015,24.05,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2016,186.57,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2017,621.994,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2018,2216.99,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2019,793.841,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2020,411.605,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2021,155.539,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2022,151.855,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2023,214.405,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2024,286.399,NA
-"Decapterus macarellus_zBRT_Euler-lotka methods",2025,61.892,NA
-"Decapterus macarellus_zBRT_Higher resilience",1989,165.696,NA
-"Decapterus macarellus_zBRT_Higher resilience",1990,207.517,NA
-"Decapterus macarellus_zBRT_Higher resilience",1991,242.225,NA
-"Decapterus macarellus_zBRT_Higher resilience",1992,1116.246,NA
-"Decapterus macarellus_zBRT_Higher resilience",1993,148.56,NA
-"Decapterus macarellus_zBRT_Higher resilience",1994,671.263,NA
-"Decapterus macarellus_zBRT_Higher resilience",1995,868.654,NA
-"Decapterus macarellus_zBRT_Higher resilience",1996,966.037,NA
-"Decapterus macarellus_zBRT_Higher resilience",1997,2194.416,NA
-"Decapterus macarellus_zBRT_Higher resilience",1998,1882.119,NA
-"Decapterus macarellus_zBRT_Higher resilience",1999,1622.012,NA
-"Decapterus macarellus_zBRT_Higher resilience",2000,1075.395,NA
-"Decapterus macarellus_zBRT_Higher resilience",2001,847.7,NA
-"Decapterus macarellus_zBRT_Higher resilience",2002,1751.447,NA
-"Decapterus macarellus_zBRT_Higher resilience",2003,1398.02,NA
-"Decapterus macarellus_zBRT_Higher resilience",2004,1085.991,NA
-"Decapterus macarellus_zBRT_Higher resilience",2005,1460.566,NA
-"Decapterus macarellus_zBRT_Higher resilience",2006,1937.453,NA
-"Decapterus macarellus_zBRT_Higher resilience",2007,2292.716,NA
-"Decapterus macarellus_zBRT_Higher resilience",2008,2033.549,NA
-"Decapterus macarellus_zBRT_Higher resilience",2009,1373.338,NA
-"Decapterus macarellus_zBRT_Higher resilience",2010,1442.3,NA
-"Decapterus macarellus_zBRT_Higher resilience",2011,1911.578,NA
-"Decapterus macarellus_zBRT_Higher resilience",2012,2488.848,NA
-"Decapterus macarellus_zBRT_Higher resilience",2013,2210.106,NA
-"Decapterus macarellus_zBRT_Higher resilience",2014,1273.775,NA
-"Decapterus macarellus_zBRT_Higher resilience",2015,24.05,NA
-"Decapterus macarellus_zBRT_Higher resilience",2016,186.57,NA
-"Decapterus macarellus_zBRT_Higher resilience",2017,621.994,NA
-"Decapterus macarellus_zBRT_Higher resilience",2018,2216.99,NA
-"Decapterus macarellus_zBRT_Higher resilience",2019,793.841,NA
-"Decapterus macarellus_zBRT_Higher resilience",2020,411.605,NA
-"Decapterus macarellus_zBRT_Higher resilience",2021,155.539,NA
-"Decapterus macarellus_zBRT_Higher resilience",2022,151.855,NA
-"Decapterus macarellus_zBRT_Higher resilience",2023,214.405,NA
-"Decapterus macarellus_zBRT_Higher resilience",2024,286.399,NA
-"Decapterus macarellus_zBRT_Higher resilience",2025,61.892,NA
-"Decapterus macarellus_zBRT_lower resilience",1989,165.696,NA
-"Decapterus macarellus_zBRT_lower resilience",1990,207.517,NA
-"Decapterus macarellus_zBRT_lower resilience",1991,242.225,NA
-"Decapterus macarellus_zBRT_lower resilience",1992,1116.246,NA
-"Decapterus macarellus_zBRT_lower resilience",1993,148.56,NA
-"Decapterus macarellus_zBRT_lower resilience",1994,671.263,NA
-"Decapterus macarellus_zBRT_lower resilience",1995,868.654,NA
-"Decapterus macarellus_zBRT_lower resilience",1996,966.037,NA
-"Decapterus macarellus_zBRT_lower resilience",1997,2194.416,NA
-"Decapterus macarellus_zBRT_lower resilience",1998,1882.119,NA
-"Decapterus macarellus_zBRT_lower resilience",1999,1622.012,NA
-"Decapterus macarellus_zBRT_lower resilience",2000,1075.395,NA
-"Decapterus macarellus_zBRT_lower resilience",2001,847.7,NA
-"Decapterus macarellus_zBRT_lower resilience",2002,1751.447,NA
-"Decapterus macarellus_zBRT_lower resilience",2003,1398.02,NA
-"Decapterus macarellus_zBRT_lower resilience",2004,1085.991,NA
-"Decapterus macarellus_zBRT_lower resilience",2005,1460.566,NA
-"Decapterus macarellus_zBRT_lower resilience",2006,1937.453,NA
-"Decapterus macarellus_zBRT_lower resilience",2007,2292.716,NA
-"Decapterus macarellus_zBRT_lower resilience",2008,2033.549,NA
-"Decapterus macarellus_zBRT_lower resilience",2009,1373.338,NA
-"Decapterus macarellus_zBRT_lower resilience",2010,1442.3,NA
-"Decapterus macarellus_zBRT_lower resilience",2011,1911.578,NA
-"Decapterus macarellus_zBRT_lower resilience",2012,2488.848,NA
-"Decapterus macarellus_zBRT_lower resilience",2013,2210.106,NA
-"Decapterus macarellus_zBRT_lower resilience",2014,1273.775,NA
-"Decapterus macarellus_zBRT_lower resilience",2015,24.05,NA
-"Decapterus macarellus_zBRT_lower resilience",2016,186.57,NA
-"Decapterus macarellus_zBRT_lower resilience",2017,621.994,NA
-"Decapterus macarellus_zBRT_lower resilience",2018,2216.99,NA
-"Decapterus macarellus_zBRT_lower resilience",2019,793.841,NA
-"Decapterus macarellus_zBRT_lower resilience",2020,411.605,NA
-"Decapterus macarellus_zBRT_lower resilience",2021,155.539,NA
-"Decapterus macarellus_zBRT_lower resilience",2022,151.855,NA
-"Decapterus macarellus_zBRT_lower resilience",2023,214.405,NA
-"Decapterus macarellus_zBRT_lower resilience",2024,286.399,NA
-"Decapterus macarellus_zBRT_lower resilience",2025,61.892,NA
-"Decapterus macarellus_zBRT_Non-informative_r",1989,165.696,NA
-"Decapterus macarellus_zBRT_Non-informative_r",1990,207.517,NA
-"Decapterus macarellus_zBRT_Non-informative_r",1991,242.225,NA
-"Decapterus macarellus_zBRT_Non-informative_r",1992,1116.246,NA
-"Decapterus macarellus_zBRT_Non-informative_r",1993,148.56,NA
-"Decapterus macarellus_zBRT_Non-informative_r",1994,671.263,NA
-"Decapterus macarellus_zBRT_Non-informative_r",1995,868.654,NA
-"Decapterus macarellus_zBRT_Non-informative_r",1996,966.037,NA
-"Decapterus macarellus_zBRT_Non-informative_r",1997,2194.416,NA
-"Decapterus macarellus_zBRT_Non-informative_r",1998,1882.119,NA
-"Decapterus macarellus_zBRT_Non-informative_r",1999,1622.012,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2000,1075.395,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2001,847.7,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2002,1751.447,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2003,1398.02,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2004,1085.991,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2005,1460.566,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2006,1937.453,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2007,2292.716,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2008,2033.549,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2009,1373.338,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2010,1442.3,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2011,1911.578,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2012,2488.848,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2013,2210.106,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2014,1273.775,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2015,24.05,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2016,186.57,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2017,621.994,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2018,2216.99,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2019,793.841,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2020,411.605,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2021,155.539,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2022,151.855,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2023,214.405,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2024,286.399,NA
-"Decapterus macarellus_zBRT_Non-informative_r",2025,61.892,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1989,1671,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1990,1001,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1991,1263,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1992,2169,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1993,1427,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1994,1948,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1995,1585,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1996,1751,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1997,2984,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1998,3015,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",1999,2707,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2000,1864,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2001,1379,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2002,2232,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2003,1830,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2004,1741,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2005,2181,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2006,2627,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2007,2855,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2008,2387,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2009,1771,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2010,1749,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2011,2163,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2012,2643,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2013,2214,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2014,151,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2015,644,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2016,650,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2017,657,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2018,554.5,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2019,806,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2020,410,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2021,160,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2022,176,NA
+"Decapterus macarellus_NN_CMSY_Euler-lotka methods",2023,248,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",1989,1671,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",1990,1001,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",1991,1263,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",1992,2169,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",1993,1427,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",1994,1948,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",1995,1585,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",1996,1751,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",1997,2984,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",1998,3015,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",1999,2707,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2000,1864,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2001,1379,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2002,2232,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2003,1830,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2004,1741,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2005,2181,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2006,2627,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2007,2855,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2008,2387,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2009,1771,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2010,1749,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2011,2163,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2012,2643,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2013,2214,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2014,151,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2015,644,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2016,650,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2017,657,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2018,554.5,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2019,806,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2020,410,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2021,160,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2022,176,NA
+"Decapterus macarellus_NN_CMSY_Higher resilience",2023,248,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",1989,1671,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",1990,1001,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",1991,1263,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",1992,2169,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",1993,1427,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",1994,1948,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",1995,1585,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",1996,1751,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",1997,2984,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",1998,3015,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",1999,2707,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2000,1864,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2001,1379,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2002,2232,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2003,1830,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2004,1741,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2005,2181,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2006,2627,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2007,2855,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2008,2387,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2009,1771,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2010,1749,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2011,2163,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2012,2643,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2013,2214,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2014,151,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2015,644,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2016,650,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2017,657,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2018,554.5,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2019,806,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2020,410,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2021,160,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2022,176,NA
+"Decapterus macarellus_NN_CMSY_lower resilience",2023,248,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",1989,1671,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",1990,1001,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",1991,1263,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",1992,2169,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",1993,1427,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",1994,1948,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",1995,1585,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",1996,1751,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",1997,2984,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",1998,3015,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",1999,2707,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2000,1864,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2001,1379,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2002,2232,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2003,1830,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2004,1741,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2005,2181,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2006,2627,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2007,2855,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2008,2387,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2009,1771,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2010,1749,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2011,2163,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2012,2643,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2013,2214,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2014,151,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2015,644,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2016,650,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2017,657,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2018,554.5,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2019,806,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2020,410,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2021,160,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2022,176,NA
+"Decapterus macarellus_NN_CMSY_Non-informative_r",2023,248,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",1989,1671,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",1990,1001,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",1991,1263,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",1992,2169,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",1993,1427,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",1994,1948,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",1995,1585,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",1996,1751,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",1997,2984,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",1998,3015,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",1999,2707,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2000,1864,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2001,1379,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2002,2232,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2003,1830,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2004,1741,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2005,2181,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2006,2627,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2007,2855,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2008,2387,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2009,1771,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2010,1749,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2011,2163,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2012,2643,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2013,2214,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2014,151,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2015,644,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2016,650,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2017,657,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2018,554.5,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2019,806,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2020,410,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2021,160,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2022,176,NA
+"Decapterus macarellus_Target_switch_Euler-lotka methods",2023,248,NA
+"Decapterus macarellus_Target_switch_Higher resilience",1989,1671,NA
+"Decapterus macarellus_Target_switch_Higher resilience",1990,1001,NA
+"Decapterus macarellus_Target_switch_Higher resilience",1991,1263,NA
+"Decapterus macarellus_Target_switch_Higher resilience",1992,2169,NA
+"Decapterus macarellus_Target_switch_Higher resilience",1993,1427,NA
+"Decapterus macarellus_Target_switch_Higher resilience",1994,1948,NA
+"Decapterus macarellus_Target_switch_Higher resilience",1995,1585,NA
+"Decapterus macarellus_Target_switch_Higher resilience",1996,1751,NA
+"Decapterus macarellus_Target_switch_Higher resilience",1997,2984,NA
+"Decapterus macarellus_Target_switch_Higher resilience",1998,3015,NA
+"Decapterus macarellus_Target_switch_Higher resilience",1999,2707,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2000,1864,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2001,1379,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2002,2232,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2003,1830,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2004,1741,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2005,2181,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2006,2627,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2007,2855,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2008,2387,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2009,1771,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2010,1749,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2011,2163,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2012,2643,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2013,2214,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2014,151,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2015,644,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2016,650,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2017,657,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2018,554.5,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2019,806,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2020,410,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2021,160,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2022,176,NA
+"Decapterus macarellus_Target_switch_Higher resilience",2023,248,NA
+"Decapterus macarellus_Target_switch_lower resilience",1989,1671,NA
+"Decapterus macarellus_Target_switch_lower resilience",1990,1001,NA
+"Decapterus macarellus_Target_switch_lower resilience",1991,1263,NA
+"Decapterus macarellus_Target_switch_lower resilience",1992,2169,NA
+"Decapterus macarellus_Target_switch_lower resilience",1993,1427,NA
+"Decapterus macarellus_Target_switch_lower resilience",1994,1948,NA
+"Decapterus macarellus_Target_switch_lower resilience",1995,1585,NA
+"Decapterus macarellus_Target_switch_lower resilience",1996,1751,NA
+"Decapterus macarellus_Target_switch_lower resilience",1997,2984,NA
+"Decapterus macarellus_Target_switch_lower resilience",1998,3015,NA
+"Decapterus macarellus_Target_switch_lower resilience",1999,2707,NA
+"Decapterus macarellus_Target_switch_lower resilience",2000,1864,NA
+"Decapterus macarellus_Target_switch_lower resilience",2001,1379,NA
+"Decapterus macarellus_Target_switch_lower resilience",2002,2232,NA
+"Decapterus macarellus_Target_switch_lower resilience",2003,1830,NA
+"Decapterus macarellus_Target_switch_lower resilience",2004,1741,NA
+"Decapterus macarellus_Target_switch_lower resilience",2005,2181,NA
+"Decapterus macarellus_Target_switch_lower resilience",2006,2627,NA
+"Decapterus macarellus_Target_switch_lower resilience",2007,2855,NA
+"Decapterus macarellus_Target_switch_lower resilience",2008,2387,NA
+"Decapterus macarellus_Target_switch_lower resilience",2009,1771,NA
+"Decapterus macarellus_Target_switch_lower resilience",2010,1749,NA
+"Decapterus macarellus_Target_switch_lower resilience",2011,2163,NA
+"Decapterus macarellus_Target_switch_lower resilience",2012,2643,NA
+"Decapterus macarellus_Target_switch_lower resilience",2013,2214,NA
+"Decapterus macarellus_Target_switch_lower resilience",2014,151,NA
+"Decapterus macarellus_Target_switch_lower resilience",2015,644,NA
+"Decapterus macarellus_Target_switch_lower resilience",2016,650,NA
+"Decapterus macarellus_Target_switch_lower resilience",2017,657,NA
+"Decapterus macarellus_Target_switch_lower resilience",2018,554.5,NA
+"Decapterus macarellus_Target_switch_lower resilience",2019,806,NA
+"Decapterus macarellus_Target_switch_lower resilience",2020,410,NA
+"Decapterus macarellus_Target_switch_lower resilience",2021,160,NA
+"Decapterus macarellus_Target_switch_lower resilience",2022,176,NA
+"Decapterus macarellus_Target_switch_lower resilience",2023,248,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",1989,1671,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",1990,1001,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",1991,1263,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",1992,2169,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",1993,1427,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",1994,1948,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",1995,1585,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",1996,1751,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",1997,2984,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",1998,3015,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",1999,2707,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2000,1864,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2001,1379,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2002,2232,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2003,1830,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2004,1741,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2005,2181,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2006,2627,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2007,2855,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2008,2387,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2009,1771,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2010,1749,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2011,2163,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2012,2643,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2013,2214,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2014,151,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2015,644,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2016,650,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2017,657,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2018,554.5,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2019,806,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2020,410,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2021,160,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2022,176,NA
+"Decapterus macarellus_Target_switch_Non-informative_r",2023,248,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1989,1671,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1990,1001,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1991,1263,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1992,2169,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1993,1427,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1994,1948,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1995,1585,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1996,1751,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1997,2984,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1998,3015,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",1999,2707,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2000,1864,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2001,1379,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2002,2232,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2003,1830,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2004,1741,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2005,2181,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2006,2627,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2007,2855,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2008,2387,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2009,1771,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2010,1749,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2011,2163,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2012,2643,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2013,2214,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2014,151,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2015,644,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2016,650,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2017,657,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2018,554.5,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2019,806,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2020,410,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2021,160,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2022,176,NA
+"Decapterus macarellus_Uninformative_bk_Euler-lotka methods",2023,248,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",1989,1671,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",1990,1001,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",1991,1263,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",1992,2169,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",1993,1427,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",1994,1948,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",1995,1585,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",1996,1751,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",1997,2984,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",1998,3015,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",1999,2707,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2000,1864,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2001,1379,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2002,2232,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2003,1830,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2004,1741,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2005,2181,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2006,2627,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2007,2855,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2008,2387,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2009,1771,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2010,1749,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2011,2163,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2012,2643,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2013,2214,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2014,151,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2015,644,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2016,650,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2017,657,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2018,554.5,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2019,806,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2020,410,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2021,160,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2022,176,NA
+"Decapterus macarellus_Uninformative_bk_Higher resilience",2023,248,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",1989,1671,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",1990,1001,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",1991,1263,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",1992,2169,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",1993,1427,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",1994,1948,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",1995,1585,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",1996,1751,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",1997,2984,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",1998,3015,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",1999,2707,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2000,1864,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2001,1379,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2002,2232,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2003,1830,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2004,1741,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2005,2181,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2006,2627,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2007,2855,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2008,2387,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2009,1771,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2010,1749,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2011,2163,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2012,2643,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2013,2214,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2014,151,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2015,644,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2016,650,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2017,657,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2018,554.5,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2019,806,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2020,410,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2021,160,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2022,176,NA
+"Decapterus macarellus_Uninformative_bk_lower resilience",2023,248,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",1989,1671,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",1990,1001,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",1991,1263,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",1992,2169,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",1993,1427,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",1994,1948,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",1995,1585,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",1996,1751,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",1997,2984,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",1998,3015,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",1999,2707,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2000,1864,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2001,1379,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2002,2232,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2003,1830,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2004,1741,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2005,2181,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2006,2627,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2007,2855,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2008,2387,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2009,1771,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2010,1749,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2011,2163,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2012,2643,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2013,2214,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2014,151,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2015,644,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2016,650,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2017,657,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2018,554.5,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2019,806,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2020,410,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2021,160,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2022,176,NA
+"Decapterus macarellus_Uninformative_bk_Non-informative_r",2023,248,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",1989,1671,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",1990,1001,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",1991,1263,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",1992,2169,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",1993,1427,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",1994,1948,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",1995,1585,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",1996,1751,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",1997,2984,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",1998,3015,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",1999,2707,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2000,1864,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2001,1379,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2002,2232,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2003,1830,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2004,1741,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2005,2181,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2006,2627,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2007,2855,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2008,2387,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2009,1771,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2010,1749,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2011,2163,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2012,2643,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2013,2214,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2014,151,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2015,644,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2016,650,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2017,657,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2018,554.5,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2019,806,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2020,410,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2021,160,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2022,176,NA
+"Decapterus macarellus_zBRT_Euler-lotka methods",2023,248,NA
+"Decapterus macarellus_zBRT_Higher resilience",1989,1671,NA
+"Decapterus macarellus_zBRT_Higher resilience",1990,1001,NA
+"Decapterus macarellus_zBRT_Higher resilience",1991,1263,NA
+"Decapterus macarellus_zBRT_Higher resilience",1992,2169,NA
+"Decapterus macarellus_zBRT_Higher resilience",1993,1427,NA
+"Decapterus macarellus_zBRT_Higher resilience",1994,1948,NA
+"Decapterus macarellus_zBRT_Higher resilience",1995,1585,NA
+"Decapterus macarellus_zBRT_Higher resilience",1996,1751,NA
+"Decapterus macarellus_zBRT_Higher resilience",1997,2984,NA
+"Decapterus macarellus_zBRT_Higher resilience",1998,3015,NA
+"Decapterus macarellus_zBRT_Higher resilience",1999,2707,NA
+"Decapterus macarellus_zBRT_Higher resilience",2000,1864,NA
+"Decapterus macarellus_zBRT_Higher resilience",2001,1379,NA
+"Decapterus macarellus_zBRT_Higher resilience",2002,2232,NA
+"Decapterus macarellus_zBRT_Higher resilience",2003,1830,NA
+"Decapterus macarellus_zBRT_Higher resilience",2004,1741,NA
+"Decapterus macarellus_zBRT_Higher resilience",2005,2181,NA
+"Decapterus macarellus_zBRT_Higher resilience",2006,2627,NA
+"Decapterus macarellus_zBRT_Higher resilience",2007,2855,NA
+"Decapterus macarellus_zBRT_Higher resilience",2008,2387,NA
+"Decapterus macarellus_zBRT_Higher resilience",2009,1771,NA
+"Decapterus macarellus_zBRT_Higher resilience",2010,1749,NA
+"Decapterus macarellus_zBRT_Higher resilience",2011,2163,NA
+"Decapterus macarellus_zBRT_Higher resilience",2012,2643,NA
+"Decapterus macarellus_zBRT_Higher resilience",2013,2214,NA
+"Decapterus macarellus_zBRT_Higher resilience",2014,151,NA
+"Decapterus macarellus_zBRT_Higher resilience",2015,644,NA
+"Decapterus macarellus_zBRT_Higher resilience",2016,650,NA
+"Decapterus macarellus_zBRT_Higher resilience",2017,657,NA
+"Decapterus macarellus_zBRT_Higher resilience",2018,554.5,NA
+"Decapterus macarellus_zBRT_Higher resilience",2019,806,NA
+"Decapterus macarellus_zBRT_Higher resilience",2020,410,NA
+"Decapterus macarellus_zBRT_Higher resilience",2021,160,NA
+"Decapterus macarellus_zBRT_Higher resilience",2022,176,NA
+"Decapterus macarellus_zBRT_Higher resilience",2023,248,NA
+"Decapterus macarellus_zBRT_lower resilience",1989,1671,NA
+"Decapterus macarellus_zBRT_lower resilience",1990,1001,NA
+"Decapterus macarellus_zBRT_lower resilience",1991,1263,NA
+"Decapterus macarellus_zBRT_lower resilience",1992,2169,NA
+"Decapterus macarellus_zBRT_lower resilience",1993,1427,NA
+"Decapterus macarellus_zBRT_lower resilience",1994,1948,NA
+"Decapterus macarellus_zBRT_lower resilience",1995,1585,NA
+"Decapterus macarellus_zBRT_lower resilience",1996,1751,NA
+"Decapterus macarellus_zBRT_lower resilience",1997,2984,NA
+"Decapterus macarellus_zBRT_lower resilience",1998,3015,NA
+"Decapterus macarellus_zBRT_lower resilience",1999,2707,NA
+"Decapterus macarellus_zBRT_lower resilience",2000,1864,NA
+"Decapterus macarellus_zBRT_lower resilience",2001,1379,NA
+"Decapterus macarellus_zBRT_lower resilience",2002,2232,NA
+"Decapterus macarellus_zBRT_lower resilience",2003,1830,NA
+"Decapterus macarellus_zBRT_lower resilience",2004,1741,NA
+"Decapterus macarellus_zBRT_lower resilience",2005,2181,NA
+"Decapterus macarellus_zBRT_lower resilience",2006,2627,NA
+"Decapterus macarellus_zBRT_lower resilience",2007,2855,NA
+"Decapterus macarellus_zBRT_lower resilience",2008,2387,NA
+"Decapterus macarellus_zBRT_lower resilience",2009,1771,NA
+"Decapterus macarellus_zBRT_lower resilience",2010,1749,NA
+"Decapterus macarellus_zBRT_lower resilience",2011,2163,NA
+"Decapterus macarellus_zBRT_lower resilience",2012,2643,NA
+"Decapterus macarellus_zBRT_lower resilience",2013,2214,NA
+"Decapterus macarellus_zBRT_lower resilience",2014,151,NA
+"Decapterus macarellus_zBRT_lower resilience",2015,644,NA
+"Decapterus macarellus_zBRT_lower resilience",2016,650,NA
+"Decapterus macarellus_zBRT_lower resilience",2017,657,NA
+"Decapterus macarellus_zBRT_lower resilience",2018,554.5,NA
+"Decapterus macarellus_zBRT_lower resilience",2019,806,NA
+"Decapterus macarellus_zBRT_lower resilience",2020,410,NA
+"Decapterus macarellus_zBRT_lower resilience",2021,160,NA
+"Decapterus macarellus_zBRT_lower resilience",2022,176,NA
+"Decapterus macarellus_zBRT_lower resilience",2023,248,NA
+"Decapterus macarellus_zBRT_Non-informative_r",1989,1671,NA
+"Decapterus macarellus_zBRT_Non-informative_r",1990,1001,NA
+"Decapterus macarellus_zBRT_Non-informative_r",1991,1263,NA
+"Decapterus macarellus_zBRT_Non-informative_r",1992,2169,NA
+"Decapterus macarellus_zBRT_Non-informative_r",1993,1427,NA
+"Decapterus macarellus_zBRT_Non-informative_r",1994,1948,NA
+"Decapterus macarellus_zBRT_Non-informative_r",1995,1585,NA
+"Decapterus macarellus_zBRT_Non-informative_r",1996,1751,NA
+"Decapterus macarellus_zBRT_Non-informative_r",1997,2984,NA
+"Decapterus macarellus_zBRT_Non-informative_r",1998,3015,NA
+"Decapterus macarellus_zBRT_Non-informative_r",1999,2707,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2000,1864,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2001,1379,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2002,2232,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2003,1830,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2004,1741,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2005,2181,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2006,2627,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2007,2855,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2008,2387,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2009,1771,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2010,1749,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2011,2163,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2012,2643,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2013,2214,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2014,151,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2015,644,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2016,650,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2017,657,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2018,554.5,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2019,806,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2020,410,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2021,160,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2022,176,NA
+"Decapterus macarellus_zBRT_Non-informative_r",2023,248,NA
