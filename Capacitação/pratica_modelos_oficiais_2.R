@@ -3,43 +3,12 @@
 # pro CMSY++ original de vocês, e JABBA::build_jabba() + fit_jabba()
 # Mesmo exemplo basico das aulas (serie 1950-1980; exemplo JABBA de 15 anos)
 # =========================================================================
-#
-# Diferente do "pratica_3_modelos.R" (que reimplementava cada metodo "na
-# unha" em R base, so pra ensinar a logica passo a passo), ESTE script usa
-# as ferramentas OFICIAIS -- as mesmas que aparecem no "Catch_models.R" e
-# no "Catch and index models.R" de vocês:
-#
+##
 #   DB-SRA  -> fishmethods::dbsra()                    (pacote do CRAN)
-#   CMSY++  -> o SCRIPT ORIGINAL de vocês (a funcao bsm() + o loop do
-#              Catch_models.R), sem nenhuma modificacao -- a Parte 2 aqui
-#              so monta os dois objetos de entrada que esse script espera
-#              (cdat e cinfo) com os dados do exemplo do curso, no mesmo
-#              formato que vocês já usam pra cavala. Cole o corpo do
-#              script original logo depois.
+#   CMSY++  -> o SCRIPT ORIGINAL 
 #   JABBA   -> JABBA::build_jabba() + JABBA::fit_jabba() (pacote do GitHub)
 #
-# Os argumentos de cada chamada (e a construção de cdat/cinfo) seguem o
-# MESMO padrao usado nos scripts de vocês -- so troquei os dados reais da
-# cavala pelo exemplo simples das slides, pra ficar curto o suficiente
-# pra ler de uma vez.
-#
 # --------------------------------------------------------------------
-# NOTA HONESTA sobre o que foi testado:
-#   - A Parte 2 (montagem de cdat/cinfo) eu conferi a lógica com uma
-#     versão em R base (sem tidyverse) rodando aqui: os tamanhos batem
-#     (1 cenário x 31 anos = 31 linhas em cdat, 1 linha em cinfo, nenhuma
-#     captura faltando) -- mas não testei com dplyr/tidyr/writexl de
-#     verdade, nem o script bsm() original rodando sobre esses objetos
-#     (isso depende do resto do Catch_models.R de vocês, que eu não colei
-#     aqui).
-#   - As Partes 1 e 3 (fishmethods e JABBA) eu NAO consegui rodar aqui
-#     porque este ambiente nao acessa o CRAN nem o GitHub para instalar
-#     os pacotes. Os argumentos foram copiados exatamente da forma como
-#     aparecem, ja funcionando, nos scripts de vocês -- mas testem as
-#     Partes 1, 2 e 3 no RStudio de vocês antes de usar pra valer, e me
-#     avisem se algum nome de argumento/coluna tiver mudado.
-# --------------------------------------------------------------------
-#
 # Pacotes necessarios (rode uma vez):
 #   install.packages(c("fishmethods","dplyr","tidyr","writexl","rjags","coda"))
 #   install.packages("remotes"); remotes::install_github("jabbamodel/JABBA")
@@ -97,20 +66,8 @@ print(res_dbsra$Values)   # tabela-resumo (mediana e IC das quantidades-chave)
 
 
 # =========================================================================
-# PARTE 2 -- CMSY++ oficial: preparando cdat e cinfo pro script de vocês
+# PARTE 2 -- CMSY++ oficial: preparando cdat e cinfo 
 # =========================================================================
-# Diferente das Partes 1 e 3 (uma função, um resultado), o CMSY++ de vocês
-# não é uma função isolada -- é um script completo (a função bsm() + um
-# loop) que LÊ DOIS OBJETOS DE ENTRADA: cdat (a captura, em formato longo,
-# um "Stock" por cenário) e cinfo (uma linha por cenário, com todos os
-# priors). Esta parte NÃO reimplementa o modelo: ela só monta cdat e cinfo
-# para o exemplo do curso, no MESMO formato que vocês já usam para a
-# cavala -- depois é só colar o corpo do Catch_models.R (a função bsm() e
-# o loop principal) sem mudar nenhuma linha dele.
-#
-# O código de 2.4 em diante é EXATAMENTE o que está no Catch_models.R de
-# vocês (a construção de cenarios_exemplo_cmsy / cdat / cinfo); só
-# muda o que entra: bk_exemplo, r_exemplo e ct viram os do exemplo.
 
 library(dplyr)
 library(tidyr)
@@ -282,12 +239,7 @@ write.table(cinfo, file = file2, append =FALSE,dec=".",sep = ",",
 # Salvar como Excel
 write_xlsx(cinfo,  path = "cinfo_exemplo_cmsy.xlsx")
 
-cat("\ncdat e cinfo prontos (1 cenario, 31 anos) --", nrow(cinfo), "linha(s) em cinfo,",
-    nrow(cdat), "linhas em cdat.\n")
-cat("Agora cole o corpo do script oficial do CMSY++ (a funcao bsm() + o\n")
-cat("loop que le cinfo/cdat) do Catch_models.R de voces -- ele roda sem\n")
-cat("nenhuma mudanca sobre esses dois objetos.\n")
-
+cat("\ncdat e cinfo prontos (1 cenario, 31 anos) --", nrow(cinfo), "linha(s) em cinfo,")
 
 #x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X#X#x#X#X
 
