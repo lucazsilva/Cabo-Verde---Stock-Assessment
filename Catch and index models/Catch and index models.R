@@ -62,8 +62,13 @@ library(glmmTMB)
 # definindo diretorio de trabalho..
 setwd("C:/Users/mathe/OneDrive/Documents/Cabo-Verde---Stock-Assessment/Catch and index models")
 
-### lendo os dados de capturas... ###
-ct<- read.csv("Catch_Luz and Vieira.csv",sep = ",",dec = ".")
+### dados de capturas... ###
+## A série de DESEMBARQUES TOTAIS (todas as artes: artesanal + industrial)
+## é lida e montada na seção 12, junto com a série do cerco — é de lá que
+## sai a captura usada pelo JABBA. Os parâmetros dela (arquivo, correção
+## de 2018, anos completados com o cerco) ficam na seção 0 abaixo.
+## (A leitura antiga daqui usava sep = "," num arquivo separado por ";" e
+## devolvia uma coluna só; saiu.)
 # lendo dados de história de vida... ##
 lh<- read_xlsx("Parametros_Historia_de_vida.xlsx")
 
@@ -190,6 +195,15 @@ lh<- read_xlsx("Parametros_Historia_de_vida.xlsx")
 #      ("Sem esforço" na planilha): fica com `usar_na_serie = FALSE` e sem CPUE — a captura de
 #      2013 (2.210 t) continua registrada, só não vira índice.
 #
+# L19. CAPTURA AGREGADA = DESEMBARQUES TOTAIS DO IMar ("Desembarques cavala_1989-2023.csv"),
+#      todas as artes. Substitui a compilação "Catch_Luz and Vieira.csv" em TODO lugar onde o
+#      script precisa da remoção total (seção 12 e JABBA). Regras: (a) 2018 substituído pela
+#      média de 2015-17 e 2019-21 (mesmo motivo de L17); (b) 2024-2025, que a série total não
+#      cobre, completados com o desembarque do CERCO — que de 2017 a 2023 é 86-100% do total;
+#      (c) ano com total < cerco (2014) é incoerente e é tratado por `TRATA_INCOERENTE`.
+#      A CPUE NÃO muda: índice continua sendo só do cerco (L5); captura total + índice de uma
+#      frota com q próprio é o arranjo padrão do JABBA.
+#
 # L15. ESPAÇO = ILHA DO BANCO DE PESCA, não o banco individual. Cada BANCO recebe, de uma vez por
 #      todas, o nome da ilha de desembarque MAIS FREQUENTE entre as viagens que pescaram nele; essa
 #      etiqueta vira a variavel `ilha_banco` (5 níveis).
@@ -222,6 +236,35 @@ ARQ_1517 <- "INDUSTRIAL_2015_2017_Sem_validação.csv"
 ARQ_1925 <- "INDUSTRIAL_2019_2025_atualizado_17.09.2026.csv"
 ARQ_2018 <- "INDUSTRIAL_2018_formato_diferente.csv"
 ARQ_HIST <- "Cavala_desembarques-esforço_pesca industrial_1989-2014.csv"
+
+## DESEMBARQUES TOTAIS (todas as artes) — decisão L19. É a série de
+## captura AGREGADA usada sempre que o que se quer é a remoção total de
+## cavala (JABBA, comparação com CMSY/DBSRA). Não entra na CPUE: o índice
+## continua saindo só do cerco (L5), com captura e esforço da mesma arte.
+ARQ_DESEMB_TOTAL <- "Desembarques cavala_1989-2023.csv"   # colunas Ano;Desembarques (tons)
+## 2018 tem levantamento de outra origem (L17) e fica ~3-5x acima dos
+## vizinhos também na série total (2362 t contra 150-800 t). É substituído
+## pela média dos 3 anos antes e 3 depois. Troque para NULL para usar o
+## valor original.
+ANOS_MEDIA_2018  <- c(2015, 2016, 2017, 2019, 2020, 2021)
+## Anos em que a série total NÃO existe (hoje: 2024 e 2025) são completados
+## com o desembarque do CERCO daquele ano. Justificativa numérica, impressa
+## pela seção 12: de 2017 a 2023 o cerco responde por 86-100% do total, então
+## nesses anos o cerco é um PISO muito próximo do total. Tem de ir para o
+## texto como premissa. FALSE = a série termina no último ano do total.
+COMPLETAR_COM_CERCO <- TRUE
+## Ano em que o total fica ABAIXO do cerco é logicamente impossível (o cerco
+## é parte do total) — hoje acontece em 2014 (151 t de total contra 1.274 t
+## só do cerco). O que fazer com esses anos:
+##   "interpolar" vira NA e é interpolado entre os vizinhos (mesma regra que
+##                a seção 3 do JABBA já usava para buraco no meio da série)
+##   "piso_cerco" usa o valor do cerco, que é o mínimo medido
+##   "manter"     mantém o total como veio (não recomendado)
+TRATA_INCOERENTE <- c("interpolar", "piso_cerco", "manter")[1]
+## Tolerância: só conta como incoerente se o cerco passar o total em mais
+## de 5%. Diferença pequena (2020: cerco 411,6 t x total 410 t) é
+## arredondamento/fechamento de estatística, não erro — ali fica o total.
+TOL_INCOERENTE   <- 1.05
 
 ARTE_ALVO      <- "REDE DE CERCO"        # decisão L5
 ESPECIE_FOCO   <- "DECAPTERUS MACARELLUS"
@@ -1037,8 +1080,32 @@ sp_nomes <- sp_nomes[cols_cap]
 ## o R para com erro. Esta linha deixa o script rodar nos dois.
 AA <- if (.Platform$OS.type == "windows") "cleartype" else "default"
 
-cor_sp  <- hcl.colors(length(cols_cap), palette = "Dark 3")
 COR_MAC <- "#1F4E79"; COR_AUX <- "#C0501B"; COR_NEU <- "#7F7F7F"
+
+## COR FIXA POR ESPÉCIE, amarrada ao NOME da coluna de captura (não à
+## posição). Antes as cores saíam de hcl.colors() na ordem das colunas, e
+## a Fig 2 reescrevia `cor_sp` com outra paleta e outra ordem — daí as
+## barras da Fig 6C não baterem com a legenda. Agora cada espécie tem UMA
+## cor em todas as figuras, não importa quantas espécies entrem no gráfico
+## nem em que ordem. D. macarellus e Auxis herdam COR_MAC e COR_AUX, que
+## são as cores deles no resto do script (CPUE, cenários, JABBA). "Outras"
+## é cinza porque é um grupo, não uma espécie.
+COR_ESPECIE <- c(cap_macarellus = COR_MAC,   cap_auxis      = COR_AUX,
+                 cap_katsuwonus = "#1BAF7A", cap_selar      = "#EDA100",
+                 cap_carangideo = "#E87BA4", cap_punctatus  = "#6DA7EC",
+                 cap_sardinella = "#008300", cap_thunnus    = "#4A3AA7",
+                 cap_spicara    = "#E34948", cap_elagatis   = "#8C6D31",
+                 cap_apsilus    = "#00868B", cap_outras     = "#9E9E9E")
+## Espécie que apareça num extrato futuro e ainda não tenha cor ganha uma
+## provisória (e um aviso), em vez de quebrar as figuras.
+sem_cor <- setdiff(cols_cap, names(COR_ESPECIE))
+if (length(sem_cor)) {
+  warning("Espécies sem cor fixa em COR_ESPECIE: ", paste(sem_cor, collapse = ", "))
+  COR_ESPECIE[sem_cor] <- grDevices::hcl.colors(length(sem_cor), palette = "Dark 3")
+}
+## `cor_sp` fica na MESMA ordem de `cols_cap` e `sp_nomes` — é o vetor
+## usado junto com eles nas figuras. Não reescrever este objeto adiante.
+cor_sp <- unname(COR_ESPECIE[cols_cap])
 
 ## =====================================================================
 ## 1) VARIÁVEIS DERIVADAS
@@ -1179,14 +1246,16 @@ print(data.frame(tempo = ser$tempo,
 ## =====================================================================
 
 ## --- Fig 1: captura por espécie e esforço ------------------------------
-png("exp1_capturas_esforco.png", width = 26, height = 13, res = 300,
+png("exp1_capturas_esforco.png", width = 28, height = 13, res = 300,
     antialias = AA, units = "cm")
 op <- par(mfrow = c(1, 2), mar = c(4.2, 4.6, 3, 1), bty = "l",
           cex.main = 0.95, cex = 0.85)
-matplot(ser$tempo, ser[, cols_cap], type = "l", lty = 1, lwd = 2.2,
+## cavala e Auxis (as duas da história central) em traço mais grosso
+lwd_sp <- ifelse(cols_cap %in% c("cap_macarellus", "cap_auxis"), 3.2, 1.8)
+matplot(ser$tempo, ser[, cols_cap], type = "l", lty = 1, lwd = lwd_sp,
         col = cor_sp, xlab = rotulo_tempo, ylab = "Captura (t)",
         main = "A. Captura por especie")
-legend("topleft", sp_nomes, col = cor_sp, lwd = 2.2, bty = "n", cex = 0.6)
+legend("topleft", sp_nomes, col = cor_sp, lwd = lwd_sp, bty = "n", cex = 0.8)
 plot(ser$tempo, ser$dias, type = "b", pch = 19, lwd = 2.4, col = COR_NEU,
      xlab = rotulo_tempo, ylab = "Esforco (dias de pesca)",
      main = "B. Esforco amostrado da frota de cerco",
@@ -1195,11 +1264,32 @@ par(op); dev.off()
 cat("\nPNG salvo: exp1_capturas_esforco.png\n")
 
 ## --- Fig 2: composição da captura --------------------------------------
-## É a figura que conta a história central: a fração da cavala encolhe e
-## a do Auxis cresce. Isso é compatível COM TROCA DE ALVO e TAMBÉM com
-## queda real de abundância — a figura levanta a questão, não a resolve.
-comp <- as.matrix(ser[, cols_cap]); comp <- comp / rowSums(comp)
-png("exp2_composicao.png", width = 24, height = 12, res = 300,
+comp_raw <- as.matrix(ser[, cols_cap])
+colnames(comp_raw) <- cols_cap
+
+## 12 espécies empilhadas não se distinguem, mesmo com boa paleta. Ficam
+## com faixa própria só as N de maior captura total (ajuste n_top); o resto
+## vai para um grupo cinza "Outras espécies". A coluna "Outras" original
+## nunca concorre a faixa própria — ela já é um grupo.
+## IMPORTANTE: as cores aqui são LOCAIS (`cor_comp`) e saem de COR_ESPECIE
+## pelo nome. A versão anterior reescrevia `cor_sp` nesta figura, e isso
+## bagunçava as cores de todas as figuras seguintes (Fig 6C).
+n_top  <- 7
+cand   <- setdiff(cols_cap, "cap_outras")
+tot_sp <- colSums(comp_raw[, cand, drop = FALSE], na.rm = TRUE)
+top    <- names(sort(tot_sp, decreasing = TRUE))[seq_len(min(n_top, length(cand)))]
+## a cavala entra sempre e fica na BASE da pilha, onde a mudança da fração
+## dela é mais fácil de ler (a base é a única faixa com linha de referência reta)
+top    <- c("cap_macarellus", setdiff(top, "cap_macarellus"))[seq_len(min(n_top, length(cand)))]
+resto  <- setdiff(cols_cap, top)
+
+comp <- cbind(comp_raw[, top, drop = FALSE],
+              Outras = rowSums(comp_raw[, resto, drop = FALSE], na.rm = TRUE))
+comp <- comp / rowSums(comp)
+nomes_comp <- c(unname(sp_nomes[top]), "Outras especies")
+cor_comp   <- c(unname(COR_ESPECIE[top]), unname(COR_ESPECIE["cap_outras"]))
+
+png("exp2_composicao.png", width = 26, height = 12, res = 300,
     antialias = AA, units = "cm")
 op <- par(mar = c(4.2, 4.6, 3, 9), bty = "l", cex.main = 0.95, cex = 0.85)
 acum <- t(apply(comp, 1, cumsum))
@@ -1208,18 +1298,18 @@ plot(NA, xlim = range(ser$tempo), ylim = c(0, 1), xlab = rotulo_tempo,
      main = "Composicao da captura da frota de cerco")
 for (k in ncol(acum):1)
   polygon(c(ser$tempo, rev(ser$tempo)), c(acum[, k], rep(0, nrow(acum))),
-          col = cor_sp[k], border = NA)
+          col = cor_comp[k], border = "white", lwd = 0.8)
 par(xpd = TRUE)
-legend(max(ser$tempo) + diff(range(ser$tempo)) * 0.03, 0.95, sp_nomes,
-       fill = cor_sp, border = NA, bty = "n", cex = 0.66)
+## legenda na mesma ordem vertical da pilha (de cima para baixo)
+legend(max(ser$tempo) + diff(range(ser$tempo)) * 0.03, 0.95, rev(nomes_comp),
+       fill = rev(cor_comp), border = NA, bty = "n", cex = 0.9)
 par(op); dev.off()
 cat("PNG salvo: exp2_composicao.png\n")
-
 ## --- Fig 3: CPUE nominal e zeros ---------------------------------------
 ## O painel B é o diagnóstico mais importante desta figura: com ~88% de
 ## viagens sem cavala, qualquer modelo que não trate os zeros direito
 ## (Tweedie ou hurdle) vai dar resultado errado.
-png("exp3_cpue_nominal.png", width = 26, height = 13, res = 300,
+png("exp3_cpue_nominal.png", width = 28, height = 12, res = 300,
     antialias = AA, units = "cm")
 op <- par(mfrow = c(1, 2), mar = c(4.2, 4.6, 3, 1), bty = "l",
           cex.main = 0.95, cex = 0.85)
@@ -1312,10 +1402,10 @@ cat("PNG salvo: exp4_covariaveis.png\n")
 ##      estiver, o efeito aleatório de embarcação é indispensável)
 ##   D. a frota mudou ao longo da série? (é o problema P5: composição de
 ##      frota variando no tempo contamina o efeito de ano)
-png("exp5_cpue_frota_tempo.png", width = 26, height = 20, res = 300,
+png("exp5_cpue_frota_tempo.png", width = 28, height = 20, res = 300,
     antialias = AA, units = "cm")
 op <- par(mfrow = c(2, 2), mar = c(4.6, 4.6, 3, 1), bty = "l",
-          cex.main = 0.95, cex = 0.85)
+          cex.main = 0.95, cex = 0.9)
 
 ## A — CPUE nominal por ano, separada por trimestre
 cpue_at <- tapply(viagens$cap_macarellus, list(viagens$ano, viagens$ftri), sum) /
@@ -1325,7 +1415,7 @@ matplot(as.numeric(rownames(cpue_at)), cpue_at, type = "b", pch = 19, lty = 1,
         lwd = 2, col = cor_tri, xlab = "Ano", ylab = "CPUE (t/dia)",
         main = "A. CPUE nominal por ano e trimestre")
 legend("topright", colnames(cpue_at), col = cor_tri, lwd = 2, pch = 19,
-       bty = "n", cex = 0.72)
+       bty = "n", cex = 0.8)
 
 ## B — sazonalidade mensal: presença e magnitude na mesma figura
 pr_m <- tapply(viagens$pos_mac, viagens$mes, mean)
@@ -1342,10 +1432,10 @@ plot(as.numeric(names(cp_m)), cp_m, type = "b", pch = 17, lty = 2, lwd = 2,
      col = COR_AUX, axes = FALSE, xlab = "", ylab = "",
      ylim = c(0, max(cp_m) * 1.15))
 axis(4, col.axis = COR_AUX)
-mtext("CPUE (t/dia)", side = 4, line = 2.2, cex = 0.75, col = COR_AUX)
+mtext("CPUE (t/dia)", side = 4, line = 2.2, cex = 0.8, col = COR_AUX)
 legend("topright", c("% com cavala", "CPUE (eixo dir.)"),
        col = c(COR_MAC, COR_AUX), lwd = 2, pch = c(19, 17), lty = c(1, 2),
-       bty = "n", cex = 0.7)
+       bty = "n", cex = 0.8)
 
 ## C — CPUE por embarcação (só as com >= 30 viagens, ordenadas).
 ##     A dispersão entre barcos é a justificativa do termo (1 | fbarco).
@@ -1366,7 +1456,7 @@ barplot(cp_b, col = COR_MAC, border = NA, names.arg = rep("", length(cp_b)),
 media_frota <- sum(viagens$cap_macarellus) / sum(viagens$dias)
 abline(h = media_frota, lty = 2, col = COR_AUX, lwd = 2)
 text(par("usr")[2], media_frota+0.15*media_frota, "media da frota", 
-     pos = 2,adj = c(1, -5), offset = 0.5, cex = 0.9, col = COR_AUX)
+     pos = 2,adj = c(1, -5), offset = 0.5, cex = 1, col = COR_AUX)
 
 ## D — a frota muda? barcos ativos por ano e concentração do esforço
 nb_ano <- tapply(viagens$barco_id, viagens$ano, function(x) length(unique(x)))
@@ -1380,10 +1470,10 @@ plot(as.numeric(names(nb_ano)), vpb, type = "b", pch = 17, lty = 2, lwd = 2,
      col = COR_AUX, axes = FALSE, xlab = "", ylab = "",
      ylim = c(0, max(vpb) * 1.15))
 axis(4, col.axis = COR_AUX)
-mtext("Viagens por embarcacao", side = 4, line = 2.2, cex = 0.75, col = COR_AUX)
+mtext("Viagens por embarcacao", side = 4, line = 2.2, cex = 0.8, col = COR_AUX)
 legend("bottomright", c("barcos ativos", "viagens/barco (dir.)"),
        col = c(COR_MAC, COR_AUX), lwd = 2, pch = c(19, 17), lty = c(1, 2),
-       bty = "n", cex = 0.7)
+       bty = "n", cex = 0.8)
 par(op); dev.off()
 cat("PNG salvo: exp5_cpue_frota_tempo.png\n")
 
@@ -1551,10 +1641,22 @@ cat("\nDistribuição das táticas por ano (proporção das viagens):\n")
 print(round(prop.table(table(viagens$ano, viagens$alvo), margin = 1), 3))
 
 ## --- Fig 6: PCA, silhueta e composição das táticas ---------------------
-cor_cl <- hcl.colors(k_otimo, palette = "Dark 3")
+## Cada tática leva a cor da espécie que DOMINA o centróide dela (o mesmo
+## critério que dá o nome ao grupo, 5.5): a tática "macarellus" é azul-
+## escuro como a cavala, a "auxis" é laranja como o Auxis, e assim por
+## diante — a leitura fica igual em todas as figuras. Se duas táticas
+## tiverem a mesma espécie dominante (make.unique põe o sufixo "_1"), a
+## segunda sai num tom mais claro da mesma cor.
+base_cl <- sub("_[0-9]+$", "", nome_cl)
+cor_cl  <- unname(COR_ESPECIE[paste0("cap_", base_cl)])
+cor_cl[is.na(cor_cl)] <- COR_NEU
+repet <- duplicated(base_cl)
+cor_cl[repet] <- vapply(cor_cl[repet], function(cl)
+  grDevices::colorRampPalette(c(cl, "white"))(3)[2], character(1))
+names(cor_cl) <- nome_cl
 png("exp6_taticas.png", width = 30, height = 10.5, res = 300,
     antialias = AA, units = "cm")
-op <- par(mfrow = c(1, 3), mar = c(4.6, 4.4, 3, 1), oma = c(0, 0, 0, 5),
+op <- par(mfrow = c(1, 3), mar = c(4.6, 4.4, 3, 1), oma = c(0, 0, 0, 7),
           bty = "l", cex.main = 0.95, cex = 0.85)
 plot(ks, sil, type = "b", pch = 19, lwd = 2, col = COR_MAC,
      xlab = "Numero de grupos (k)", ylab = "Silhueta media", main = "A. Escolha de k")
@@ -1565,11 +1667,18 @@ plot(pca$x[, 1], pca$x[, 2], col = adjustcolor(cor_cl[km$cluster], 0.6),
      main = "B. Taticas no espaco de composicao")
 points(km$centers[, 1], km$centers[, 2], pch = 21, bg = cor_cl, cex = 2, lwd = 1.5)
 legend("topleft", nome_cl, col = cor_cl, pch = 16, bty = "n", cex = 0.8, pt.cex = 1.6)
-bp <- barplot(t(cent), col = cor_sp, border = NA, names.arg = nome_cl,
+## As linhas de t(cent) seguem a ordem das colunas de comp_bm (= cols_cap);
+## cor e nome saem do NOME da coluna, então barra e legenda batem sempre.
+## A 1ª linha é desenhada na base da barra, então a legenda vai invertida
+## para ler de cima para baixo na mesma ordem das faixas.
+sp_cent  <- colnames(comp_bm)
+cor_cent <- unname(COR_ESPECIE[sp_cent])
+bp <- barplot(t(cent), col = cor_cent, border = "white",
+              names.arg = nome_cl,
               las = 2, cex.names = 0.65, ylab = "Proporcao media da captura",
               main = "C. Composicao de cada tatica")
-legend(max(bp) + 0.8, 1, rev(sp_nomes), fill = rev(cor_sp), border = NA,
-       bty = "n", cex = 0.8, xpd = NA,pt.cex = 1.2)
+legend(max(bp) + 0.8, 1, rev(unname(sp_nomes[sp_cent])), fill = rev(cor_cent),
+       border = NA, bty = "n", cex = 0.8, xpd = NA)
 par(op); dev.off()
 cat("PNG salvo: exp6_taticas.png\n")
 
@@ -1595,22 +1704,25 @@ png("exp7_esforco_dirigido.png", width = 26, height = 12, res = 300,
 op <- par(mfrow = c(1, 2), mar = c(4.2, 4.6, 3, 1), bty = "l",
           cex.main = 0.95, cex = 0.85)
 tat <- prop.table(table(viagens$tempo, viagens$alvo), margin = 1)
+## cor pelo NOME da tática (colunas de `tat`), não pela posição: se alguma
+## tática sumir no droplevels, as outras continuam com a cor certa
+cor_tat <- cor_cl[colnames(tat)]
 matplot(as.numeric(rownames(tat)), tat, type = "b", pch = 19, lty = 1, lwd = 2.2,
-        col = cor_cl, ylim = c(0, 1), xlab = rotulo_tempo,
+        col = cor_tat, ylim = c(0, 1), xlab = rotulo_tempo,
         ylab = "Proporcao das viagens", main = "A. Mistura de taticas")
-legend("topleft", nome_cl, col = cor_cl, lwd = 2.2, pch = 19, bty = "n", cex = 0.68)
+legend("topleft", colnames(tat), col = cor_tat, lwd = 2.2, pch = 19, bty = "n", cex = 0.8)
 mat_d <- sapply(levels(viagens$alvo), function(g) {
   x <- dias_alvo[dias_alvo$alvo == g, ]
   v <- setNames(rep(0, nrow(ser)), ser$tempo)
   v[as.character(x$tempo)] <- x$dias; v
 })
-matplot(ser$tempo, mat_d, type = "l", lty = 1, lwd = 2.4, col = cor_cl,
+matplot(ser$tempo, mat_d, type = "l", lty = 1, lwd = 2.4, col = cor_cl[colnames(mat_d)],
         ylim = c(0, max(c(mat_d, ser$dias)) * 1.05), xlab = rotulo_tempo,
         ylab = "Dias de pesca", main = "B. Esforco dirigido por tatica")
 lines(ser$tempo, ser$dias, lwd = 2, lty = 2, col = COR_NEU)
 legend("topleft", c(levels(viagens$alvo), "esforco total"),
-       col = c(cor_cl, COR_NEU), lwd = 2.2,
-       lty = c(rep(1, nlevels(viagens$alvo)), 2), bty = "n", cex = 0.68)
+       col = c(cor_cl[levels(viagens$alvo)], COR_NEU), lwd = 2.2,
+       lty = c(rep(1, nlevels(viagens$alvo)), 2), bty = "n", cex = 0.8)
 par(op); dev.off()
 cat("PNG salvo: exp7_esforco_dirigido.png\n")
 
@@ -2725,10 +2837,10 @@ cores_cen <- setNames(
     "S2b PCs COM cavala (circular)", "S2b PCs SEM cavala",
     "S3 esforço dirigido"))
 
-png("indices_cenarios.png", width = 26, height = 14, res = 300,
+png("indices_cenarios.png", width = 28, height = 13, res = 300,
     antialias = AA, units = "cm")
 op <- par(mfrow = c(1, 2), mar = c(4.4, 4.6, 3, 1), bty = "l",
-          cex.main = 0.95, cex = 0.85)
+          cex.main = 0.95, cex = 0.9)
 cens <- unique(indices$cenario)
 plot(NA, xlim = range(indices$tempo),
      ylim = c(0, max(indices$indice, na.rm = TRUE) * 1.12),
@@ -2739,7 +2851,7 @@ for (cen in cens) {
   lines(d$tempo, d$indice, lwd = 2.4, col = cores_cen[cen])
   points(d$tempo, d$indice, pch = 19, cex = 0.8, col = cores_cen[cen])
 }
-legend("topright", cens, col = cores_cen[cens], lwd = 2.3, bty = "n", cex = 0.62)
+legend("topright", cens, col = cores_cen[cens], lwd = 2.3, bty = "n", cex = 0.8)
 
 lo <- S2$indice * exp(-1.96 * S2$se_log); hi <- S2$indice * exp(1.96 * S2$se_log)
 plot(S2$tempo, S2$indice, type = "n", ylim = c(0, max(hi, na.rm = TRUE) * 1.05),
@@ -2751,7 +2863,7 @@ lines(S2$tempo, S2$indice, lwd = 2.6, col = COR_MAC)
 points(S2$tempo, S2$indice, pch = 19, col = COR_MAC)
 lines(S1$tempo, S1$indice, lwd = 2, col = COR_AUX, lty = 2)
 legend("topright", c("corrigida (IC 95%)", "nominal"), col = c(COR_MAC, COR_AUX),
-       lwd = c(2.6, 2), lty = c(1, 2), bty = "n", cex = 0.72)
+       lwd = c(2.6, 2), lty = c(1, 2), bty = "n", cex = 0.8)
 par(op); dev.off()
 cat("\nPNG salvo: indices_cenarios.png\n")
 
@@ -3015,7 +3127,7 @@ cat("  teste_circularidade_tatica.csv (a tabela da seção 7.6)\n")
 if (tem_writexl) cat("  cpue_macarellus_cenarios.xlsx  (tudo acima em abas)\n")
 
 ## --- figura dos cinco cenários ---------------------------------------
-png("cenarios_finais.png", width = 26, height = 13, res = 300, antialias = AA, units = "cm")
+png("cenarios_finais.png", width = 28, height = 12, res = 300, antialias = AA, units = "cm")
 op <- par(mfrow = c(1, 2), mar = c(4.4, 4.6, 3, 1), bty = "l", cex.main = 0.95, cex = 0.85)
 cor_c <- c("C1 nominal 1989-2025" = COR_NEU)
 cor_c[sprintf("C2 nominal pre-alvo (<=%d)", ANO_CORTE_ALVO)]    <- COR_AUX
@@ -3029,14 +3141,14 @@ plot(NA, xlim = range(cenarios$tempo), ylim = c(0, max(cenarios$indice, na.rm = 
      main = "A. Serie completa 1989-2025")
 abline(v = ANO_CORTE_ALVO + 0.5, lty = 3, col = "grey40")
 ## rótulo embaixo, para não brigar com a legenda no canto superior
-text(ANO_CORTE_ALVO + 0.5, max(cenarios$indice, na.rm = TRUE) * 0.04,
-     "mudanca de alvo", pos = 4, cex = 0.62, col = "grey30")
+text(ANO_CORTE_ALVO + 0.1, max(cenarios$indice, na.rm = TRUE) * 0.02,
+     "mudanca de alvo", pos = 4, cex = 0.9, col = "grey30")
 for (cen in unique(cenarios$cenario)) {
   d <- cenarios[cenarios$cenario == cen, ]
   lines(d$tempo, d$indice, lwd = 2.2, col = cor_c[cen])
   points(d$tempo, d$indice, pch = 19, cex = 0.6, col = cor_c[cen])
 }
-legend("topright", names(cor_c), col = cor_c, lwd = 2.2, bty = "n", cex = 0.58)
+legend("topright", names(cor_c), col = cor_c, lwd = 2.2, bty = "n", cex = 0.9,pt.cex = 1.8)
 
 ## painel B: só o período padronizado, onde os cenários são comparáveis
 sub <- cenarios[cenarios$tempo > ANO_CORTE_ALVO, ]
@@ -3049,40 +3161,49 @@ for (cen in unique(sub$cenario)) {
   points(d$tempo, d$indice, pch = 19, cex = 0.8, col = cor_c[cen])
 }
 legend("topright", unique(sub$cenario), col = cor_c[unique(sub$cenario)],
-       lwd = 2.4, bty = "n", cex = 0.62)
+       lwd = 2.4, bty = "n", cex = 0.9,pt.cex = 1.5)
 par(op); dev.off()
 cat("PNG salvo: cenarios_finais.png\n")
 
 ## =====================================================================
 ## 12) SÉRIE DE DESEMBARQUES (CAPTURA) — entrada de CATCH do JABBA
 ## ---------------------------------------------------------------------
-## Até aqui C1-C5 são tudo CPUE (abundância relativa). O JABBA também
+## Até aqui C1-C6 são tudo CPUE (abundância relativa). O JABBA também
 ## precisa da série de REMOÇÕES (captura em toneladas), que é um insumo
-## INDEPENDENTE do índice — e o IMar não forneceu uma série de
-## desembarques pronta (a que alimentou o CMSY/DBSRA antes veio da FAO).
+## INDEPENDENTE do índice.
 ##
-## A captura de cavala preta já está dentro das MESMAS planilhas de
-## esforço usadas para a CPUE — `serie_anual`, montada na seção 0.2 —
-## então a série de desembarques sai do mesmo lugar, sem reler nada.
+## DUAS séries saem desta seção, lado a lado no mesmo CSV (decisão L19):
+##   Desemb_total_t     : desembarque TOTAL de cavala, todas as artes
+##                        (artesanal + industrial), do arquivo do IMar
+##                        `ARQ_DESEMB_TOTAL`. É ESTA a captura do JABBA,
+##                        porque o modelo trata a captura como remoção
+##                        TOTAL do estoque.
+##   Catch_macarellus_t : desembarque só do CERCO, que sai de
+##                        `serie_anual` (seção 0.2) — mesma fonte e mesmo
+##                        filtro de arte da CPUE. Serve de referência, de
+##                        checagem de coerência e para completar os anos
+##                        que o total não cobre.
+##
+## Por que as duas convivem sem conflito: o índice (CPUE) pode vir de UMA
+## frota só, porque o JABBA estima um q próprio para ele; a captura tem de
+## ser a remoção de TODAS as frotas. Captura total + índice do cerco é o
+## arranjo padrão, não um remendo.
 ##
 ## POR QUE A CAPTURA NÃO HERDA OS MESMOS "BURACOS" DA CPUE:
 ## o JABBA é um modelo de estado-espaço — ele precisa de uma remoção
 ## (mesmo que pequena) em CADA ano do modelo para atualizar a biomassa;
-## o ÍNDICE não, ele só entra nos anos em que existe e o JABBA
-## simplesmente pula os anos sem índice. Por isso 2013 (sem esforço) e
-## 2018 (formato e levantamento diferentes — decisão L17) ENTRAM aqui
-## mesmo estando marcados `usar_na_serie = FALSE` em `serie_anual`: não
-## dá para pular um ano de captura sem quebrar o balanço de massa do
-## modelo. A marcação de confiabilidade viaja junto na coluna
-## `confiavel`, para o texto — não para remover a linha.
+## o ÍNDICE não, ele só entra nos anos em que existe. Por isso 2013 (sem
+## esforço) entra aqui mesmo marcado `confiavel = FALSE` — a marcação
+## vale para o índice, não para a captura.
 ## =====================================================================
 cat("\n===== 12) SÉRIE DE DESEMBARQUES (CAPTURA) =====\n")
 
+## --- (a) cerco: sai de `serie_anual`, como antes ------------------------
 desembarques <- data.frame(
   Yr = serie_anual$ano,
   Catch_macarellus_t = round(serie_anual$cavala_t, 3),
   ## NA em 1989-2014: a planilha histórica é agregada e não abre a
-  ## captura total da frota por espécie — só a de cavala.
+  ## captura total da frota de cerco por espécie — só a de cavala.
   Catch_total_frota_t = round(serie_anual$cap_total_t, 3),
   fonte = serie_anual$fonte,
   confiavel = serie_anual$usar_na_serie,
@@ -3090,26 +3211,139 @@ desembarques <- data.frame(
   periodo = serie_anual$periodo,
   row.names = NULL, stringsAsFactors = FALSE)
 
-cat(sprintf("Cobertura: %d-%d (%d anos)\n",
-            min(desembarques$Yr), max(desembarques$Yr), nrow(desembarques)))
-falta <- is.na(desembarques$Catch_macarellus_t)
-if (any(falta)) {
-  cat(sprintf("Anos SEM captura registrada (%d): %s\n", sum(falta),
-              paste(desembarques$Yr[falta], collapse = ", ")))
-  cat("  ^ ficam como estão (NA) — o pedido foi para não travar nisso; o\n")
-  cat("    JABBA aceita, mas o manual do pacote recomenda decidir entre\n")
-  cat("    interpolar ou usar um valor mínimo antes de rodar, porque um\n")
-  cat("    NA no meio da série de captura quebra o balanço daquele ano.\n")
-} else {
-  cat("Nenhum ano sem captura registrada — série completa para o JABBA.\n")
+## --- (b) total: leitura do arquivo do IMar -------------------------------
+## O arquivo vem do Excel: separador ";", cabeçalho "Ano;Desembarques
+## (tons)" e, às vezes, a marca BOM grudada no primeiro nome de coluna.
+## Por isso a leitura é pela POSIÇÃO das colunas (1 = ano, 2 = t), não
+## pelo nome, e as linhas sem número (2024 e 2025 vêm vazias) são
+## descartadas aqui — ano sem dado é ano sem dado, não zero.
+le_desemb_total <- function(arq) {
+  if (!file.exists(arq))
+    stop(sprintf("Não achei '%s' em %s (ver ARQ_DESEMB_TOTAL na seção 0).", arq, getwd()))
+  sep <- if (grepl(";", readLines(arq, n = 1, warn = FALSE))) ";" else ","
+  d <- read.csv(arq, sep = sep, dec = ".", stringsAsFactors = FALSE,
+                check.names = FALSE, fileEncoding = "UTF-8-BOM")
+  if (ncol(d) < 2)
+    stop(sprintf("'%s' foi lido com %d coluna(s) — confira o separador.", arq, ncol(d)))
+  d <- data.frame(Yr = suppressWarnings(as.integer(d[[1]])),
+                  Catch = suppressWarnings(as.numeric(gsub(",", ".", d[[2]]))))
+  d <- d[!is.na(d$Yr) & !is.na(d$Catch), ]
+  d[order(d$Yr), ]
 }
-nao_conf <- !desembarques$confiavel
-if (any(nao_conf))
-  cat(sprintf("Anos com captura presente mas marcados NÃO confiáveis para o índice: %s\n",
-              paste(desembarques$Yr[nao_conf], collapse = ", ")))
-cat("  ^ continuam na série de captura — a ressalva de 2013 (sem esforço)\n")
-cat("    e 2018 (levantamento e formato diferentes) vale para este número\n")
-cat("    também e deve constar no texto, não justifica remover a linha.\n")
+tot <- le_desemb_total(ARQ_DESEMB_TOTAL)
+tot$origem <- "IMar total (todas as artes)"
+cat(sprintf("Desembarque total lido de '%s': %d anos (%d-%d)\n",
+            ARQ_DESEMB_TOTAL, nrow(tot), min(tot$Yr), max(tot$Yr)))
+
+## --- (c) 2018: média dos vizinhos (L17 / L19) ----------------------------
+valor_orig_2018 <- NA_real_
+if (!is.null(ANOS_MEDIA_2018) && 2018 %in% tot$Yr) {
+  viz <- tot$Catch[tot$Yr %in% ANOS_MEDIA_2018]
+  if (length(viz) < length(ANOS_MEDIA_2018))
+    warning("Nem todos os anos de ANOS_MEDIA_2018 existem na série total; média feita com os que existem.")
+  valor_orig_2018 <- tot$Catch[tot$Yr == 2018]
+  tot$Catch[tot$Yr == 2018]  <- mean(viz)
+  tot$origem[tot$Yr == 2018] <- "2018: media dos vizinhos"
+  cat(sprintf("2018: %.0f t (original) -> %.1f t (média de %s)\n",
+              valor_orig_2018, mean(viz), paste(ANOS_MEDIA_2018, collapse = ", ")))
+}
+
+## --- (d) coerência total x cerco -----------------------------------------
+## O cerco é PARTE do total, então total/cerco >= 1 sempre. Duas coisas
+## saem desta tabela: (1) a fração do total que o cerco representa — é o
+## que justifica usar o cerco nos anos sem total; (2) os anos em que o
+## total fica ABAIXO do cerco, que são impossíveis e precisam de decisão.
+## 2018 fica fora da checagem quando foi corrigido: o cerco de 2018 vem do
+## mesmo levantamento anômalo (L17), então compará-lo com o total já
+## corrigido acusaria uma incoerência que não existe.
+com <- merge(tot[, c("Yr", "Catch")],
+             desembarques[, c("Yr", "Catch_macarellus_t")], by = "Yr")
+com <- com[!is.na(com$Catch_macarellus_t) & com$Catch_macarellus_t > 0, ]
+com$frac_cerco <- com$Catch_macarellus_t / com$Catch
+if (!is.na(valor_orig_2018)) com <- com[com$Yr != 2018, ]
+cat("\nFração do desembarque total que é do cerco (cerco / total):\n")
+print(data.frame(Yr = com$Yr, total_t = round(com$Catch),
+                 cerco_t = round(com$Catch_macarellus_t),
+                 frac_cerco = round(com$frac_cerco, 2)), row.names = FALSE)
+recentes <- com[com$Yr >= 2017 & com$frac_cerco <= TOL_INCOERENTE, ]
+if (nrow(recentes))
+  cat(sprintf("  -> %d-%d: o cerco é %.0f-%.0f%% do total (mediana %.0f%%)\n",
+              min(recentes$Yr), max(recentes$Yr), 100 * min(recentes$frac_cerco),
+              100 * max(recentes$frac_cerco), 100 * median(recentes$frac_cerco)))
+
+incoer <- com$Yr[com$frac_cerco > TOL_INCOERENTE]
+if (length(incoer)) {
+  cat(sprintf("\n[INCOERENTE] total < cerco em: %s\n", paste(incoer, collapse = ", ")))
+  cat(sprintf("  (cerco > %.0f%% do total). O cerco é subconjunto do total; um dos\n",
+              100 * TOL_INCOERENTE))
+  cat("  dois números está errado.\n")
+  cat(sprintf("  Tratamento (TRATA_INCOERENTE): '%s'\n", TRATA_INCOERENTE))
+  if (TRATA_INCOERENTE == "interpolar") {
+    tot$Catch[tot$Yr %in% incoer]  <- NA
+    tot$origem[tot$Yr %in% incoer] <- "interpolado (total < cerco)"
+  } else if (TRATA_INCOERENTE == "piso_cerco") {
+    i <- match(incoer, tot$Yr)
+    tot$Catch[i]  <- desembarques$Catch_macarellus_t[match(incoer, desembarques$Yr)]
+    tot$origem[i] <- "cerco como piso (total < cerco)"
+  }
+}
+
+## --- (e) série composta no calendário completo ---------------------------
+anos <- desembarques$Yr
+i_tot <- match(anos, tot$Yr)
+desembarques$Desemb_total_t <- tot$Catch[i_tot]
+desembarques$fonte_total    <- tot$origem[i_tot]
+
+## Buraco NO MEIO (ex.: ano incoerente marcado para interpolar): tem
+## observação dos dois lados, então a interpolação linear tem âncora.
+dentro <- anos >= min(tot$Yr) & anos <= max(tot$Yr)
+buraco <- dentro & is.na(desembarques$Desemb_total_t)
+if (any(buraco)) {
+  ok <- dentro & !buraco
+  desembarques$Desemb_total_t[buraco] <-
+    approx(anos[ok], desembarques$Desemb_total_t[ok], xout = anos[buraco])$y
+  desembarques$fonte_total[buraco] <- "interpolado (total < cerco)"
+  cat(sprintf("Interpolados entre os vizinhos: %s\n", paste(anos[buraco], collapse = ", ")))
+}
+
+## Anos DEPOIS do último total (2024-2025): cerco daquele ano, como piso.
+## Não é valor inventado — é desembarque medido de uma arte que responde
+## por quase todo o total nos anos recentes (tabela acima). Mas é um piso:
+## declarar no texto que a captura desses anos pode estar levemente
+## subestimada.
+depois <- anos > max(tot$Yr)
+if (any(depois)) {
+  if (COMPLETAR_COM_CERCO) {
+    usa <- depois & !is.na(desembarques$Catch_macarellus_t)
+    desembarques$Desemb_total_t[usa] <- desembarques$Catch_macarellus_t[usa]
+    desembarques$fonte_total[usa]    <- "cerco (sem total no ano)"
+    cat(sprintf("Completados com o desembarque do cerco (sem total no ano): %s\n",
+                paste(anos[usa], collapse = ", ")))
+  } else {
+    cat(sprintf("Sem total em %s e COMPLETAR_COM_CERCO = FALSE: ficam NA e o JABBA\n",
+                paste(anos[depois], collapse = ", ")))
+    cat("  corta a série no último ano com total (seção 3).\n")
+  }
+}
+desembarques$Desemb_total_t <- round(desembarques$Desemb_total_t, 3)
+
+## ordem das colunas: primeiro o que o JABBA usa
+desembarques <- desembarques[, c("Yr", "Desemb_total_t", "fonte_total",
+                                 "Catch_macarellus_t", "Catch_total_frota_t",
+                                 "fonte", "confiavel", "engenhos_agregados", "periodo")]
+
+cat(sprintf("\nCobertura: %d-%d (%d anos)\n",
+            min(desembarques$Yr), max(desembarques$Yr), nrow(desembarques)))
+falta <- is.na(desembarques$Desemb_total_t)
+if (any(falta)) {
+  cat(sprintf("Anos SEM captura total (%d): %s\n", sum(falta),
+              paste(desembarques$Yr[falta], collapse = ", ")))
+  cat("  ^ o JABBA corta pontas sem captura e interpola buracos internos (seção 3.1).\n")
+} else {
+  cat("Nenhum ano sem captura total — série completa para o JABBA.\n")
+}
+cat("Origem de cada ano da captura total:\n")
+print(table(desembarques$fonte_total, useNA = "ifany"))
 
 print(desembarques, row.names = FALSE)
 
@@ -3122,31 +3356,63 @@ if (tem_writexl) {
 }
 
 ## --- gráfico -----------------------------------------------------------
+## Linha cheia = captura total (a que vai para o JABBA). Linha cinza =
+## cerco, para mostrar quanto do total ele representa. Os anos que NÃO
+## são o total original ganham marcador próprio, para que ninguém leia um
+## valor corrigido/completado como se fosse dado bruto.
 png("desembarques_macarellus.png", width = 24, height = 12, res = 300,
     antialias = AA, units = "cm")
-op <- par(mar = c(4.4, 4.6, 3, 1), bty = "l", cex.main = 0.95, cex = 0.85)
-cor_fonte <- c("Historico 1989-2014 (agregado)" = COR_NEU,
-               "IMar viagem" = COR_MAC,
-               "IMar 2018 (formato diferente)" = COR_AUX)
-plot(desembarques$Yr, desembarques$Catch_macarellus_t, type = "n",
-     xlab = "Ano", ylab = "Desembarque de cavala preta (t)",
-     ylim = c(0, max(desembarques$Catch_macarellus_t, na.rm = TRUE) * 1.15),
-     main = "Serie de desembarques - D. macarellus, frota de cerco (Cabo Verde)", lwd=2)
+op <- par(mar = c(4.4, 4.6, 3, 1), bty = "l", cex.main = 0.95, cex = 0.9)
+d <- desembarques
+y_max <- max(c(d$Desemb_total_t, d$Catch_macarellus_t, valor_orig_2018), na.rm = TRUE) * 1.15
+plot(d$Yr, d$Desemb_total_t, type = "n", xlab = "Ano",
+     ylab = "Desembarque de cavala preta (t)", ylim = c(0, y_max),
+     main = "Serie de desembarques - D. macarellus (Cabo Verde)")
 abline(v = ANO_CORTE_ALVO + 0.5, lty = 3, col = "grey40")
-text(ANO_CORTE_ALVO + 3, max(desembarques$Catch_macarellus_t, na.rm = TRUE) * 1,
-     "mudanca de alvo", pos = 2, cex = 0.7, col = "grey30")
-lines(desembarques$Yr, desembarques$Catch_macarellus_t, lwd =2, col = "grey75")
-for (f in names(cor_fonte)) {
-  d <- desembarques[desembarques$fonte == f, ]
-  if (nrow(d) == 0) next
-  points(d$Yr[d$confiavel],  d$Catch_macarellus_t[d$confiavel],
-         pch = 19, cex = 1, col = cor_fonte[f])
-  points(d$Yr[!d$confiavel], d$Catch_macarellus_t[!d$confiavel],
-         pch = 4,  cex = 1.3, lwd = 2, col = cor_fonte[f])
+text(ANO_CORTE_ALVO + 0.5, y_max * 0.97, "mudanca de alvo", pos = 2,
+     cex = 0.8, col = "grey30")
+lines(d$Yr, d$Catch_macarellus_t, lwd = 2.5, col = COR_NEU)
+points(d$Yr, d$Catch_macarellus_t, pch = 16, cex = 1, col = COR_NEU)
+lines(d$Yr, d$Desemb_total_t, lwd = 2.8, col = COR_MAC)
+
+## marcador por origem do ponto da série total
+estilo <- list(
+  "IMar total (todas as artes)"     = list(pch = 19, col = COR_MAC, bg = NA),
+  "2018: media dos vizinhos"        = list(pch = 21, col = COR_MAC, bg = "white"),
+  "interpolado (total < cerco)"     = list(pch = 22, col = COR_MAC, bg = "white"),
+  "cerco como piso (total < cerco)" = list(pch = 23, col = COR_MAC, bg = "white"),
+  "cerco (sem total no ano)"        = list(pch = 17, col = COR_AUX, bg = NA))
+presentes <- intersect(names(estilo), unique(d$fonte_total))
+for (f in presentes) {
+  s <- estilo[[f]]; w <- which(d$fonte_total == f)
+  points(d$Yr[w], d$Desemb_total_t[w], pch = s$pch, col = s$col,
+         bg = s$bg, cex = if (f == "IMar total (todas as artes)") 1 else 1.5, lwd = 1.8)
 }
-legend("topleft", names(cor_fonte), col = cor_fonte, pch = 19, bty = "n", cex = 0.9, pt.cex = 1)
-legend("topright", c("confiavel p/ indice", "nao confiavel p/ indice (entra na captura mesmo assim)"),
-       pch = c(19, 4), pt.lwd = c(1, 2), col = "grey30", bty = "n", cex = 0.9, pt.cex = 1)
+## valor original de 2018, só para mostrar o que foi substituído
+if (!is.na(valor_orig_2018)) {
+  points(2018, valor_orig_2018, pch = 4, col = "grey45", cex = 1.3, lwd = 1.6)
+  segments(2018, valor_orig_2018, 2018, d$Desemb_total_t[d$Yr == 2018],
+           lty = 3, col = "grey45")
+}
+leg_txt <- c("Desembarque total (todas as artes)", "Desembarque do cerco")
+leg_pch <- c(19, 16); leg_col <- c(COR_MAC, COR_NEU); leg_bg <- c(NA, NA)
+leg_lty <- c(1, 1); leg_lwd <- c(2.4, 2.5)
+rotulo <- c("2018: media dos vizinhos"        = "2018: media de 2015-17 e 2019-21",
+            "interpolado (total < cerco)"     = "interpolado (total < cerco)",
+            "cerco como piso (total < cerco)" = "cerco como piso (total < cerco)",
+            "cerco (sem total no ano)"        = "sem total: desembarque do cerco")
+for (f in setdiff(presentes, "IMar total (todas as artes)")) {
+  leg_txt <- c(leg_txt, rotulo[[f]]); leg_pch <- c(leg_pch, estilo[[f]]$pch)
+  leg_col <- c(leg_col, estilo[[f]]$col); leg_bg <- c(leg_bg, estilo[[f]]$bg)
+  leg_lty <- c(leg_lty, NA); leg_lwd <- c(leg_lwd, 1.6)
+}
+if (!is.na(valor_orig_2018)) {
+  leg_txt <- c(leg_txt, sprintf("2018 original (%.0f t, fora)", valor_orig_2018))
+  leg_pch <- c(leg_pch, 4); leg_col <- c(leg_col, "grey45"); leg_bg <- c(leg_bg, NA)
+  leg_lty <- c(leg_lty, NA); leg_lwd <- c(leg_lwd, 1.6)
+}
+legend("topright", leg_txt, pch = leg_pch, col = leg_col, pt.bg = leg_bg,
+       lty = leg_lty, lwd = leg_lwd, bty = "n", cex = 0.9, pt.cex =c(1.1,1.0))
 par(op); dev.off()
 cat("PNG salvo: desembarques_macarellus.png\n")
 
@@ -3218,15 +3484,16 @@ cat("   quase identicas, o denominador de esforco NAO era o problema da\n")
 cat("   CPUE pos-2015 — o mesmo viés de composicao que afeta C3 provavelmente\n")
 cat("   afeta C6 tambem, porque a tatica nasce da mesma matriz de composicao\n")
 cat("   que inclui a cavala (secao 7.6).\n")
-cat("12. A série de CAPTURA (seção 12, `desembarques_macarellus_1989_2025`)\n")
-cat("   substitui a série da FAO usada antes no CMSY/DBSRA: agora vem da\n")
-cat("   mesma fonte primária (IMar) que a CPUE, extraída das planilhas de\n")
-cat("   esforço. Declarar que ela NÃO segue o mesmo filtro de qualidade do\n")
-cat("   índice — 2013 e 2018 entram na captura mesmo estando marcados como\n")
-cat("   não confiáveis para a CPUE — porque o JABBA precisa de uma remoção\n")
-cat("   em todo ano do modelo, e o índice não. As mesmas ressalvas de 2013\n")
-cat("   (sem esforço) e 2018 (levantamento e formato diferentes, decisão\n")
-cat("   L17) se aplicam ao número de captura desses anos.\n")
+cat("12. A série de CAPTURA do JABBA (seção 12, coluna `Desemb_total_t` de\n")
+cat("   `desembarques_macarellus_1989_2025`) é o DESEMBARQUE TOTAL do IMar,\n")
+cat("   todas as artes (decisão L19) — a mesma captura agregada do CMSY e do\n")
+cat("   DBSRA. Declarar: (a) 2018 substituído pela média de 2015-17 e 2019-21\n")
+cat("   (levantamento diferente, L17); (b) 2024-2025 não existem na série\n")
+cat("   total e foram completados com o desembarque do cerco, que de 2017 a\n")
+cat("   2023 é 86-100% do total — são PISO, podem estar levemente abaixo do\n")
+cat("   real; (c) o tratamento de 2014, único ano em que o total ficou abaixo\n")
+cat("   do cerco (ver `TRATA_INCOERENTE`). O índice continua só do cerco:\n")
+cat("   captura total + CPUE de uma frota com q próprio é o arranjo padrão.\n")
 
 
 #----------------------------------------------------------------------------------------------------------#
@@ -3419,74 +3686,66 @@ for (cn in setdiff(names(idx_in), "Yr")) {
 ## fica de fora, o modelo conclui que o estoque aguenta menos do que
 ## aguenta, e K, MSY e B/Bmsy saem todos deslocados.
 ##
-## >>> PROBLEMA CONHECIDO NESTA SERIE <<<
-## A coluna `Catch_macarellus_t` é a captura da REDE DE CERCO INDUSTRIAL —
-## foi assim que a parte 03 a montou, e com razão, porque o denominador da
-## CPUE tinha de bater com o filtro de arte. Para o índice isso é correto.
-## Para a captura do JABBA é uma escolha diferente, e possivelmente errada:
-##   - a planilha histórica 1989-2014 tem uma coluna "Total" (cerco + linha
-##     de mão) que NAO foi exportada;
-##   - a parte artesanal / outras artes de 2015-2025 não está aqui;
-##   - a própria FAO (a fonte que você usou no CMSY/DBSRA) tem uma série de
-##     desembarques mais abrangente.
+## >>> DE ONDE VEM A CAPTURA (decisão L19 da parte 03) <<<
+## A captura do JABBA é o DESEMBARQUE TOTAL do IMar, todas as artes — a
+## coluna `Desemb_total_t` que a seção 12 da parte 03 montou a partir de
+## "Desembarques cavala_1989-2023.csv". A coluna `Catch_macarellus_t` (só
+## REDE DE CERCO) continua no mesmo CSV porque é dela que sai o índice, e o
+## denominador da CPUE tem de bater com o filtro de arte. Para o índice o
+## cerco é o correto; para a captura, não — o cerco sozinho deixa de fora a
+## artesanal e as outras artes, e isso chega a ~90% do total em 1989-1993.
 ##
-## TRES CAMINHOS, e o script aceita os três:
-##   "cerco"   usa o que está no CSV. Coerente com o índice, mas é UMA arte
-##             de UM segmento. Só é defensável se o cerco industrial for
-##             de fato quase toda a remoção de cavala — o que precisa ser
-##             verificado, não assumido.
-##   "externa" você aponta um CSV com a série total (ex.: a da FAO usada no
-##             CMSY). É o caminho recomendado se a série existir.
-##   "escala"  usa a do cerco multiplicada por um fator fixo, como
-##             aproximação declarada. Último recurso, e tem de ir para o
-##             texto como premissa.
-##
-## Stobberup & Erzini (2006), avaliando esta espécie em Cabo Verde, falavam
-## em captura sustentável da ordem de milhares de toneladas. Se a sua série
-## de cerco somar muito menos que isso, é sinal de que ela NAO representa a
-## remoção total — e a opção "cerco" vai enviesar tudo.
+## QUATRO CAMINHOS, e o script aceita os quatro:
+##   "total"   (PADRÃO) desembarque total de todas as artes, com 2018
+##             corrigido pela média dos vizinhos e 2024-2025 completados
+##             com o cerco (que de 2017 a 2023 é 86-100% do total). Todo o
+##             tratamento foi feito na seção 12 da parte 03; aqui só se lê.
+##   "cerco"   só a rede de cerco. Coerente com o índice, mas é UMA arte.
+##             Subestima a remoção, principalmente antes de 2000.
+##   "externa" você aponta outro CSV com uma série total (ARQ_CAPT_EXT),
+##             para testar uma fonte alternativa.
+##   "escala"  cerco multiplicado por um fator fixo. Último recurso, e tem
+##             de ir para o texto como premissa.
 ## =========================================================================
 cat("\n===== 3) SERIE DE CAPTURA =====\n")
 
-## DECISAO REVERTIDA (set/2026): voltamos para "cerco". A série externa
-## (Luz & Vieira / FAO) só cobre até 2015, e o diagnóstico direto da CPUE
-## (log-CPUE contra captura acumulada) mostrou que o problema de ajuste NAO
-## é a série de captura — é que o índice em si não carrega sinal de
-## depleção em nenhum dos dois períodos (tendência positiva pré-2015, ligada
-## a artefatos de esforço; e pós-2015 o índice está confundido com a
-## proporção de cavala na captura da frota, correlação de 0,95). Cortar a
-## janela para 1989-2015 perde 10 anos e não resolve nada. "Cerco" cobre a
-## série toda (1989-2025) e é o que os cenários de comparação (J1-J12)
-## precisam para continuar cobrindo o período inteiro.
-FONTE_CAPTURA  <- c("cerco", "externa", "escala")[1]
+## HISTÓRICO DA DECISÃO: até set/2026 rodava com "cerco", porque a única
+## série total disponível (Luz & Vieira / FAO) terminava em 2015. Com o
+## desembarque total do IMar indo até 2023 (+ cerco em 2024-2025), a série
+## total cobre a janela inteira e passa a ser a padrão. Continua valendo o
+## diagnóstico de antes: o problema de ajuste da CPUE não era a captura, é
+## o índice sem sinal claro de depleção — trocar a captura não resolve
+## isso, mas deixa K e MSY na escala certa.
+FONTE_CAPTURA  <- c("total", "cerco", "externa", "escala")[1]
 
-## Série externa. "Catch_Luz and Vieira.csv" é a compilação de desembarques
-## totais (a mesma linhagem de dado que alimentou o CMSY e o DBSRA), com
-## colunas "Year" e "Catch". É a opção recomendada, e a razão é específica:
-## o JABBA precisa de REMOÇÃO TOTAL no campo de captura, enquanto o índice
-## pode vir de UMA frota só (ele ganha um q próprio para isso). Captura de
-## todas as artes + índice de uma arte é o arranjo padrão, não um remendo.
+## Só para FONTE_CAPTURA = "externa": qualquer CSV com colunas de ano e
+## captura (Year/Catch, Ano/Desembarques...). A série total do IMar NÃO
+## deve ser apontada aqui — ela já entra, tratada, pela opção "total".
 ##
-## O QUE ISSO CUSTA, e tem de ir para o texto:
+## O QUE A CAPTURA TOTAL CUSTA, e tem de ir para o texto:
 ##   - a avaliação deixa de ser independente do CMSY/DBSRA, porque passa a
 ##     compartilhar a entrada de captura com eles;
-##   - é preciso conferir a resolução taxonômica da série (D. macarellus ou
-##     um agregado de Decapterus/Carangidae) e dizer qual é.
+##   - é preciso declarar a resolução taxonômica da série (D. macarellus
+##     ou um agregado de Decapterus) e dizer qual é.
 ARQ_CAPT_EXT   <- "Catch_Luz and Vieira.csv"   # se FONTE_CAPTURA = "externa"
 FATOR_ESCALA   <- 1.0                          # se FONTE_CAPTURA = "escala"
 
-## >>> REGRA INEGOCIAVEL DESTE BLOCO <<<
-## A JANELA DO MODELO E A JANELA DA SERIE DE CAPTURA. Nada de estender o
-## modelo para além do último ano com captura observada.
+## >>> REGRA DESTE BLOCO <<<
+## A JANELA DO MODELO É A JANELA DA SERIE DE CAPTURA. Nada de estender o
+## modelo para além do último ano com captura MEDIDA.
 ##
 ## Por que isto está escrito em letra grande: a tentação é preencher os anos
-## do fim que a compilação externa não cobre (repetindo o último valor,
-## escalando a série do cerco, o que for) para que as figuras cheguem até
-## 2025. Isso INVENTA exatamente os anos que determinam o status terminal —
-## B/Bmsy e F/Fmsy do ano final saem de números que ninguém mediu — e destrói
-## a comparabilidade entre os cenários, porque cada um passa a ver um
-## pedaço diferente de dado real. Se a captura acaba em 2015, o modelo acaba
-## em 2015, e o que se reporta é o estado em 2015.
+## do fim (repetindo o último valor, extrapolando tendência, o que for) para
+## que as figuras cheguem até 2025. Isso INVENTA exatamente os anos que
+## determinam o status terminal — B/Bmsy e F/Fmsy do ano final saem de
+## números que ninguém mediu.
+##
+## 2024-2025 na opção "total" NÃO violam a regra: o número desses anos é o
+## desembarque MEDIDO do cerco, não um valor inventado. O que se assume é
+## que ele representa quase todo o total, o que é verificado na seção 12
+## (86-100% em 2017-2023), e por isso ele entra como PISO. Tem de ir para
+## o texto nesses termos. Para rodar sem essa premissa, ponha
+## COMPLETAR_COM_CERCO <- FALSE na parte 03 e o modelo termina em 2023.
 ##
 ## Buraco NO MEIO da série é outra coisa: ali a interpolação é defensável,
 ## porque existe observação dos dois lados ancorando. Ponta não tem âncora
@@ -3499,8 +3758,30 @@ MIN_OBS_INDICE   <- 5
 
 capt <- data.frame(Yr = cap_in$Yr, Catch = cap_in$Catch_macarellus_t)
 
-if (FONTE_CAPTURA == "externa") {
-  ext <- le(ARQ_CAPT_EXT)
+if (FONTE_CAPTURA == "total") {
+  if (!"Desemb_total_t" %in% names(cap_in))
+    stop("O CSV de desembarques não tem a coluna `Desemb_total_t`.\n",
+         "Rode de novo a seção 12 da parte 03 (ela é que monta a série total).")
+  capt <- data.frame(Yr = cap_in$Yr, Catch = cap_in$Desemb_total_t)
+  cat("Captura = DESEMBARQUE TOTAL (todas as artes) — decisão L19\n")
+  if ("fonte_total" %in% names(cap_in)) {
+    cat("Origem de cada ano:\n")
+    print(table(cap_in$fonte_total, useNA = "ifany"))
+    nao_orig <- cap_in$fonte_total != "IMar total (todas as artes)" &
+      !is.na(cap_in$fonte_total)
+    if (any(nao_orig))
+      print(data.frame(Yr = cap_in$Yr[nao_orig],
+                       captura_t = round(cap_in$Desemb_total_t[nao_orig], 1),
+                       origem = cap_in$fonte_total[nao_orig]), row.names = FALSE)
+  }
+
+} else if (FONTE_CAPTURA == "externa") {
+  sep_ext <- if (grepl(";", readLines(ARQ_CAPT_EXT, n = 1, warn = FALSE))) ";" else ","
+  ext <- read.csv(ARQ_CAPT_EXT, sep = sep_ext, dec = ".", stringsAsFactors = FALSE,
+                  fileEncoding = "UTF-8-BOM")   # tira a marca BOM do Excel
+  names(ext) <- sub("^X\\.U\\.FEFF\\.", "", names(ext))
+  names(ext) <- sub("^﻿", "", names(ext))
+  
   
   ## Identificação tolerante das colunas: o arquivo pode vir como
   ## Year/Catch, Yr/Catch, ano/captura... Falhar aqui com mensagem clara é
@@ -5284,11 +5565,13 @@ cat("2. O caso base (J3) usa índices com q SEPARADO por período. Explicar\n")
 cat("   que isso é o que acomoda a mudança de alvo de 2015, e que os dois\n")
 cat("   índices NAO se sobrepõem em nenhum ano — quem liga os períodos é a\n")
 cat("   série de captura e a dinâmica, não os dados de abundância.\n")
-cat("3. DECLARAR o que a série de captura cobre. Se ficou só a rede de\n")
-cat("   cerco industrial, dizer isso e dizer o que sobrou de fora; K e MSY\n")
-cat("   valem para as remoções que entraram, não para o estoque inteiro.\n")
-cat("   Se usou a série externa (Luz & Vieira), dizer a resolução taxonômica\n")
-cat("   dela e que a avaliação deixa de ser independente do CMSY/DBSRA.\n")
+cat("3. DECLARAR o que a série de captura cobre. Com FONTE_CAPTURA = 'total'\n")
+cat("   (padrão): desembarque total do IMar, todas as artes, 1989-2023, com\n")
+cat("   2018 substituído pela média dos vizinhos e 2024-2025 completados com\n")
+cat("   o desembarque do cerco (piso; 86-100% do total em 2017-2023). Dizer a\n")
+cat("   resolução taxonômica da série e que a avaliação compartilha a captura\n")
+cat("   com o CMSY/DBSRA (deixa de ser independente deles). Se rodar com\n")
+cat("   'cerco', dizer que K e MSY valem só para as remoções do cerco.\n")
 cat("4. Reportar a SENSIBILIDADE AOS PRIORS DE r (J7/J8) E DE K (J10/J11)\n")
 cat("   junto com o caso base. Stobberup & Erzini (2006) mostraram, neste\n")
 cat("   mesmo estoque, que a posterior de r saía praticamente igual à prior.\n")
