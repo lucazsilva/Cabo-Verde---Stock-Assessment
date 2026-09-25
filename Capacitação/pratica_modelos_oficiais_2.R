@@ -1,6 +1,6 @@
 # =========================================================================
 # PRATICA EM R -- OS MODELOS OFICIAIS: fishmethods::dbsra(), cdat/cinfo
-# pro CMSY++ original de vocês, e JABBA::build_jabba() + fit_jabba()
+# pro CMSY++ original, e JABBA::build_jabba() + fit_jabba()
 # Mesmo exemplo basico das aulas (serie 1950-1980; exemplo JABBA de 15 anos)
 # =========================================================================
 ##
@@ -3111,5 +3111,5 @@ cat("Figuras do JABBA salvas em:", dir_figuras, "\n")
 # FIM -- os 3 modelos, com as ferramentas oficiais, no exemplo das slides.
 # =========================================================================
 cat("\nPronto! DB-SRA (fishmethods), CMSY++ (JAGS oficial) e JABBA rodaram\n")
-cat("com o mesmo exemplo das aulas, usando as funcoes que voces ja usam\n")
+cat("com o mesmo exemplo das aulas, usando suas funcoes ja usam\n")
 cat("no projeto de Cabo Verde.\n")
