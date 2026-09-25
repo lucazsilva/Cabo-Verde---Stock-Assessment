@@ -1570,13 +1570,35 @@ print(idade_maturacao) # 2 anos arredondando pq o DB-SRA so aceita numero inteir
 library(future.apply)
 plan(multisession, workers = min(nrow(cenarios_macarellus_dbsra), parallel::detectCores() - 1))
 
+# --- REVISAO DO PRIOR DE DEPLECAO INICIAL (b1k) -----------------------
+# Ate aqui b1k usava o default do fishmethods (0,8-0,99: estoque quase
+# virgem em 1989). Revisado para 0,5-0,8 por um motivo concreto que nao
+# tinha sido checado antes: a pesca industrial de cerco em Cabo Verde ja
+# operava ANTES de 1989, e a propria serie observada abre com captura
+# alta, nao baixa -- 1989 = 1671 t, ja 55% do pico historico da serie
+# inteira (3015 t em 1998), e a media dos 3 primeiros anos (1989-1991) e
+# 43,5% desse pico. Isso nao e o perfil de uma frota comecando a explorar
+# um estoque virgem (capturas baixas subindo aos poucos); e o perfil de
+# uma pescaria que ja estava em regime havia um tempo quando a serie
+# observada comeca. Numa curva de Schaefer, sustentar 40-55% da captura
+# maxima ja no ano 1 e mais compativel com biomassa perto do Bmsy (50% de
+# K) do que com biomassa a 90-99% de K (bem acima do Bmsy, onde a
+# pescaria ainda estaria bem abaixo desse nivel de captura).
+# O QUE ESSE PRIOR NAO DIZ: se em 1989 o estoque estava um pouco ACIMA ou
+# um pouco ABAIXO do Bmsy -- a mesma captura e sustentavel dos dois lados
+# da parabola de producao. Por isso 0,5-0,8 (nao 0,6-0,8): cobrir o Bmsy
+# e nao so o lado de cima dele. Mesmo prior (mesma logica, mesmos
+# numeros) usado tambem no CMSY (stb.low/stb.hi no cinfo) e no JABBA
+# (psi, "Catch and index models.R" secao 5.3) -- e um prior COMPARTILHADO
+# entre metodos e entre os cenarios deste bloco, nao varia por hipotese
+# de depleicao terminal (quem varia por hipotese continua sendo btk).
 resultados_dbsra <- future_lapply(seq_len(nrow(cenarios_macarellus_dbsra)), function(i) {
   cen <- cenarios_macarellus_dbsra[i, ]
   fishmethods::dbsra(
     year = ct$year, catch = ct$ct,
     agemat = 2,
     k     = list(low = 3000, up = 60000, tol = 0.01, permax = 1000),
-    b1k   = list(dist = "unif", low = 0.8, up = 0.99, mean = 1, sd = 0.1),
+    b1k   = list(dist = "unif", low = 0.5, up = 0.8, mean = 1, sd = 0.1),
     btk   = list(dist = "unif", low = cen$bk_lo, up = cen$bk_hi, refyr = ano_final),
     fmsym = list(dist = "lnorm", low = 0.1, up = 2, mean = log(0.8), sd = 0.3),
     bmsyk = list(dist = "beta", low = 0.05, up = 0.95, mean = 0.4, sd = 0.1),
@@ -2676,8 +2698,21 @@ cinfo <- cenarios_macarellus_cmsy %>%
     #--------------------------------------------------------
     # Depleção inicial
     #--------------------------------------------------------
-    stb.low = 0.7,
-    stb.hi = 1,
+    # Revisado de 0,7-1 (quase virgem em 1989) para 0,5-0,8. Motivo: a
+    # pesca industrial de cerco ja operava antes de 1989, e a serie
+    # observada abre com captura alta, nao baixa (1989 = 1671 t, 55% do
+    # pico historico de 3015 t em 1998; media dos 3 primeiros anos = 43,5%
+    # do pico) -- perfil incompativel com estoque quase virgem, mais
+    # compativel com biomassa ja perto do Bmsy (50% de K numa Schaefer).
+    # 0,5-0,8 (nao 0,6-0,8) porque a mesma captura e sustentavel dos dois
+    # lados do Bmsy -- o prior tem que cobrir o Bmsy, nao so o lado de
+    # cima dele. Mesmo prior (mesma logica) usado no DB-SRA (b1k, em
+    # "Catch_models.R" mais acima) e no JABBA (psi, em "Catch and index
+    # models.R" secao 5.3) -- e compartilhado entre os 3 metodos e entre
+    # todos os cenarios aqui; quem varia por hipotese de depleicao
+    # continua sendo so a final (endb.low/endb.hi, abaixo).
+    stb.low = 0.5,
+    stb.hi = 0.8,
     #--------------------------------------------------------
     # Depleção intermediária
     #--------------------------------------------------------

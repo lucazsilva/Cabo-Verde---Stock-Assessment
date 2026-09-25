@@ -1710,7 +1710,7 @@ cor_tat <- cor_cl[colnames(tat)]
 matplot(as.numeric(rownames(tat)), tat, type = "b", pch = 19, lty = 1, lwd = 2.2,
         col = cor_tat, ylim = c(0, 1), xlab = rotulo_tempo,
         ylab = "Proporcao das viagens", main = "A. Mistura de taticas")
-legend("topleft", colnames(tat), col = cor_tat, lwd = 2.2, pch = 19, bty = "n", cex = 0.8)
+legend("topleft", colnames(tat), col = cor_tat, lwd = 2.2, pch = 19, bty = "n", cex = 0.68)
 mat_d <- sapply(levels(viagens$alvo), function(g) {
   x <- dias_alvo[dias_alvo$alvo == g, ]
   v <- setNames(rep(0, nrow(ser)), ser$tempo)
@@ -1722,7 +1722,7 @@ matplot(ser$tempo, mat_d, type = "l", lty = 1, lwd = 2.4, col = cor_cl[colnames(
 lines(ser$tempo, ser$dias, lwd = 2, lty = 2, col = COR_NEU)
 legend("topleft", c(levels(viagens$alvo), "esforco total"),
        col = c(cor_cl[levels(viagens$alvo)], COR_NEU), lwd = 2.2,
-       lty = c(rep(1, nlevels(viagens$alvo)), 2), bty = "n", cex = 0.8)
+       lty = c(rep(1, nlevels(viagens$alvo)), 2), bty = "n", cex = 0.68)
 par(op); dev.off()
 cat("PNG salvo: exp7_esforco_dirigido.png\n")
 
@@ -2840,7 +2840,7 @@ cores_cen <- setNames(
 png("indices_cenarios.png", width = 28, height = 13, res = 300,
     antialias = AA, units = "cm")
 op <- par(mfrow = c(1, 2), mar = c(4.4, 4.6, 3, 1), bty = "l",
-          cex.main = 0.95, cex = 0.9)
+          cex.main = 0.95, cex = 0.85)
 cens <- unique(indices$cenario)
 plot(NA, xlim = range(indices$tempo),
      ylim = c(0, max(indices$indice, na.rm = TRUE) * 1.12),
@@ -2851,7 +2851,7 @@ for (cen in cens) {
   lines(d$tempo, d$indice, lwd = 2.4, col = cores_cen[cen])
   points(d$tempo, d$indice, pch = 19, cex = 0.8, col = cores_cen[cen])
 }
-legend("topright", cens, col = cores_cen[cens], lwd = 2.3, bty = "n", cex = 0.8)
+legend("topright", cens, col = cores_cen[cens], lwd = 2.3, bty = "n", cex = 0.62)
 
 lo <- S2$indice * exp(-1.96 * S2$se_log); hi <- S2$indice * exp(1.96 * S2$se_log)
 plot(S2$tempo, S2$indice, type = "n", ylim = c(0, max(hi, na.rm = TRUE) * 1.05),
@@ -2863,7 +2863,7 @@ lines(S2$tempo, S2$indice, lwd = 2.6, col = COR_MAC)
 points(S2$tempo, S2$indice, pch = 19, col = COR_MAC)
 lines(S1$tempo, S1$indice, lwd = 2, col = COR_AUX, lty = 2)
 legend("topright", c("corrigida (IC 95%)", "nominal"), col = c(COR_MAC, COR_AUX),
-       lwd = c(2.6, 2), lty = c(1, 2), bty = "n", cex = 0.8)
+       lwd = c(2.6, 2), lty = c(1, 2), bty = "n", cex = 0.72)
 par(op); dev.off()
 cat("\nPNG salvo: indices_cenarios.png\n")
 
@@ -3141,14 +3141,14 @@ plot(NA, xlim = range(cenarios$tempo), ylim = c(0, max(cenarios$indice, na.rm = 
      main = "A. Serie completa 1989-2025")
 abline(v = ANO_CORTE_ALVO + 0.5, lty = 3, col = "grey40")
 ## rótulo embaixo, para não brigar com a legenda no canto superior
-text(ANO_CORTE_ALVO + 0.1, max(cenarios$indice, na.rm = TRUE) * 0.02,
-     "mudanca de alvo", pos = 4, cex = 0.9, col = "grey30")
+text(ANO_CORTE_ALVO + 0.5, max(cenarios$indice, na.rm = TRUE) * 0.04,
+     "mudanca de alvo", pos = 4, cex = 0.62, col = "grey30")
 for (cen in unique(cenarios$cenario)) {
   d <- cenarios[cenarios$cenario == cen, ]
   lines(d$tempo, d$indice, lwd = 2.2, col = cor_c[cen])
   points(d$tempo, d$indice, pch = 19, cex = 0.6, col = cor_c[cen])
 }
-legend("topright", names(cor_c), col = cor_c, lwd = 2.2, bty = "n", cex = 0.9,pt.cex = 1.8)
+legend("topright", names(cor_c), col = cor_c, lwd = 2.2, bty = "n", cex = 0.58)
 
 ## painel B: só o período padronizado, onde os cenários são comparáveis
 sub <- cenarios[cenarios$tempo > ANO_CORTE_ALVO, ]
@@ -3161,7 +3161,7 @@ for (cen in unique(sub$cenario)) {
   points(d$tempo, d$indice, pch = 19, cex = 0.8, col = cor_c[cen])
 }
 legend("topright", unique(sub$cenario), col = cor_c[unique(sub$cenario)],
-       lwd = 2.4, bty = "n", cex = 0.9,pt.cex = 1.5)
+       lwd = 2.4, bty = "n", cex = 0.62)
 par(op); dev.off()
 cat("PNG salvo: cenarios_finais.png\n")
 
@@ -3362,7 +3362,7 @@ if (tem_writexl) {
 ## valor corrigido/completado como se fosse dado bruto.
 png("desembarques_macarellus.png", width = 24, height = 12, res = 300,
     antialias = AA, units = "cm")
-op <- par(mar = c(4.4, 4.6, 3, 1), bty = "l", cex.main = 0.95, cex = 0.9)
+op <- par(mar = c(4.4, 4.6, 3, 1), bty = "l", cex.main = 0.95, cex = 0.85)
 d <- desembarques
 y_max <- max(c(d$Desemb_total_t, d$Catch_macarellus_t, valor_orig_2018), na.rm = TRUE) * 1.15
 plot(d$Yr, d$Desemb_total_t, type = "n", xlab = "Ano",
@@ -3370,10 +3370,10 @@ plot(d$Yr, d$Desemb_total_t, type = "n", xlab = "Ano",
      main = "Serie de desembarques - D. macarellus (Cabo Verde)")
 abline(v = ANO_CORTE_ALVO + 0.5, lty = 3, col = "grey40")
 text(ANO_CORTE_ALVO + 0.5, y_max * 0.97, "mudanca de alvo", pos = 2,
-     cex = 0.8, col = "grey30")
-lines(d$Yr, d$Catch_macarellus_t, lwd = 2.5, col = COR_NEU)
-points(d$Yr, d$Catch_macarellus_t, pch = 16, cex = 1, col = COR_NEU)
-lines(d$Yr, d$Desemb_total_t, lwd = 2.8, col = COR_MAC)
+     cex = 0.7, col = "grey30")
+lines(d$Yr, d$Catch_macarellus_t, lwd = 1.6, col = COR_NEU)
+points(d$Yr, d$Catch_macarellus_t, pch = 16, cex = 0.55, col = COR_NEU)
+lines(d$Yr, d$Desemb_total_t, lwd = 2.4, col = COR_MAC)
 
 ## marcador por origem do ponto da série total
 estilo <- list(
@@ -3386,17 +3386,17 @@ presentes <- intersect(names(estilo), unique(d$fonte_total))
 for (f in presentes) {
   s <- estilo[[f]]; w <- which(d$fonte_total == f)
   points(d$Yr[w], d$Desemb_total_t[w], pch = s$pch, col = s$col,
-         bg = s$bg, cex = if (f == "IMar total (todas as artes)") 1 else 1.5, lwd = 1.8)
+         bg = s$bg, cex = if (f == "IMar total (todas as artes)") 0.9 else 1.3, lwd = 1.6)
 }
 ## valor original de 2018, só para mostrar o que foi substituído
 if (!is.na(valor_orig_2018)) {
-  points(2018, valor_orig_2018, pch = 4, col = "grey45", cex = 1.3, lwd = 1.6)
+  points(2018, valor_orig_2018, pch = 4, col = "grey45", cex = 1.1, lwd = 1.6)
   segments(2018, valor_orig_2018, 2018, d$Desemb_total_t[d$Yr == 2018],
            lty = 3, col = "grey45")
 }
 leg_txt <- c("Desembarque total (todas as artes)", "Desembarque do cerco")
 leg_pch <- c(19, 16); leg_col <- c(COR_MAC, COR_NEU); leg_bg <- c(NA, NA)
-leg_lty <- c(1, 1); leg_lwd <- c(2.4, 2.5)
+leg_lty <- c(1, 1); leg_lwd <- c(2.4, 1.6)
 rotulo <- c("2018: media dos vizinhos"        = "2018: media de 2015-17 e 2019-21",
             "interpolado (total < cerco)"     = "interpolado (total < cerco)",
             "cerco como piso (total < cerco)" = "cerco como piso (total < cerco)",
@@ -3412,7 +3412,7 @@ if (!is.na(valor_orig_2018)) {
   leg_lty <- c(leg_lty, NA); leg_lwd <- c(leg_lwd, 1.6)
 }
 legend("topright", leg_txt, pch = leg_pch, col = leg_col, pt.bg = leg_bg,
-       lty = leg_lty, lwd = leg_lwd, bty = "n", cex = 0.9, pt.cex =c(1.1,1.0))
+       lty = leg_lty, lwd = leg_lwd, bty = "n", cex = 0.72, pt.cex = 1.1)
 par(op); dev.off()
 cat("PNG salvo: desembarques_macarellus.png\n")
 
