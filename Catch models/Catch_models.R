@@ -105,6 +105,29 @@ print(ct)
 # na faixa de 150-800 t) -> substitui pela média móvel dos 3 anos antes
 # e 3 anos depois (2015-2017 e 2019-2021)
 ct$Catch[ct$Year == 2018] <- mean(ct$Catch[ct$Year %in% c(2015, 2016, 2017, 2019, 2020, 2021)])
+
+# 2014 -- PADRONIZADO COM O JABBA
+# O desembarque TOTAL de 2014 (todas as artes) veio como 151 t, mas so a
+# captura do CERCO nesse mesmo ano foi 1.273,8 t (registro por viagem,
+# historico 1989-2014). Isso e fisicamente impossivel: o total de todas as
+# artes nunca pode ser menor do que uma das artes sozinha -> o total de
+# 2014 esta incompleto (provavelmente a mudanca de sistema de registro que
+# comeca em 2014/2015). Antes o DB-SRA e o CMSY++ usavam os 151 t (uma
+# queda artificial de ~93% de 2013 para 2014), enquanto o JABBA ja tratava
+# o ano como incoerente e interpolava.
+# Regra adotada aqui = a MESMA do "Catch and index models.R"
+# (TRATA_INCOERENTE = "interpolar"): interpolacao linear entre os vizinhos
+# 2013 (2214 t) e 2015 (644 t) -> 1429 t. Assim os tres modelos rodam com
+# exatamente a mesma serie de captura.
+# Por que interpolar e nao usar o cerco (1273,8 t) como piso: o cerco e so
+# parte do total; os anos vizinhos mostram o total bem acima do cerco, e a
+# interpolacao preserva a tendencia de queda 2013 -> 2015 sem inventar um
+# degrau. Se quiser testar a sensibilidade, troque pelo piso do cerco:
+#   ct$Catch[ct$Year == 2014] <- 1273.775
+valor_original_2014 <- ct$Catch[ct$Year == 2014]          # 151 t (guardado so p/ o grafico)
+viz_2014 <- ct$Year %in% c(2013, 2015)
+ct$Catch[ct$Year == 2014] <- approx(ct$Year[viz_2014], ct$Catch[viz_2014], xout = 2014)$y
+valor_corrigido_2014 <- ct$Catch[ct$Year == 2014]         # 1429 t
 print(ct)
 #---------------------------------------#
 # Analise exploratoria das capturas
@@ -119,6 +142,7 @@ print(ct)
 #   names(ct) <- c("Year", "Catch")
 #   ct <- ct[ct$Year <= 2023, ]
 #   ct$Catch[ct$Year == 2018] <- mean(ct$Catch[ct$Year %in% c(2015, 2016, 2017, 2019, 2020, 2021)])
+#   ct$Catch[ct$Year == 2014] <- 1429   # interpolado 2013-2015 (ver bloco acima)
 #
 # library(ggplot2)  #
 
@@ -127,8 +151,9 @@ print(ct)
 #    colorir/rotular o ano de 2018 de forma diferente dos demais no
 #    gráfico, sem precisar de um data.frame separado
 # ---------------------------------------------------------------------
-ct$Status <- ifelse(ct$Year == 2018, "Corrigido (média móvel)", "Observado")
-ct$Status <- factor(ct$Status, levels = c("Observado", "Corrigido (média móvel)"))
+# (2014 e 2018 sao os dois anos corrigidos -- ver o bloco de correcoes acima)
+ct$Status <- ifelse(ct$Year %in% c(2014, 2018), "Corrigido (2014 e 2018)", "Observado")
+ct$Status <- factor(ct$Status, levels = c("Observado", "Corrigido (2014 e 2018)"))
 
 # valor original de 2018, só para exibir na anotação do gráfico
 valor_original_2018 <- 2362
@@ -152,9 +177,9 @@ p_ct <- ggplot(ct, aes(x = Year, y = Catch)) +
   # pontos: azul = observado; laranja e maior = ano corrigido (2018)
   geom_point(aes(color = Status, size = Status), shape = 16) +
   scale_color_manual(
-    values = c("Observado" = "#2a78d6", "Corrigido (média móvel)" = "#eb6834")) +
+    values = c("Observado" = "#2a78d6", "Corrigido (2014 e 2018)" = "#eb6834")) +
   scale_size_manual(
-    values = c("Observado" = 1.8, "Corrigido (média móvel)" = 3.4), guide = "none") +
+    values = c("Observado" = 1.8, "Corrigido (2014 e 2018)" = 3.4), guide = "none") +
   
   # marca a possível quebra metodológica visível na série (queda abrupta
   # a partir de 2014) -- ajuste o ano ou remova se não fizer mais sentido
@@ -169,13 +194,19 @@ p_ct <- ggplot(ct, aes(x = Year, y = Catch)) +
            label = paste0("2018: ", valor_original_2018, " t (observado) →\n",
                           round(valor_corrigido_2018), " t (média móvel 2015-17 e 2019-21)"),
            size = 3.1, color = "#eb6834", hjust = 0, lineheight = 0.9) +
+
+  # anota a correcao de 2014 (total < cerco -> interpolado entre 2013 e 2015)
+  annotate("text", x = 2013.7, y = valor_corrigido_2014 - 550,
+           label = paste0("2014: ", valor_original_2014, " t (total < cerco) →\n",
+                          round(valor_corrigido_2014), " t (interpolado 2013–2015)"),
+           size = 3.1, color = "#eb6834", hjust = 1, lineheight = 0.9) +
   
   scale_x_continuous(breaks = seq(1990, 2023, 5)) +
   scale_y_continuous(labels = scales::comma) +
   
   labs(
     title = "Capturas de Decapterus macarellus em Cabo Verde",
-    subtitle = "Série 1989–2023 (todas as artes) · ano de 2018 corrigido por média móvel",
+    subtitle = "Série 1989–2023 (todas as artes) · 2014 interpolado e 2018 corrigido por média móvel",
     x = "Ano", y = "Captura (t)", color = NULL) +
   
   theme_minimal(base_size = 14) +
@@ -1050,7 +1081,7 @@ p_bk <- ggplot(bk_macarellus, aes(x = metodo, y = bk, ymin = bk_lo,
   ) +
   scale_color_viridis_d() +
   labs(x = "Depletion hypothesis",
-    y = expression("Biomass depletion (B/K"[2015]*")"),
+    y = bquote("Biomass depletion (B/K"[.(ano_final)]*")"),   # antes fixo em 2015
     color = "Information source",
     shape = "Hypothesis"
   ) +
@@ -1274,7 +1305,7 @@ r_macarellus <- bind_rows(
   r_base %>%
     transmute(
       specie,
-      ano       = "1989-2015",
+      ano       = paste0("1989-", ano_final),
       hipotese = "Euler-lotka methods",
       metodo     = "Euler / Myers / Smith rebound / Demographic inv",
       fonte     = "Baseado em modelo",
@@ -1291,7 +1322,7 @@ r_macarellus <- bind_rows(
   r_base %>%
     transmute(
       specie,
-      ano       = "1989-2015",
+      ano       = paste0("1989-", ano_final),
       hipotese = "lower resilience",
       metodo     = "Metodos Euler-Lotka - 0.2",
       fonte     = "Sensibilidade",
@@ -1307,7 +1338,7 @@ r_macarellus <- bind_rows(
   r_base %>%
     transmute(
       specie,
-      ano       = "1989-2015",
+      ano       = paste0("1989-", ano_final),
       hipotese = "Higher resilience",
       metodo     = "Metodos Euler-Lotka + 0.2",
       fonte     = "Sensibilidade",
@@ -1323,7 +1354,7 @@ r_macarellus <- bind_rows(
   r_base %>%
     transmute(
       specie,
-      ano       = "1989-2015",
+      ano       = paste0("1989-", ano_final),
       hipotese = "Non-informative_r",
       metodo     = "Priori não informativa",
       fonte     = "Independente",
@@ -1822,81 +1853,109 @@ cat("\nPos-processamento concluido.\n")
 # =====================================================================
 # Trajetorias de biomassa reconstruidas, todos os cenarios num so grafico
 # =====================================================================
-# O dbsra() plota a trajetoria de biomassa (aceitos/rejeitados) internamente
-# (grout), mas NAO devolve essa matriz no objeto retornado -- res$Values
-# so guarda os parametros/estimativas de cada simulacao, nao a serie
-# ano-a-ano de biomassa. Por isso reconstruimos a trajetoria aqui, ano a
-# ano, usando a mesma funcao de producao Schaefer-Pella-Tomlinson-Fletcher
-# do metodo (Dick & MacCall 2011; formulas tambem em Owashi 2014 eq 1.2 e
-# Sweka et al. 2018 eqs 1-4), a partir dos parametros que JA ficam
-# guardados por simulacao aceita em res$Values: K, n, g (=gamma), B1K, MSY.
+# O dbsra() NAO devolve a matriz de biomassa ano a ano no objeto retornado
+# (res$Values so guarda parametros/estimativas por simulacao). Ele ate
+# grava as trajetorias no arquivo "Biotraj-dbsra.csv", mas aqui os
+# cenarios rodam em PARALELO (future_lapply) e todos os workers escrevem
+# nesse MESMO arquivo ao mesmo tempo -> o CSV sai misturado/sobrescrito e
+# nao da para confiar nele. Por isso reconstruimos a trajetoria aqui, a
+# partir dos parametros que ficam em res$Values para cada simulacao
+# aceita: K, n, g (gamma), B1K, MSY e BmsyK.
 #
-#   B[1]        = B1K * K
-#   P(B[t-a])   = g * MSY * (B[t-a]/K) - g * MSY * (B[t-a]/K)^n
-#   B[t]        = B[t-1] + P(B[t-a]) - C[t-1]      (a = agemat; se t-a<1,usa B[1] no lugar)
+# CORRECAO (set/2026): a versao anterior desta reconstrucao NAO batia com
+# o pacote (ex.: NN_CMSY terminava em B/K ~0,50 na reconstrucao contra
+# ~0,17-0,20 reportado pelo dbsra()). Comparando linha a linha com o
+# codigo-fonte de fishmethods::dbsra(), havia 3 diferencas:
 #
-# A validacao que o script faz: para cada simulacao aceita, recalcula a
-# biomassa no ano de referencia (refyr) e compara com o BtK que o proprio
-# dbsra() reportou naquela linha de res$Values (que foi o alvo que o
-# optimize() do pacote usou para achar k). Se a diferenca media for
-# pequena (a impressao no console avisa), a reconstrucao esta capturando
-# a dinamica corretamente e da para confiar na FORMA da trajetoria.
+#  1) DEFASAGEM (lag) DESLOCADA EM 1 ANO -- a principal. No pacote:
+#        B[t+1] = B[t] + P[t] - C[t],   com  P[t] = f( B[t - agemat] )
+#     ou seja, a producao que entra em B[t+1] usa a biomassa de
+#     agemat anos ANTES DE t (nao de t+1). A versao antiga usava
+#     B[t+1-agemat], um ano mais recente -> mais producao em todo ano.
+#  2) PRIMEIROS ANOS SEM PRODUCAO. No pacote P[t] = 0 enquanto
+#     t <= agemat (nao existe biomassa "agemat anos atras" ainda). A
+#     versao antiga usava B[1] no lugar, gerando producao que o pacote
+#     nao gera.
+#  3) JUNCAO DE FLETCHER (a parte "-Fletcher" do Pella-Tomlinson-Fletcher).
+#     Quando Bmsy/K < 0,5 (94% dos sorteios aceitos aqui, pois a priori
+#     de BmsyK e beta com media 0,4), abaixo de um limiar
+#        bjoin = (0,75*BmsyK - 0,075)*K   se 0,3 < BmsyK < 0,5
+#        bjoin = 0,5*BmsyK*K              se BmsyK <= 0,3
+#     o pacote troca a curva PT por um trecho quadratico que passa por
+#     (0,0) e encosta suavemente na curva em bjoin. A versao antiga
+#     ignorava isso e usava a PT pura em qualquer nivel de biomassa.
+#  (+ detalhes menores: o pacote trava P < 0 em zero -- acontece quando
+#     B > K -- e trava B em >= 0.)
+#
+# Teste feito fora do R do usuario (copiando o nucleo do dbsra() colado
+# no chat e rodando com a serie de captura real + priors do NN_CMSY): a
+# reconstrucao nova reproduz o Biotraj-dbsra.csv do proprio pacote com
+# erro maximo de ~1e-15 (precisao de maquina) em TODOS os anos; a antiga
+# errava em media 0,35 de B/K no ano final. Das 3 diferencas, a (1) e a
+# que mais pesava; a (3) sozinha deslocava B2023/K de ~0,16 para ~0,24.
+#
+# Convencao de tempo (igual ao pacote): o vetor de biomassa tem
+# length(anos) + 1 posicoes. B[i] e a biomassa no INICIO do ano anos[i];
+# a ultima posicao e o inicio de ano_final + 1 (depois de tirar a captura
+# do ano_final). O Bt/K do refyr = B[posicao de refyr] / K.
 # =====================================================================
 
 stopifnot(exists("resultados_dbsra"), exists("cenarios_macarellus_dbsra"), exists("ct"))
 
 agemat <- 2          # mesmo valor usado no dbsra()
-refyr  <- ano_final        # mesmo refyr usado no btk
+refyr  <- ano_final  # mesmo refyr usado no btk
 anos   <- ct$year
 catches <- ct$ct
 n_anos <- length(anos)
-idx_refyr <- which(anos == refyr)
+anos_traj <- c(anos, max(anos) + 1)   # eixo x das trajetorias (n_anos + 1 pontos)
+idx_refyr <- which(anos_traj == refyr)  # mesma regra do pacote: which(refyr == c(year, year+1))
 stopifnot(length(idx_refyr) == 1)
+
+tol_k <- 0.01   # MESMO k$tol usado no dbsra(); o pacote so aceita sorteio com |BtK - B[refyr]/K| <= tol
 
 n_amostra_por_cenario <- 1000   # quantas trajetorias aceitas usar (amostra, p/ nao pesar)
 
 ## ---------------------------------------------------------------------
-## Reconstroi UMA trajetoria de biomassa a partir de 1 linha de res$Values
+## Reconstroi UMA trajetoria de biomassa -- replica exata do laco interno
+## de fishmethods::dbsra() (funcao findk / bloco apos o optimize)
 ## ---------------------------------------------------------------------
-# Com a serie de capturas estendida ate 2025 (mais longa e mais irregular
-# no final -- ver capturas_Decapterus_macarellus.png), algumas combinacoes
-# de K/g/n/B1K/MSY que o dbsra() aceitou (aceitas com base so na
-# profundidade final, BtK no refyr) sao dinamicamente INCONSISTENTES com
-# essa serie: reconstruindo ano a ano, a captura acumulada excede o que
-# B[t-1]+P suporta e a biomassa reconstruida cairia abaixo de zero. Como
-# 'n' (o expoente de Pella-Tomlinson) normalmente NAO e inteiro, uma razao
-# B/K negativa elevada a 'n' vira NaN em R -- e essa NaN se propaga para
-# todos os anos seguintes daquele sorteio (cada B[t] depende de B[t-1]),
-# o que e o que estava disparando o erro do quantile().
-#
-# Fisicamente uma biomassa nao pode ficar negativa (o estoque colapsaria
-# antes disso), entao o piso abaixo trata isso como colapso numerico:
-# a trajetoria e mantida (nao descartada), mas com B travado num piso
-# proximo de zero dali em diante, e o sorteio fica marcado como
-# "colapsou" para que reconstruir_cenario() possa contar/reportar quantos
-# sorteios aceitos pelo dbsra() sao, na pratica, incompativeis com a
-# dinamica completa da serie -- isso e informativo por si so: uma fracao
-# grande sinaliza que aquela combinacao de hipoteses (bk x M) tem
-# dificuldade para acomodar as capturas observadas.
-reconstruir_biomassa <- function(K, n, g, B1K, MSY, catches, agemat, piso_rel = 1e-6) {
-  n_t  <- length(catches)
-  piso <- piso_rel * K
-  B <- numeric(n_t)
-  colapsou <- FALSE
-  B[1] <- max(B1K * K, piso)
-  for (t in 2:n_t) {
-    lag_idx <- t - agemat
-    B_lag <- if (lag_idx >= 1) B[lag_idx] else B[1]
-    razao <- B_lag / K            # sempre >= 0 por construcao (B_lag nunca < piso)
-    P <- g * MSY * razao - g * MSY * razao^n
-    B_novo <- B[t - 1] + P - catches[t - 1]
-    if (!is.finite(B_novo) || B_novo <= piso) {
-      B_novo <- piso
-      colapsou <- TRUE
+# Argumentos (todos vem de 1 linha de res$Values):
+#   K     - capacidade de suporte aceita (bigK)
+#   n, g  - expoente de Pella-Tomlinson e o fator gamma derivados de BmsyK
+#   B1K   - deplecao inicial sorteada (b1k)
+#   MSY   - K * BmsyK * Umsy daquele sorteio
+#   BmsyK - Bmsy/K sorteado (decide se entra a juncao de Fletcher)
+reconstruir_biomassa <- function(K, n, g, B1K, MSY, BmsyK, catches, agemat) {
+  n_t <- length(catches)
+  B <- numeric(n_t + 1)          # B[1] = inicio do 1o ano ... B[n_t+1] = inicio do ano seguinte ao ultimo
+  B[1] <- B1K * K
+
+  # producao Pella-Tomlinson (forma "gamma" de Fletcher 1978)
+  prod_pt <- function(b) g * MSY * (b / K) - g * MSY * (b / K)^n
+
+  for (t in seq_len(n_t)) {
+    if (t <= agemat) {
+      P <- 0                                   # (2) ainda nao ha biomassa desovante defasada
+    } else {
+      B_lag <- B[t - agemat]                   # (1) defasagem igual a do pacote
+      if (BmsyK >= 0.5) {
+        P <- prod_pt(B_lag)
+      } else {
+        # (3) juncao de Fletcher: abaixo de bjoin a curva vira um trecho
+        #     quadratico que parte da origem e encosta na PT em bjoin
+        bjoin <- if (BmsyK > 0.3) (0.75 * BmsyK - 0.075) * K else 0.5 * BmsyK * K
+        if (B_lag < bjoin) {
+          PJ <- prod_pt(bjoin)                                    # producao no ponto de juncao
+          cc <- (1 - n) * MSY * g * (bjoin^(n - 2)) * K^-n        # curvatura do trecho de juncao
+          P  <- B_lag * (PJ / bjoin + cc * (B_lag - bjoin))
+        } else {
+          P <- prod_pt(B_lag)
+        }
+      }
     }
-    B[t] <- B_novo
+    if (P < 0) P <- 0                          # pacote nao deixa producao negativa (B > K)
+    B[t + 1] <- max(0, B[t] + P - catches[t])  # pacote trava a biomassa em >= 0
   }
-  attr(B, "colapsou") <- colapsou
   B
 }
 
@@ -1905,45 +1964,42 @@ reconstruir_biomassa <- function(K, n, g, B1K, MSY, catches, agemat, piso_rel = 
 ## ---------------------------------------------------------------------
 reconstruir_cenario <- function(res, catches, agemat, idx_refyr, n_amostra) {
   vals <- res$Values
-  acc  <- vals[vals$ll == 1, ] #só aceita trajetórias válidas
+  acc  <- vals[vals$ll == 1, ] # so as simulacoes aceitas pelo dbsra()
 
-  vars_necessarias <- c("K", "n", "g", "B1K", "MSY", "BtK")
+  vars_necessarias <- c("K", "n", "g", "B1K", "MSY", "BmsyK", "BtK")
   faltando <- setdiff(vars_necessarias, names(acc))
   if (length(faltando) > 0) {
     stop("res$Values esta sem as colunas: ", paste(faltando, collapse = ", "),
-         " -- confira names(resultados[[1]]$Values)")
+         " -- confira names(resultados_dbsra[[1]]$Values)")
   }
 
   if (nrow(acc) > n_amostra) {
     acc <- acc[sample(nrow(acc), n_amostra), ]
   }
 
-  trajs <- mapply(function(K, n, g, B1K, MSY) {
-    reconstruir_biomassa(K, n, g, B1K, MSY, catches, agemat)
-  }, acc$K, acc$n, acc$g, acc$B1K, acc$MSY, SIMPLIFY = FALSE)
-  mat <- do.call(rbind, trajs)   # linhas = sorteios, colunas = anos
+  trajs <- mapply(function(K, n, g, B1K, MSY, BmsyK) {
+    reconstruir_biomassa(K, n, g, B1K, MSY, BmsyK, catches, agemat)
+  }, acc$K, acc$n, acc$g, acc$B1K, acc$MSY, acc$BmsyK, SIMPLIFY = FALSE)
+  mat <- do.call(rbind, trajs)   # linhas = sorteios, colunas = anos_traj
 
-  colapsou   <- vapply(trajs, function(x) isTRUE(attr(x, "colapsou")), logical(1))
+  # Checagem de sanidade: o pacote so aceita sorteio com min(B) > 0, entao
+  # uma reconstrucao exata nunca deveria zerar. Se zerar, algo divergiu
+  # (ex.: agemat ou serie de captura diferentes dos usados no dbsra()).
+  colapsou   <- apply(mat, 1, function(b) any(b <= 0))
   n_colapso  <- sum(colapsou)
-  frac_colapso <- n_colapso / length(trajs)
+  frac_colapso <- n_colapso / nrow(mat)
   if (n_colapso > 0) {
-    cat(sprintf(
-      "\n  [aviso] %d de %d trajetorias amostradas (%.1f%%) tocaram o piso de biomassa (colapso numerico) em pelo menos um ano -- as capturas da serie superam o que aquela combinacao de K/g/n/B1K/MSY sustenta dinamicamente. Mantidas no piso (nao descartadas); trate a FORMA da trajetoria dessas com cautela.",
-      n_colapso, length(trajs), 100 * frac_colapso))
+    cat(sprintf("\n  [aviso] %d de %d trajetorias zeraram na reconstrucao -- NAO deveria acontecer com sorteios aceitos; confira se agemat/captura sao os mesmos do dbsra().",
+                n_colapso, nrow(mat)))
   }
 
-  # validacao: BtK reconstruido no refyr vs BtK reportado pelo dbsra()
-  # (usa apenas sorteios que NAO colapsaram -- comparar um BtK travado no
-  # piso contra o BtK original so infla o erro sem acrescentar informacao)
-  ok <- !colapsou
-  if (any(ok)) {
-    btk_reconstruido <- mat[ok, idx_refyr] / acc$K[ok]
-    residuo <- btk_reconstruido - acc$BtK[ok]
-    diagnostico <- c(erro_medio_abs = mean(abs(residuo)),
-                     erro_max_abs  = max(abs(residuo)))
-  } else {
-    diagnostico <- c(erro_medio_abs = NA_real_, erro_max_abs = NA_real_)
-  }
+  # validacao: Bt/K reconstruido no refyr vs BtK sorteado e aceito pelo
+  # dbsra(). O pacote so aceita se |BtK - B[refyr]/K| <= k$tol, entao o
+  # erro maximo aqui tem que ficar <= tol_k (0,01).
+  btk_reconstruido <- mat[, idx_refyr] / acc$K
+  residuo <- btk_reconstruido - acc$BtK
+  diagnostico <- c(erro_medio_abs = mean(abs(residuo)),
+                   erro_max_abs  = max(abs(residuo)))
 
   mat_bk <- sweep(mat, 1, acc$K, "/")   # biomassa relativa (B/K), por linha
 
@@ -1969,39 +2025,32 @@ set.seed(1)
 trajetorias <- lapply(names(resultados_dbsra), function(id) {
   cat("Reconstruindo trajetorias:", id, "... ")
   out <- reconstruir_cenario(resultados_dbsra[[id]], catches, agemat, idx_refyr, n_amostra_por_cenario)
-  cat(sprintf("erro medio abs no Bt/K do ano de referencia: %.4f (max: %.4f)\n",
+  cat(sprintf("erro abs no Bt/K do ano de referencia: medio %.4f | max %.4f\n",
               out$diagnostico["erro_medio_abs"], out$diagnostico["erro_max_abs"]))
   out
 })
 names(trajetorias) <- names(resultados_dbsra)
 
-erros <- sapply(trajetorias, function(x) x$diagnostico["erro_medio_abs"])
-if (any(erros > 0.05)) {
-  cat("\n[AVISO] Em pelo menos um cenario o erro medio no Bt/K reconstruido",
-      "passou de 0.02 -- a reconstrucao pode nao estar batendo com a",
-      "convencao exata do pacote (ex: tratamento do lag nos primeiros anos).",
-      "Trate a FORMA da trajetoria com cautela nesses casos.\n\n")
+erros_max <- sapply(trajetorias, function(x) x$diagnostico["erro_max_abs"])
+if (any(erros_max > tol_k * 1.05, na.rm = TRUE)) {
+  cat("\n[AVISO] Em pelo menos um cenario o Bt/K reconstruido no refyr difere do",
+      "BtK aceito pelo dbsra() mais do que a tolerancia do pacote (k$tol =", tol_k, ").",
+      "Confira se agemat, refyr, tol_k e a serie de captura sao os mesmos da chamada do dbsra().\n\n")
 } else {
-  cat("\nValidacao OK em todos os cenarios (erro medio no Bt/K reconstruido <= 0.02).\n\n")
+  cat("\nValidacao OK: em todos os cenarios o Bt/K reconstruido no refyr bate com o",
+      "BtK do dbsra() dentro da tolerancia do pacote (<=", tol_k, ").\n\n")
 }
 
 ## ---------------------------------------------------------------------
-## Resumo de colapso numerico por cenario (ver aviso em reconstruir_cenario)
+## Resumo de trajetorias zeradas por cenario (deve ser tudo zero)
 ## ---------------------------------------------------------------------
 tab_colapso <- data.frame(
   cenario      = names(trajetorias),
   n_colapso    = sapply(trajetorias, function(x) x$n_colapso),
   frac_colapso = sapply(trajetorias, function(x) x$frac_colapso))
 tab_colapso <- tab_colapso[order(-tab_colapso$frac_colapso), ]
-cat("Fracao de trajetorias amostradas que colapsaram (tocaram o piso de biomassa) por cenario:\n")
+cat("Trajetorias que zeraram na reconstrucao, por cenario (esperado: 0):\n")
 print(tab_colapso, row.names = FALSE)
-if (any(tab_colapso$frac_colapso > 0.10)) {
-  cat("\n[AVISO] Em pelo menos um cenario mais de 10% dos sorteios aceitos pelo dbsra()",
-      "colapsam ao serem reconstruidos ano a ano com a serie de capturas completa.",
-      "Isso indica que boa parte dos sorteios aceitos so pela profundidade final (BtK)",
-      "nao sustenta dinamicamente a serie de capturas completa -- vale checar se a",
-      "hipotese de M/bk correspondente ainda faz sentido com os dados novos.\n\n")
-}
 write.csv(tab_colapso, "colapso_reconstrucao_biomassa_dbsra.csv", row.names = FALSE)
 
 ## ---------------------------------------------------------------------
@@ -2011,7 +2060,7 @@ write.csv(tab_colapso, "colapso_reconstrucao_biomassa_dbsra.csv", row.names = FA
 ordem_ids <- if (all(c("hipotese", "m_hipotese") %in% names(cenarios_macarellus_dbsra))) {
   cenarios_macarellus_dbsra$cenario_id[order(cenarios_macarellus_dbsra$hipotese, cenarios_macarellus_dbsra$m_hipotese)]
 } else {
-  names(resultados)
+  names(resultados_dbsra)
 }
 cores <- setNames(grDevices::hcl.colors(length(ordem_ids), palette = "Dark 3"), ordem_ids)
 
@@ -2020,32 +2069,33 @@ png("trajetorias_biomassa_cenarios_dbsra.png", width = 32, height = 16,
 op <- par(mfrow = c(1, 2), mar = c(4.5, 4.5, 3, 1), xpd = FALSE, bty="l",cex.main=0.9)
 
 # ---- painel 1: B/K (comparavel entre cenarios com K muito diferente) ----
-plot(NA, xlim = range(anos), ylim = c(0, 1),
-     xlab = "Ano", ylab = "Biomassa relativa (B/K)",
+plot(NA, xlim = range(anos_traj), ylim = c(0, 1),
+     xlab = "Ano (biomassa no inicio do ano)", ylab = "Biomassa relativa (B/K)",
      main = "Trajetorias de biomassa relativa -- B/K")
+abline(v = refyr, col = "grey60", lty = 3)   # ano de referencia do btk (onde o Bt/K e "ancorado")
 for (id in ordem_ids) {
   tr <- trajetorias[[id]]
-  polygon(c(anos, rev(anos)), c(tr$p2.5_BK, rev(tr$p97.5_BK)),
+  polygon(c(anos_traj, rev(anos_traj)), c(tr$p2.5_BK, rev(tr$p97.5_BK)),
           col = adjustcolor(cores[id], alpha.f = 0.12), border = NA)
 }
 for (id in ordem_ids) {
-  lines(anos, trajetorias[[id]]$mediana_BK, col = cores[id], lwd = 3.2)
+  lines(anos_traj, trajetorias[[id]]$mediana_BK, col = cores[id], lwd = 3.2)
 }
 abline(h=0.5, col="firebrick",lty=2)
 legend("topright", legend = ordem_ids, col = cores, lwd = 3.2, bty = "n", cex = 0.7)
 
 # ---- painel 2: biomassa absoluta ----
 todas_max <- max(sapply(trajetorias, function(tr) max(tr$p97.5_B)))
-plot(NA, xlim = range(anos), ylim = c(0, todas_max),
-     xlab = "Ano", ylab = "Biomassa (t)",
+plot(NA, xlim = range(anos_traj), ylim = c(0, todas_max),
+     xlab = "Ano (biomassa no inicio do ano)", ylab = "Biomassa (t)",
      main = "Trajetorias de biomassa absoluta -- (t)")
 for (id in ordem_ids) {
   tr <- trajetorias[[id]]
-  polygon(c(anos, rev(anos)), c(tr$p2.5_B, rev(tr$p97.5_B)),
+  polygon(c(anos_traj, rev(anos_traj)), c(tr$p2.5_B, rev(tr$p97.5_B)),
           col = adjustcolor(cores[id], alpha.f = 0.12), border = NA)
 }
 for (id in ordem_ids) {
-  lines(anos, trajetorias[[id]]$mediana_B, col = cores[id], lwd = 3.2)
+  lines(anos_traj, trajetorias[[id]]$mediana_B, col = cores[id], lwd = 3.2)
 }
 legend("topright", legend = ordem_ids, col = cores, lwd = 3.2, bty = "n", cex = 0.7)
 
@@ -5535,8 +5585,30 @@ cmsy_out<-read.csv("cmsy_out_macarellus_cmsy.csv",dec=".",sep=",")
 kobe_out<-read.csv("kobe_out_macarellus_cmsy.csv",dec=".",sep=",")
 ct_out<- read.csv("cdat_macarellus_cmsy.csv",dec=".",sep=",")
 cinfo<- read.csv("cinfo_macarellus_cmsy.csv",dec=".",sep=",")
-### lendo os dados de capturas novamente... ###
-ct<- read.csv("Catch_Luz and Vieira.csv",sep = ",",dec = ".")
+
+### serie de captura para os graficos do pos-processamento ###
+# CORRECAO (set/2026): aqui antes era relido o "Catch_Luz and Vieira.csv"
+# (serie ANTIGA, FAO, 1989-2015, com 2014 = 151 t e 2018 fora da serie).
+# Por isso o grafico "msy_posteriores_serie_captura_cmsy.png" parava em
+# 2015 e mostrava uma captura diferente da que o CMSY++ realmente usou.
+# Agora a captura vem do PROPRIO arquivo de entrada do CMSY++
+# (cdat_macarellus_cmsy.csv = ct_out, gerado mais acima a partir de `ct`,
+# ja com 2014 interpolado e 2018 corrigido). Assim o grafico mostra
+# exatamente a serie que entrou no modelo, ate o ultimo ano (ano_final).
+# O cdat tem uma copia da serie por cenario (coluna Stock); as copias sao
+# identicas, entao pegamos uma so -- o stopifnot confere isso.
+ct <- ct_out %>%
+  dplyr::group_by(yr) %>%
+  dplyr::summarise(n_valores = dplyr::n_distinct(ct), Catch = dplyr::first(ct), .groups = "drop") %>%
+  dplyr::arrange(yr)
+stopifnot(all(ct$n_valores == 1))   # todos os cenarios com a mesma captura em cada ano
+ct <- data.frame(Year = ct$yr, Catch = ct$Catch)
+print(tail(ct))
+
+# ultimo ano da serie usada no CMSY++ -- usado nas tabelas de gestao e nos
+# rotulos dos graficos (substitui o 2015 que estava fixo no codigo)
+ano_final_cmsy <- max(bio_out$yr)
+if (exists("ano_final")) stopifnot(ano_final_cmsy == ano_final)
 
 
 # ====================================================
@@ -5746,11 +5818,17 @@ bio_out <- bio_out %>%
 
 # -------------------
 # 2. select last year
-# Forecast = 2025
-# Outros = 2015
 # -------------------
+# CORRECAO (set/2026): antes estava fixo `filter(yr == 2015)` (herdado da
+# versao com a serie antiga, que terminava em 2015). Com a serie atual
+# (1989-ano_final) isso fazia a management_table e a consistence_table
+# mostrarem o status de 2015, e nao o do ano final. Agora pega o ULTIMO
+# ano de cada cenario em bio_out (= ano_final_cmsy, 2023 na serie atual).
+# Se algum dia quiser o status de outro ano, troque por um ano fixo aqui.
 last_bbmsy_ffmsy <- bio_out %>%
-  dplyr::filter(yr==2015) %>%
+  dplyr::group_by(scenario) %>%
+  dplyr::filter(yr == max(yr)) %>%
+  dplyr::ungroup() %>%
   dplyr::select(
     stock_id,
     stock_base,
@@ -6016,9 +6094,9 @@ p7 <- ggplot(
   ) +
   
   labs(
-    x = expression(
+    x = bquote(                      # antes fixo em B_2015/k
       "Relative biomass prior (" *
-        italic(B)[2015] / italic(k) *
+        italic(B)[.(ano_final_cmsy)] / italic(k) *
         ")"
     ),
     y = "Species",
