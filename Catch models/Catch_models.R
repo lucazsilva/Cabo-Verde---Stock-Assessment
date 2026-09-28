@@ -1555,18 +1555,6 @@ print(idade_maturacao) # 2 anos arredondando pq o DB-SRA so aceita numero inteir
 #===============================
 #*******Rodando o modelo ******
 #===============================
-# AVISO sobre um efeito colateral do pacote fishmethods: internamente,
-# dbsra() grava CADA simulacao (aceita ou nao) em "Biotraj-dbsra.csv" no
-# diretorio de trabalho (via write.table(..., append = nn>1)), sem
-# nenhuma coluna dizendo de qual cenario/rodada e cada linha. Como aqui
-# os 12 cenarios rodam em PARALELO (future_lapply/multisession), varios
-# processos R escrevem/reabrem esse MESMO arquivo ao mesmo tempo -- o
-# resultado e uma mistura de linhas de cenarios diferentes, sem como
-# separar depois, e pode ate ter linhas cortadas por causa da concorrencia.
-# Esse arquivo NAO deve ser usado como fonte da trajetoria de biomassa
-# (por isso reconstruimos a trajetoria manualmente mais abaixo, na secao
-# "Trajetorias de biomassa reconstruidas"). Pode apagar/ignorar o
-# Biotraj-dbsra.csv que aparecer na pasta.
 library(future.apply)
 plan(multisession, workers = min(nrow(cenarios_macarellus_dbsra), parallel::detectCores() - 1))
 
@@ -1580,18 +1568,7 @@ plan(multisession, workers = min(nrow(cenarios_macarellus_dbsra), parallel::dete
 # 43,5% desse pico. Isso nao e o perfil de uma frota comecando a explorar
 # um estoque virgem (capturas baixas subindo aos poucos); e o perfil de
 # uma pescaria que ja estava em regime havia um tempo quando a serie
-# observada comeca. Numa curva de Schaefer, sustentar 40-55% da captura
-# maxima ja no ano 1 e mais compativel com biomassa perto do Bmsy (50% de
-# K) do que com biomassa a 90-99% de K (bem acima do Bmsy, onde a
-# pescaria ainda estaria bem abaixo desse nivel de captura).
-# O QUE ESSE PRIOR NAO DIZ: se em 1989 o estoque estava um pouco ACIMA ou
-# um pouco ABAIXO do Bmsy -- a mesma captura e sustentavel dos dois lados
-# da parabola de producao. Por isso 0,5-0,8 (nao 0,6-0,8): cobrir o Bmsy
-# e nao so o lado de cima dele. Mesmo prior (mesma logica, mesmos
-# numeros) usado tambem no CMSY (stb.low/stb.hi no cinfo) e no JABBA
-# (psi, "Catch and index models.R" secao 5.3) -- e um prior COMPARTILHADO
-# entre metodos e entre os cenarios deste bloco, nao varia por hipotese
-# de depleicao terminal (quem varia por hipotese continua sendo btk).
+# observada comeca.
 resultados_dbsra <- future_lapply(seq_len(nrow(cenarios_macarellus_dbsra)), function(i) {
   cen <- cenarios_macarellus_dbsra[i, ]
   fishmethods::dbsra(

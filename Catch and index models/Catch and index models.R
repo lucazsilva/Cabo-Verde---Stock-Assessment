@@ -1710,7 +1710,7 @@ cor_tat <- cor_cl[colnames(tat)]
 matplot(as.numeric(rownames(tat)), tat, type = "b", pch = 19, lty = 1, lwd = 2.2,
         col = cor_tat, ylim = c(0, 1), xlab = rotulo_tempo,
         ylab = "Proporcao das viagens", main = "A. Mistura de taticas")
-legend("topleft", colnames(tat), col = cor_tat, lwd = 2.2, pch = 19, bty = "n", cex = 0.8)
+legend("topleft", colnames(tat), col = cor_tat, lwd = 2.2, pch = 19, bty = "n", cex = 1)
 mat_d <- sapply(levels(viagens$alvo), function(g) {
   x <- dias_alvo[dias_alvo$alvo == g, ]
   v <- setNames(rep(0, nrow(ser)), ser$tempo)
@@ -1722,7 +1722,7 @@ matplot(ser$tempo, mat_d, type = "l", lty = 1, lwd = 2.4, col = cor_cl[colnames(
 lines(ser$tempo, ser$dias, lwd = 2, lty = 2, col = COR_NEU)
 legend("topleft", c(levels(viagens$alvo), "esforco total"),
        col = c(cor_cl[levels(viagens$alvo)], COR_NEU), lwd = 2.2,
-       lty = c(rep(1, nlevels(viagens$alvo)), 2), bty = "n", cex = 0.8)
+       lty = c(rep(1, nlevels(viagens$alvo)), 2), bty = "n", cex = 1)
 par(op); dev.off()
 cat("PNG salvo: exp7_esforco_dirigido.png\n")
 
@@ -2851,7 +2851,7 @@ for (cen in cens) {
   lines(d$tempo, d$indice, lwd = 2.4, col = cores_cen[cen])
   points(d$tempo, d$indice, pch = 19, cex = 0.8, col = cores_cen[cen])
 }
-legend("topright", cens, col = cores_cen[cens], lwd = 2.3, bty = "n", cex = 0.8)
+legend("topright", cens, col = cores_cen[cens], lwd = 2.3, bty = "n", cex = 0.9)
 
 lo <- S2$indice * exp(-1.96 * S2$se_log); hi <- S2$indice * exp(1.96 * S2$se_log)
 plot(S2$tempo, S2$indice, type = "n", ylim = c(0, max(hi, na.rm = TRUE) * 1.05),
@@ -2863,7 +2863,7 @@ lines(S2$tempo, S2$indice, lwd = 2.6, col = COR_MAC)
 points(S2$tempo, S2$indice, pch = 19, col = COR_MAC)
 lines(S1$tempo, S1$indice, lwd = 2, col = COR_AUX, lty = 2)
 legend("topright", c("corrigida (IC 95%)", "nominal"), col = c(COR_MAC, COR_AUX),
-       lwd = c(2.6, 2), lty = c(1, 2), bty = "n", cex = 0.8)
+       lwd = c(2.6, 2), lty = c(1, 2), bty = "n", cex = 0.9)
 par(op); dev.off()
 cat("\nPNG salvo: indices_cenarios.png\n")
 
@@ -4061,25 +4061,6 @@ cat("   'a pescaria histórica esteve acima do MSY' de 'nunca chegou perto')\n")
 ## compatível com biomassa perto do Bmsy (50% de K) do que com biomassa a
 ## 90% de K (bem acima do Bmsy, onde a captura sustentável ainda seria
 ## bem menor que isso).
-## O que esse prior NÃO diz: se em 1989 o estoque estava um pouco ACIMA
-## ou um pouco ABAIXO do Bmsy — a mesma captura é sustentável dos dois
-## lados da parábola de produção. Por isso a faixa cobre o Bmsy (não é
-## só "0,6-0,8", que assumiria estar acima dele).
-## c(0.63, 0.19) é (mediana, CV) escolhido pra reproduzir, numa lognormal,
-## aproximadamente o mesmo intervalo 10-90% de um uniform(0,5, 0,8): psi
-## ~ lnorm com esses parâmetros tem P10 ≈ 0,50 e P90 ≈ 0,80 (conferido
-## numericamente). A cauda da lognormal ainda deixa alguma probabilidade
-## fora de 0,5-0,8, o que é mais honesto que um corte rígido.
-## Mesmo prior (mesma lógica, mesmos limites 0,5-0,8) usado também no
-## DB-SRA (b1k) e no CMSY (stb.low/stb.hi), em "Catch_models.R" — é um
-## prior COMPARTILHADO entre os 3 métodos e entre todos os cenários deste
-## bloco (J1-J12, J18); não varia por hipótese, quem varia continua sendo
-## a estrutura de índices/capturabilidade de cada cenário.
-## ESTE PRIOR IMPORTA MUITO quando a série de índice não cobre o início,
-## que é exatamente o nosso caso nos cenários que só usam C4/C5.
-## (Não mexe em PSI_PRIOR_CURTO, seção 5.8: aquele é um prior deliberada-
-## mente vago pra 2015, não pra 1989, e a lógica de mantê-lo vago continua
-## valendo do jeito que já está documentado ali.)
 PSI_DIST  <- "lnorm"
 PSI_PRIOR <- c(0.63, 0.19)
 
