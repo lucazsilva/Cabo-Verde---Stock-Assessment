@@ -2014,7 +2014,8 @@ reconstruir_cenario <- function(res, catches, agemat, idx_refyr, n_amostra) {
     p97.5_BK   = apply(mat_bk, 2, quantile, probs = 0.975, na.rm = TRUE),
     diagnostico = diagnostico,
     n_colapso  = n_colapso,
-    frac_colapso = frac_colapso
+    frac_colapso = frac_colapso,
+    amostras   = acc   # linhas de res$Values usadas (1 por trajetoria) -- a exportacao abaixo precisa de K, BmsyK, Umsy, MSY de cada uma
   )
 }
 
@@ -2052,6 +2053,70 @@ tab_colapso <- tab_colapso[order(-tab_colapso$frac_colapso), ]
 cat("Trajetorias que zeraram na reconstrucao, por cenario (esperado: 0):\n")
 print(tab_colapso, row.names = FALSE)
 write.csv(tab_colapso, "colapso_reconstrucao_biomassa_dbsra.csv", row.names = FALSE)
+
+## ---------------------------------------------------------------------
+## EXPORTACAO PARA A SINTESE DOS 3 MODELOS (secao final do
+## "Catch and index models.R")
+## ---------------------------------------------------------------------
+# O dbsra() nao grava em disco nem as trajetorias nem o status final por
+# simulacao -- tudo fica so no objeto `trajetorias` desta sessao do R. A
+# sintese que compara DB-SRA, CMSY++ e JABBA roda em OUTRO script, entao
+# aqui gravamos dois CSVs com o que ela precisa:
+#
+#  1) trajetorias_dbsra.csv  (formato longo: cenario x ano x variavel)
+#     variavel = "BK"    -> B/K
+#                "BBmsy" -> B/Bmsy, com Bmsy = BmsyK * K do proprio sorteio
+#                "FFmsy" -> U/Umsy (taxa de exploracao relativa)
+#     com mediana e IC 95% entre as trajetorias aceitas.
+#     Sobre "F/Fmsy" no DB-SRA: o metodo nao estima F, trabalha com a
+#     TAXA DE EXPLORACAO U = C_t / B_t (fracao da biomassa do inicio do ano
+#     que foi capturada). O proprio dbsra() define Umsy na mesma escala
+#     (Umsy = Fmsy/(Fmsy+M) * (1 - exp(-Fmsy-M)), equacao de captura de
+#     Baranov). Por isso U/Umsy e o equivalente direto do F/Fmsy dos
+#     outros dois modelos (1 = pesca no nivel do MSY).
+#     B/K e B/Bmsy tem n_anos + 1 pontos (o ultimo e o inicio de
+#     ano_final + 1); U/Umsy so existe nos anos com captura.
+#
+#  2) posteriores_finais_dbsra.csv (1 linha por trajetoria aceita)
+#     K, MSY, BmsyK, Umsy e o status no ano de referencia (refyr =
+#     ano_final): BtK, BBmsy e FFmsy (U/Umsy daquele ano). E o que
+#     alimenta o Kobe, as densidades conjuntas e a tabela de status.
+exporta_traj_dbsra <- function(id) {
+  tr  <- trajetorias[[id]]
+  acc <- tr$amostras
+  mat <- tr$biomassa                                   # biomassa absoluta (t)
+  bbmsy <- sweep(mat, 1, acc$BmsyK * acc$K, "/")       # B/Bmsy
+  # U_t = C_t / B_t, so nos anos com captura (colunas 1..n_anos)
+  U     <- sweep(1 / mat[, seq_len(n_anos), drop = FALSE], 2, catches, "*")
+  uumsy <- sweep(U, 1, acc$Umsy, "/")                  # U/Umsy
+  resume <- function(m, variavel, anos_v) data.frame(
+    cenario_id = id, ano = anos_v, variavel = variavel,
+    mediana = apply(m, 2, median, na.rm = TRUE),
+    p2.5    = apply(m, 2, quantile, probs = 0.025, na.rm = TRUE),
+    p97.5   = apply(m, 2, quantile, probs = 0.975, na.rm = TRUE))
+  rbind(resume(tr$biomassa_bk, "BK", anos_traj),
+        resume(bbmsy, "BBmsy", anos_traj),
+        resume(uumsy, "FFmsy", anos))
+}
+exporta_final_dbsra <- function(id) {
+  tr  <- trajetorias[[id]]
+  acc <- tr$amostras
+  B_ref <- tr$biomassa[, idx_refyr]        # biomassa no inicio do refyr
+  C_ref <- catches[idx_refyr]              # captura do refyr
+  data.frame(cenario_id = id, K = acc$K, MSY = acc$MSY, BmsyK = acc$BmsyK,
+             Umsy = acc$Umsy,
+             BtK   = B_ref / acc$K,
+             BBmsy = B_ref / (acc$BmsyK * acc$K),
+             FFmsy = (C_ref / B_ref) / acc$Umsy)
+}
+meta_exp <- cenarios_macarellus_dbsra[, intersect(c("cenario_id", "hipotese", "m_fonte", "bk_lo", "bk_hi"),
+                                                  names(cenarios_macarellus_dbsra))]
+traj_exp  <- merge(meta_exp, do.call(rbind, lapply(names(trajetorias), exporta_traj_dbsra)),  by = "cenario_id")
+final_exp <- merge(meta_exp, do.call(rbind, lapply(names(trajetorias), exporta_final_dbsra)), by = "cenario_id")
+final_exp$ano_ref <- refyr
+write.csv(traj_exp,  "trajetorias_dbsra.csv",       row.names = FALSE)
+write.csv(final_exp, "posteriores_finais_dbsra.csv", row.names = FALSE)
+cat("CSV salvos: trajetorias_dbsra.csv e posteriores_finais_dbsra.csv (usados na sintese dos 3 modelos)\n")
 
 ## ---------------------------------------------------------------------
 ## Grafico unico -- todos os cenarios sobrepostos (mediana + IC 95%)

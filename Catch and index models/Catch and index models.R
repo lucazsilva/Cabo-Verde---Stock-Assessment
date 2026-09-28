@@ -5647,3 +5647,819 @@ cat("   avaliacao nao tem significado sozinho, so contra outro.\n")
 
 cat("\n===== FIM =====\n")
 
+
+
+## #############################################################################
+## #############################################################################
+##
+##   PARTE FINAL — SÍNTESE DOS TRÊS MODELOS (DB-SRA, CMSY++ e JABBA)
+##
+## #############################################################################
+## #############################################################################
+##
+## O QUE ESTA SEÇÃO FAZ
+## Junta, num lugar só, os resultados dos três modelos de avaliação e gera
+## as figuras e tabelas COMPARATIVAS (as mesmas da apresentação final, agora
+## reproduzíveis em código). Tudo é gravado em
+##     Catch and index models/Sintese_3_modelos/
+##
+##   S01_priors_deplecao.png             prioris de B/K inicial (1989) e final
+##   S02_aceitacao_cenarios.png          % de simulações aceitas: DB-SRA x CMSY++
+##   S03_trajetorias_relativas.png       B/K e B/Bmsy, todos os cenários, 3 modelos
+##   S04_trajetorias_FFmsy.png           F/Fmsy, todos os cenários, 3 modelos
+##   S05_kobe_final.png                  Kobe do ano final, 3 modelos
+##   S06_densidades_conjuntas.png        Bt/K final e MSY combinados por modelo
+##   S07_status_final_cenarios.png       B/Bmsy final de todos os cenários (slide 30)
+##   S08_capturas_MSY.png                série de capturas x MSY dos 3 modelos
+##   S09_tabela_status_modelo_familia.png  tabela de status por modelo e família
+##   S10_captura_x_cpue.png              captura e CPUE andam juntas (Spearman)
+##   S11_K_x_MSY.png                     o que é robusto (MSY) e o que não é (K)
+##   tabela_status_modelo_familia.csv    (e .xlsx)
+##   tabela_comparacao_modelos.csv       (e .xlsx) — números da tabela-resumo
+##   tabela_cenarios_3modelos.csv        1 linha por cenário, os 3 modelos
+##
+## PRÉ-REQUISITOS (arquivos que precisam existir no disco)
+##   * Catch models/  — saídas do Catch_models.R:
+##       - tabela_aceitacao_dbsra_macarellus.csv
+##       - trajetorias_dbsra.csv e posteriores_finais_dbsra.csv
+##         (gravados pelo bloco "EXPORTACAO PARA A SINTESE" logo depois da
+##          reconstrução das trajetórias do DB-SRA; se não existirem, rode o
+##          DB-SRA de novo até esse bloco)
+##       - bio_out, cmsy_out, rk_out e kobe_out *_macarellus_cmsy.csv
+##       - bk_macarellus.csv (hipóteses de depleção final)
+##   * Catch and index models/ — este script:
+##       - desembarques_macarellus_1989_2025.csv (seção 12 da parte 03)
+##       - cenarios_cpue_macarellus.csv (índices C1–C6)
+##       - JABBA_macarellus/: jabba_trajetorias.csv, jabba_status_final.csv,
+##         jabba_bimodalidade_BK.csv, jabba_cenarios_racional.csv e os
+##         macarellus_CV_<cenario>_jabba.rdata (posteriores completas)
+##
+## A seção roda sozinha: dá para abrir o R, fazer o setwd() do começo deste
+## script e rodar só daqui para baixo. Se os ajustes do JABBA ainda
+## estiverem na memória (objeto `fits`), eles são usados direto; senão, os
+## .rdata são lidos do disco.
+##
+## ESCOLHA IMPORTANTE — COMO OS CENÁRIOS SÃO COMBINADOS ("pool")
+## Nas figuras conjuntas (densidades, Kobe, K x MSY, tabelas) cada cenário
+## entra com o MESMO número de sorteios (N_POR_CENARIO). Sem isso o peso de
+## cada cenário seria o número de simulações que ele por acaso guardou: o
+## JABBA guarda 10.000 por cenário, o CMSY++ 6.000, e o DB-SRA só as
+## aceitas (de ~100 no NN-CMSY a ~2.600 no não informativo) — o pool viraria
+## "o cenário mais permissivo". Com pesos iguais, a largura da distribuição
+## conjunta mede o DESACORDO entre as hipóteses, e não a quantidade de
+## sorteios de cada uma. Quando um cenário tem menos sorteios que
+## N_POR_CENARIO, eles são reamostrados com reposição.
+## =============================================================================
+
+cat("\n\n############ PARTE FINAL — SÍNTESE DOS TRÊS MODELOS ############\n")
+
+suppressPackageStartupMessages({
+  library(ggplot2)
+  library(patchwork)
+})
+tem_writexl <- requireNamespace("writexl", quietly = TRUE)
+
+## ---- 0.1 pastas ------------------------------------------------------------
+## DIR_CI = pasta deste script ("Catch and index models"). O Catch_models.R
+## grava na pasta irmã "Catch models" (mesmo nível), por isso o dirname().
+DIR_CI   <- if (exists("DIR_DADOS")) DIR_DADOS else getwd()
+DIR_CM   <- file.path(dirname(DIR_CI), "Catch models")
+DIR_JB   <- file.path(DIR_CI, "JABBA_macarellus")
+DIR_SINT <- file.path(DIR_CI, "Sintese_3_modelos")
+dir.create(DIR_SINT, showWarnings = FALSE)
+
+## ---- 0.2 parâmetros da síntese -------------------------------------------
+N_POR_CENARIO <- 1000   # sorteios por cenário no pool (ver "ESCOLHA IMPORTANTE")
+SEMENTE       <- 2026   # para a reamostragem/subamostragem ser reprodutível
+
+## Prioris de depleção INICIAL (1989), iguais nos 3 modelos — têm de bater
+## com o que está nos scripts (b1k do DB-SRA, stb.low/stb.hi do CMSY++ e
+## PSI_PRIOR do JABBA, seção 5.3). Se PSI_PRIOR estiver na memória, usa ele.
+B1K_LO  <- 0.5; B1K_HI <- 0.8
+PSI_MED <- if (exists("PSI_PRIOR")) PSI_PRIOR[1] else 0.63
+PSI_CV  <- if (exists("PSI_PRIOR")) PSI_PRIOR[2] else 0.19
+
+## Limiar para chamar a posterior de B/K do JABBA de "bimodal": pelo menos
+## 30% da massa abaixo de 0,2 E pelo menos 30% acima de 0,8. É o critério
+## que separa J2, J5 e J18 (≈50/50) do J1 (22/54, uma solução dominante).
+LIMIAR_BIMODAL <- 0.30
+
+## ---- 0.3 cores e rótulos (os mesmos da apresentação) -----------------------
+## Paleta dos MODELOS e das HIPÓTESES validadas para daltonismo (separação
+## ΔE >= 9 entre todos os pares, simulação protan/deutan/tritan).
+## Por que as famílias do JABBA reaproveitam o azul e o vermelho das
+## hipóteses: é proposital — "janela completa" conta a mesma história da
+## hipótese não informativa (estoque grande, pouco explorado) e a "janela
+## curta" a mesma do NN-CMSY++ (estoque depletado). O cinza marca o que é
+## INDETERMINADO (B/K bimodal) — não é uma "quarta cor", é ausência de
+## resposta. Como ficam em painéis (modelos) diferentes, não há confusão.
+COR_MODELO <- c("DB-SRA" = "#2A6FB5", "CMSY++" = "#D2602A", "JABBA" = "#1B9E77")
+COR_FAM <- c(NN_CMSY = "#C0392B", zBRT = "#E08A00", Target_switch = "#1B9E77",
+             Uninformative_bk = "#2A6FB5",
+             J_curta = "#C0392B", J_bimodal = "#8A949C", J_completa = "#2A6FB5")
+ROT_FAM <- c(NN_CMSY = "NN-CMSY++", zBRT = "zBRT", Target_switch = "Mudança de alvo",
+             Uninformative_bk = "Não informativa",
+             J_curta = "JABBA: janela curta 2015–2025",
+             J_bimodal = "JABBA: janela completa, B/K bimodal",
+             J_completa = "JABBA: janela completa 1989–2025")
+ORD_FAM <- names(COR_FAM)
+ROT_R_CMSY <- c("Euler-lotka methods" = "Euler-Lotka", "lower resilience" = "r menor",
+                "Higher resilience" = "r maior", "Non-informative_r" = "r não inf.")
+INK <- "#1F2933"; MUT <- "#5B6770"; GRADE <- "#E3E8EC"
+
+## tema único de todas as figuras: grade e eixos recessivos, texto em tinta
+## neutra (nunca na cor da série), fundo branco para colar no relatório.
+tema_sint <- theme_minimal(base_size = 11) +
+  theme(panel.grid.minor = element_blank(),
+        panel.grid.major = element_line(colour = GRADE, linewidth = 0.3),
+        axis.line.x = element_line(colour = "#8A949C", linewidth = 0.3),
+        axis.text = element_text(colour = MUT), axis.title = element_text(colour = INK),
+        strip.text = element_text(face = "bold", hjust = 0, size = 11, colour = INK),
+        plot.title = element_text(face = "bold", size = 13, colour = INK),
+        plot.subtitle = element_text(colour = MUT, size = 9.5),
+        plot.caption = element_text(colour = MUT, size = 8, hjust = 0),
+        legend.position = "bottom", legend.title = element_blank(),
+        legend.text = element_text(colour = INK, size = 9),
+        plot.background = element_rect(fill = "white", colour = NA))
+salva_fig <- function(p, nome, larg, alt) {
+  ggsave(file.path(DIR_SINT, nome), p, width = larg, height = alt, units = "cm",
+         dpi = 300, bg = "white")
+  cat("  PNG salvo:", nome, "\n")
+}
+salva_tab <- function(d, nome) {
+  write.csv(d, file.path(DIR_SINT, paste0(nome, ".csv")), row.names = FALSE, fileEncoding = "UTF-8")
+  if (tem_writexl) writexl::write_xlsx(d, file.path(DIR_SINT, paste0(nome, ".xlsx")))
+  cat("  Tabela salva:", nome, "\n")
+}
+fmt_num <- function(x, d = 2) formatC(x, format = "f", digits = d, big.mark = ".", decimal.mark = ",")
+fmt_int <- function(x) formatC(round(x), format = "d", big.mark = ".", decimal.mark = ",")
+`%||%` <- function(a, b) if (is.null(a)) b else a   # "a, ou b se a for NULL"
+
+## ---- 0.4 checagem dos arquivos de entrada ----------------------------------
+precisa <- c(file.path(DIR_CM, c("tabela_aceitacao_dbsra_macarellus.csv", "trajetorias_dbsra.csv",
+                                 "posteriores_finais_dbsra.csv", "bio_out_macarellus_cmsy.csv",
+                                 "cmsy_out_macarellus_cmsy.csv", "rk_out_macarellus_cmsy.csv",
+                                 "kobe_out_macarellus_cmsy.csv", "bk_macarellus.csv")),
+             file.path(DIR_CI, c("desembarques_macarellus_1989_2025.csv", "cenarios_cpue_macarellus.csv")),
+             file.path(DIR_JB, c("jabba_trajetorias.csv", "jabba_status_final.csv",
+                                 "jabba_bimodalidade_BK.csv", "jabba_cenarios_racional.csv")))
+faltam <- precisa[!file.exists(precisa)]
+if (length(faltam)) {
+  stop("Síntese: faltam arquivos de entrada:\n  ", paste(faltam, collapse = "\n  "),
+       "\n(trajetorias_dbsra.csv/posteriores_finais_dbsra.csv saem do bloco de exportação",
+       " do DB-SRA no Catch_models.R)")
+}
+
+## sorteia exatamente n linhas de um data.frame (com reposição só se faltar)
+amostra_n <- function(d, n) d[sample(nrow(d), n, replace = nrow(d) < n), , drop = FALSE]
+set.seed(SEMENTE)
+
+## =============================================================================
+## 1. LEITURA E PADRONIZAÇÃO — tudo vira o mesmo formato para os 3 modelos
+## =============================================================================
+## Três tabelas comuns (uma linha por...):
+##   cen_all   ... cenário: status final (medianas e IC 95%), MSY, K, família
+##   draws_all ... sorteio da posterior no ano final (N_POR_CENARIO por cenário)
+##   traj_all  ... cenário x ano x variável (BK, BBmsy, FFmsy): mediana e IC
+## A coluna `familia` é o que dá a cor: hipótese de depleção final no DB-SRA e
+## no CMSY++; janela/bimodalidade no JABBA (que não tem priori de B/K final —
+## o índice é quem informa o fim da série).
+cat("\n--- S0 leitura dos resultados dos 3 modelos ---\n")
+
+## ---- 1.1 captura (a mesma série nos 3 modelos até 2023) ---------------------
+cap <- read.csv(file.path(DIR_CI, "desembarques_macarellus_1989_2025.csv"))
+cap <- data.frame(ano = cap$Yr, captura = cap$Desemb_total_t, fonte = cap$fonte_total)
+
+## ---- 1.2 DB-SRA --------------------------------------------------------------
+acc_db  <- read.csv(file.path(DIR_CM, "tabela_aceitacao_dbsra_macarellus.csv"))
+fin_db  <- read.csv(file.path(DIR_CM, "posteriores_finais_dbsra.csv"))
+traj_db <- read.csv(file.path(DIR_CM, "trajetorias_dbsra.csv"))
+ano_db  <- fin_db$ano_ref[1]
+rot_db  <- function(hip, fonte) paste0(ROT_FAM[hip], " · ", sub(" \\(.*$", "", fonte))
+
+d_db <- do.call(rbind, lapply(split(fin_db, fin_db$cenario_id), function(d)
+  data.frame(modelo = "DB-SRA", cenario = d$cenario_id[1], familia = d$hipotese[1],
+             rotulo = rot_db(d$hipotese[1], d$m_fonte[1]),
+             amostra_n(d[, c("BBmsy", "FFmsy", "BtK", "MSY", "K")], N_POR_CENARIO))))
+
+traj_db2 <- data.frame(modelo = "DB-SRA", cenario = traj_db$cenario_id, familia = traj_db$hipotese,
+                       ano = traj_db$ano, variavel = traj_db$variavel,
+                       med = traj_db$mediana, lo = traj_db$p2.5, hi = traj_db$p97.5)
+
+## ---- 1.3 CMSY++ --------------------------------------------------------------
+bio_cm  <- read.csv(file.path(DIR_CM, "bio_out_macarellus_cmsy.csv"))
+out_cm  <- read.csv(file.path(DIR_CM, "cmsy_out_macarellus_cmsy.csv"))
+rk_cm   <- read.csv(file.path(DIR_CM, "rk_out_macarellus_cmsy.csv"))
+kobe_cm <- read.csv(file.path(DIR_CM, "kobe_out_macarellus_cmsy.csv"))
+ano_cm  <- max(bio_cm$yr)
+meta_cm <- unique(out_cm[, c("scenario", "bk_method", "r_method")])
+rot_cm  <- function(sc) {
+  m <- meta_cm[match(sc, meta_cm$scenario), ]
+  paste0(ROT_FAM[m$bk_method], " · ", ROT_R_CMSY[m$r_method])
+}
+## rk_out e kobe_out têm o MESMO número de linhas por cenário, na mesma ordem
+## (cada linha = um par r-k viável). MSY e K saem em MIL toneladas (o
+## CMSY++ trabalha em mil t), por isso o * 1000.
+d_cm <- do.call(rbind, lapply(unique(rk_cm$scenario), function(sc) {
+  rk <- rk_cm[rk_cm$scenario == sc, ]; kb <- kobe_cm[kobe_cm$scenario == sc, ]
+  n  <- min(nrow(rk), nrow(kb))
+  d  <- data.frame(BBmsy = kb$y.b_bmsy[1:n], FFmsy = kb$x.F_Fmsy[1:n],
+                   BtK = rk$postfinalbk[1:n], MSY = rk$postmsy[1:n] * 1000, K = rk$postk[1:n] * 1000)
+  data.frame(modelo = "CMSY++", cenario = sc, familia = rk$bk_method[1], rotulo = rot_cm(sc),
+             amostra_n(d, N_POR_CENARIO))
+}))
+## Trajetórias: o bio_out traz B/Bmsy e F/Fmsy. B/K = 0,5 x B/Bmsy porque o
+## CMSY++ usa Schaefer (Bmsy = K/2) — confere com postfinalbk do rk_out.
+traj_cm2 <- rbind(
+  data.frame(modelo = "CMSY++", cenario = bio_cm$scenario, familia = bio_cm$bk_method, ano = bio_cm$yr,
+             variavel = "BBmsy", med = bio_cm$B.Bmsy, lo = bio_cm$lcl.B.Bmsy, hi = bio_cm$ucl.B.Bmsy),
+  data.frame(modelo = "CMSY++", cenario = bio_cm$scenario, familia = bio_cm$bk_method, ano = bio_cm$yr,
+             variavel = "BK", med = 0.5 * bio_cm$B.Bmsy, lo = 0.5 * bio_cm$lcl.B.Bmsy, hi = 0.5 * bio_cm$ucl.B.Bmsy),
+  data.frame(modelo = "CMSY++", cenario = bio_cm$scenario, familia = bio_cm$bk_method, ano = bio_cm$yr,
+             variavel = "FFmsy", med = bio_cm$F.Fmsy, lo = bio_cm$lcl.F.Fmsy, hi = bio_cm$ucl.F.Fmsy))
+
+## ---- 1.4 JABBA ---------------------------------------------------------------
+traj_jb <- read.csv(file.path(DIR_JB, "jabba_trajetorias.csv"))
+stat_jb <- read.csv(file.path(DIR_JB, "jabba_status_final.csv"))
+bim_jb  <- read.csv(file.path(DIR_JB, "jabba_bimodalidade_BK.csv"), check.names = FALSE)
+rac_jb  <- read.csv(file.path(DIR_JB, "jabba_cenarios_racional.csv"))
+ano_jb  <- max(stat_jb$ano_final)
+
+## família de cada cenário: janela curta (começa depois de 1989) >
+## bimodal (duas soluções com peso parecido) > janela completa
+fam_jabba <- function(id) {
+  jan <- rac_jb$janela[match(id, rac_jb$id)]
+  b   <- bim_jb[match(id, bim_jb$cenario), ]
+  if (!is.na(jan) && !startsWith(jan, "1989")) return("J_curta")
+  if (!is.na(b[["P_BK_menor_0.2"]]) && b[["P_BK_menor_0.2"]] >= LIMIAR_BIMODAL &&
+      b[["P_BK_maior_0.8"]] >= LIMIAR_BIMODAL) return("J_bimodal")
+  "J_completa"
+}
+## rótulo legível: "J3_BASE_C2C5" -> "J3 · BASE C2C5"
+rot_jb <- function(id) gsub("_", " ", sub("^(J[0-9]+)_", "\\1 · ", id))
+
+## posteriores completas: da memória (fits do JABBA) ou dos .rdata
+jabba_na_memoria <- exists("fits") && is.list(fits) && length(fits) &&
+  all(vapply(fits, function(f) inherits(f, "jabba") || !is.null(f$kobe), logical(1)))
+if (jabba_na_memoria) {
+  fits_jb <- fits
+  cat("  JABBA: usando os ajustes da memória (", length(fits_jb), "cenários)\n")
+} else {
+  arqs <- list.files(DIR_JB, pattern = "_jabba\\.rdata$", full.names = TRUE)
+  fits_jb <- lapply(arqs, function(a) { e <- new.env(); load(a, envir = e); get(ls(e)[1], envir = e) })
+  names(fits_jb) <- vapply(fits_jb, function(f) f$scenario, character(1))
+  cat("  JABBA: lidos", length(fits_jb), "arquivos .rdata de", DIR_JB, "\n")
+}
+## só os cenários que rodaram de fato e estão na tabela de status
+fits_jb <- fits_jb[names(fits_jb) %in% stat_jb$cenario]
+
+## $kobe = amostras da posterior no ÚLTIMO ano (stock = B/Bmsy, harvest =
+## F/Fmsy, bk = B/K); $refpts_posterior e $pars_posterior têm o MSY e o K
+## das MESMAS iterações (mesmo número de linhas, mesma ordem).
+d_jb <- do.call(rbind, lapply(names(fits_jb), function(id) {
+  f <- fits_jb[[id]]
+  d <- data.frame(BBmsy = f$kobe$stock, FFmsy = f$kobe$harvest, BtK = f$kobe$bk,
+                  MSY = f$refpts_posterior$MSY, K = f$pars_posterior$K)
+  data.frame(modelo = "JABBA", cenario = id, familia = fam_jabba(id), rotulo = rot_jb(id),
+             amostra_n(d, N_POR_CENARIO))
+}))
+tj <- traj_jb[traj_jb$variavel %in% c("BBmsy", "BB0", "FFmsy"), ]
+traj_jb2 <- data.frame(modelo = "JABBA", cenario = tj$cenario,
+                       familia = vapply(tj$cenario, fam_jabba, character(1)),
+                       ano = tj$ano, variavel = ifelse(tj$variavel == "BB0", "BK", tj$variavel),
+                       med = tj$mu, lo = tj$lci, hi = tj$uci)
+
+## ---- 1.5 tabelas comuns ------------------------------------------------------
+draws_all <- rbind(d_db, d_cm, d_jb)
+traj_all  <- rbind(traj_db2, traj_cm2, traj_jb2)
+traj_all  <- traj_all[traj_all$cenario %in% unique(draws_all$cenario), ]
+ANO_FINAL <- c("DB-SRA" = ano_db, "CMSY++" = ano_cm, "JABBA" = ano_jb)
+ORD_MOD   <- names(COR_MODELO)
+draws_all$modelo <- factor(draws_all$modelo, ORD_MOD)
+traj_all$modelo  <- factor(traj_all$modelo, ORD_MOD)
+
+## resumo por cenário. B/Bmsy e F/Fmsy do CMSY++ e do JABBA vêm das tabelas
+## oficiais de cada modelo (bio_out / jabba_status_final), para bater com o
+## que já foi reportado; o resto (e tudo no DB-SRA) sai dos sorteios.
+q <- function(x, p) as.numeric(quantile(x, p, na.rm = TRUE))
+cen_all <- do.call(rbind, lapply(split(draws_all, draws_all$cenario), function(d) data.frame(
+  modelo = as.character(d$modelo[1]), cenario = d$cenario[1], familia = d$familia[1], rotulo = d$rotulo[1],
+  BBmsy = median(d$BBmsy), BBmsy_lo = q(d$BBmsy, .025), BBmsy_hi = q(d$BBmsy, .975),
+  FFmsy = median(d$FFmsy), FFmsy_lo = q(d$FFmsy, .025), FFmsy_hi = q(d$FFmsy, .975),
+  BtK = median(d$BtK), MSY = median(d$MSY), K = median(d$K),
+  P_sobrepescado = mean(d$BBmsy < 1), P_sobrepesca = mean(d$FFmsy > 1))))
+i_cm <- cen_all$modelo == "CMSY++"
+b_fim <- bio_cm[bio_cm$yr == ano_cm, ]
+j <- match(cen_all$cenario[i_cm], b_fim$scenario)
+cen_all[i_cm, c("BBmsy", "BBmsy_lo", "BBmsy_hi", "FFmsy", "FFmsy_lo", "FFmsy_hi")] <-
+  b_fim[j, c("B.Bmsy", "lcl.B.Bmsy", "ucl.B.Bmsy", "F.Fmsy", "lcl.F.Fmsy", "ucl.F.Fmsy")]
+i_jb <- cen_all$modelo == "JABBA"
+j <- match(cen_all$cenario[i_jb], stat_jb$cenario)
+cen_all[i_jb, c("BBmsy", "BBmsy_lo", "BBmsy_hi", "FFmsy", "FFmsy_lo", "FFmsy_hi")] <-
+  stat_jb[j, c("BBmsy", "BBmsy_lci", "BBmsy_uci", "FFmsy", "FFmsy_lci", "FFmsy_uci")]
+cen_all$ano_final <- ANO_FINAL[cen_all$modelo]
+cen_all$modelo  <- factor(cen_all$modelo, ORD_MOD)
+cen_all$familia <- factor(cen_all$familia, ORD_FAM)
+cen_all <- cen_all[order(cen_all$modelo, cen_all$familia, cen_all$BBmsy), ]
+salva_tab(transform(cen_all, modelo = as.character(modelo), familia = ROT_FAM[as.character(familia)]),
+          "tabela_cenarios_3modelos")
+cat(sprintf("  cenários lidos: DB-SRA %d | CMSY++ %d | JABBA %d\n",
+            sum(cen_all$modelo == "DB-SRA"), sum(cen_all$modelo == "CMSY++"), sum(cen_all$modelo == "JABBA")))
+
+## grupos para as figuras "pool": o JABBA é dividido em janela completa e
+## curta porque as duas famílias respondem a perguntas diferentes (com e
+## sem a âncora histórica) e dão MSY de ordens de grandeza distintas —
+## juntar as duas produziria uma distribuição sem significado.
+grupo_de <- function(modelo, familia) ifelse(modelo != "JABBA", as.character(modelo),
+                                             ifelse(familia == "J_curta", "JABBA janela curta", "JABBA janela completa"))
+draws_all$grupo <- grupo_de(draws_all$modelo, draws_all$familia)
+ORD_GRUPO <- c("DB-SRA", "CMSY++", "JABBA janela completa", "JABBA janela curta")
+COR_GRUPO <- c(COR_MODELO[1:2], "JABBA janela completa" = unname(COR_MODELO[3]),
+               "JABBA janela curta" = unname(COR_MODELO[3]))
+LTY_GRUPO <- c("DB-SRA" = "solid", "CMSY++" = "solid", "JABBA janela completa" = "solid",
+               "JABBA janela curta" = "22")
+rot_grupo <- function(g) paste0(g, " (", ifelse(startsWith(g, "JABBA"), ANO_FINAL["JABBA"], ANO_FINAL[g]), ")")
+
+## =============================================================================
+## S01. PRIORIS DE DEPLEÇÃO: início (1989, iguais nos 3 modelos) e fim
+## =============================================================================
+## Por que esta figura importa: nos modelos só de captura, o B/K final NÃO
+## é resultado — é premissa. A distância entre a depleção inicial e a final
+## imposta é o que decide quanto o modelo precisa "produzir" de biomassa e,
+## portanto, o K e a produtividade que ele vai estimar.
+cat("\n--- S01 prioris de depleção ---\n")
+bk_hip <- read.csv(file.path(DIR_CM, "bk_macarellus.csv"))
+bk_hip <- bk_hip[bk_hip$hipotese %in% names(ROT_FAM), ]
+bk_hip$rot <- factor(ROT_FAM[bk_hip$hipotese], rev(ROT_FAM[intersect(ORD_FAM, bk_hip$hipotese)]))
+ano_bk <- bk_hip$ano[1]
+
+## JABBA: lognormal(mediana PSI_MED, CV PSI_CV) -> sdlog = sqrt(log(1+CV^2))
+sd_psi <- sqrt(log(1 + PSI_CV^2))
+ini <- data.frame(
+  modelo = factor(c("DB-SRA  (b1k uniforme)", "CMSY++  (stb uniforme)", "JABBA  (psi lognormal)"),
+                  rev(c("DB-SRA  (b1k uniforme)", "CMSY++  (stb uniforme)", "JABBA  (psi lognormal)"))),
+  lo = c(B1K_LO, B1K_LO, qlnorm(.10, log(PSI_MED), sd_psi)),
+  hi = c(B1K_HI, B1K_HI, qlnorm(.90, log(PSI_MED), sd_psi)),
+  lo95 = c(NA, NA, qlnorm(.025, log(PSI_MED), sd_psi)),
+  hi95 = c(NA, NA, qlnorm(.975, log(PSI_MED), sd_psi)),
+  mid = c(NA, NA, PSI_MED), cor = COR_MODELO)
+
+p_ini <- ggplot(ini, aes(y = modelo)) +
+  geom_vline(xintercept = 0.5, colour = MUT, linetype = "dotted") +
+  geom_linerange(aes(xmin = lo95, xmax = hi95), colour = ini$cor, linewidth = 0.6, na.rm = TRUE) +
+  geom_linerange(aes(xmin = lo, xmax = hi), colour = ini$cor, linewidth = 9) +
+  geom_point(aes(x = mid), shape = 21, fill = "white", colour = INK, size = 2.6, na.rm = TRUE) +
+  geom_text(aes(x = hi95, label = sprintf("%s – %s", fmt_num(lo), fmt_num(hi))),
+            data = transform(ini, hi95 = ifelse(is.na(hi95), hi, hi95)),
+            hjust = -0.15, size = 3.2, colour = INK) +
+  annotate("text", x = 0.5, y = 3.45, label = "Bmsy (Schaefer)", size = 2.8, colour = MUT) +
+  scale_x_continuous(limits = c(0, 1.2), breaks = seq(0, 1, 0.25)) +
+  labs(title = bquote(bold("Depleção inicial  B"[1989]*"/K")), x = "B/K", y = NULL,
+       subtitle = "Igual nos 3 modelos (JABBA: barra 80%, traço 95%)") +
+  tema_sint
+
+p_fim <- ggplot(bk_hip, aes(y = rot)) +
+  geom_vline(xintercept = 0.5, colour = MUT, linetype = "dotted") +
+  geom_linerange(aes(xmin = bk_lo, xmax = bk_hi, colour = hipotese), linewidth = 9) +
+  geom_point(aes(x = bk), shape = 21, fill = "white", colour = INK, size = 2.6) +
+  geom_text(aes(x = bk_hi, label = sprintf("%s – %s", fmt_num(bk_lo), fmt_num(bk_hi))),
+            hjust = -0.15, size = 3.2, colour = INK) +
+  scale_colour_manual(values = COR_FAM, guide = "none") +
+  scale_x_continuous(limits = c(0, 1.2), breaks = seq(0, 1, 0.2)) +
+  labs(title = bquote(bold("Depleção final  B"[.(ano_bk)]*"/K  (hipóteses)")), x = "B/K no último ano",
+       y = NULL, subtitle = "DB-SRA e CMSY++ (o JABBA não usa priori de B/K final: o índice informa o fim)") +
+  tema_sint
+p01 <- (p_ini | p_fim) + plot_layout(widths = c(1, 1.6)) +
+  plot_annotation(caption = paste0("Início: a pesca industrial é anterior a 1989 e a série abre com 55% do pico histórico de captura. ",
+                                   "Fim: NN-CMSY++ e zBRT inferidos da forma da série; mudança de alvo e não informativa são alternativas."),
+                  theme = tema_sint)
+salva_fig(p01, "S01_priors_deplecao.png", 30, 11)
+
+## =============================================================================
+## S02. QUANTO DE CADA HIPÓTESE É COMPATÍVEL COM AS CAPTURAS
+## =============================================================================
+## DB-SRA: % das 10.000 simulações aceitas (trajetória não colapsa, bate o
+## B/K final dentro da tolerância). CMSY++: taxa de viabilidade (VR, % dos
+## pares r-K sorteados cuja trajetória é viável). As duas são "que fração
+## do espaço de prioris sobrevive às capturas" — por isso lado a lado; os
+## eixos são separados porque os denominadores diferem.
+cat("\n--- S02 aceitação por cenário ---\n")
+a_db <- data.frame(familia = acc_db$hipotese, sub = sub(" \\(.*$", "", acc_db$m_fonte),
+                   pct = acc_db$pct_aceitacao)
+a_cm <- data.frame(familia = out_cm$bk_method, sub = ROT_R_CMSY[out_cm$r_method],
+                   pct = 100 * out_cm$viab_rate)
+graf_acc <- function(d, titulo, sub_eixo) {
+  d$familia <- factor(d$familia, intersect(ORD_FAM, d$familia))
+  d$sub <- factor(d$sub, unique(c(intersect(ROT_R_CMSY, d$sub), sort(unique(d$sub)))))  # ordem fixa das prioris de r
+  d$rot_fam <- factor(ROT_FAM[as.character(d$familia)], ROT_FAM[levels(d$familia)])
+  ggplot(d, aes(x = sub, y = pct, fill = familia)) +
+    geom_col(width = 0.72) +
+    geom_text(aes(label = fmt_num(pct, 1)), vjust = -0.4, size = 3, colour = INK) +
+    facet_grid(~rot_fam, scales = "free_x", space = "free_x", switch = "x") +
+    scale_fill_manual(values = COR_FAM, guide = "none") +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
+    labs(title = titulo, x = sub_eixo, y = "% das simulações") +
+    tema_sint + theme(strip.placement = "outside", strip.text = element_text(hjust = 0.5, size = 9.5),
+                      axis.text.x = element_text(size = 8.5, angle = 30, hjust = 1),
+                      panel.grid.major.x = element_blank())
+}
+p02 <- graf_acc(a_db, "DB-SRA — simulações aceitas (%)", "Fonte de M") /
+  graf_acc(a_cm, "CMSY++ — taxa de viabilidade dos pares r-K (%)", "Priori de r") +
+  plot_annotation(title = "Quanto de cada hipótese de depleção final é compatível com as capturas",
+                  caption = "Quanto mais baixa a depleção final imposta, menos simulações reproduzem a série sem colapsar.",
+                  theme = tema_sint)
+salva_fig(p02, "S02_aceitacao_cenarios.png", 26, 20)
+
+## =============================================================================
+## S03. TRAJETÓRIAS RELATIVAS — B/K e B/Bmsy, todos os cenários, 3 modelos
+## =============================================================================
+## Linha = mediana de cada cenário; cor = família. As duas escalas porque
+## B/K é o que os modelos só de captura "fixam" nas pontas (prioris) e
+## B/Bmsy é a escala de manejo, comparável entre modelos com curvas de
+## produção diferentes (Bmsy/K = 0,5 no Schaefer, ~0,3 no DB-SRA, 0,37 no Fox).
+cat("\n--- S03 trajetórias relativas ---\n")
+tr <- traj_all[traj_all$variavel %in% c("BK", "BBmsy"), ]
+tr$variavel <- factor(ifelse(tr$variavel == "BK", "B / K", "B / Bmsy"), c("B / K", "B / Bmsy"))
+tr$familia  <- factor(tr$familia, ORD_FAM)
+ref <- data.frame(variavel = factor(c("B / K", "B / Bmsy"), levels(tr$variavel)), y = c(0.5, 1))
+p03 <- ggplot(tr, aes(ano, med, group = cenario, colour = familia)) +
+  geom_hline(data = ref, aes(yintercept = y), colour = INK, linewidth = 0.4, linetype = "dashed") +
+  geom_line(linewidth = 0.65, alpha = 0.85) +
+  facet_grid(variavel ~ modelo, scales = "free_y", switch = "y") +
+  scale_colour_manual(values = COR_FAM, labels = ROT_FAM, drop = TRUE) +
+  scale_y_continuous(limits = c(0, NA)) +
+  guides(colour = guide_legend(nrow = 2, byrow = TRUE, override.aes = list(linewidth = 1.6, alpha = 1))) +
+  labs(title = "Trajetórias de biomassa relativa — todos os cenários dos três modelos",
+       subtitle = "Linha = mediana de cada cenário. Tracejado: B/K = 0,5 e B/Bmsy = 1.",
+       x = NULL, y = NULL,
+       caption = paste0("DB-SRA: biomassa no início do ano (até ", ano_db + 1, "); CMSY++ até ", ano_cm,
+                        "; JABBA até ", ano_jb, " (janela curta começa em 2015). CMSY++: B/K = 0,5 × B/Bmsy (Schaefer).")) +
+  tema_sint + theme(strip.placement = "outside", strip.text.y = element_text(angle = 90, hjust = 0.5))
+salva_fig(p03, "S03_trajetorias_relativas.png", 32, 18)
+
+## =============================================================================
+## S04. PRESSÃO DE PESCA RELATIVA (F/Fmsy) — o sinal em que os modelos concordam
+## =============================================================================
+## Escala log porque F/Fmsy varia de ~0,01 (JABBA, estoque "grande") a >1:
+## em escala linear os cenários de pesca baixa virariam uma linha no zero.
+cat("\n--- S04 trajetórias de F/Fmsy ---\n")
+tf <- traj_all[traj_all$variavel == "FFmsy" & is.finite(traj_all$med) & traj_all$med > 0, ]
+tf$familia <- factor(tf$familia, ORD_FAM)
+p04 <- ggplot(tf, aes(ano, med, group = cenario, colour = familia)) +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 1, ymax = Inf, fill = "#C0392B", alpha = 0.06) +
+  geom_hline(yintercept = 1, colour = INK, linewidth = 0.4, linetype = "dashed") +
+  geom_line(linewidth = 0.65, alpha = 0.85) +
+  facet_wrap(~modelo, nrow = 1) +
+  scale_y_log10(breaks = c(0.01, 0.03, 0.1, 0.3, 1, 3, 10), labels = function(x) fmt_num(x, 2)) +
+  scale_colour_manual(values = COR_FAM, labels = ROT_FAM) +
+  guides(colour = guide_legend(nrow = 2, byrow = TRUE, override.aes = list(linewidth = 1.6, alpha = 1))) +
+  labs(title = "Pressão de pesca relativa (F/Fmsy) — todos os cenários",
+       subtitle = "Faixa rosada = sobrepesca (F > Fmsy). Escala logarítmica.",
+       x = NULL, y = "F / Fmsy",
+       caption = "DB-SRA: taxa de exploração relativa U/Umsy (U = captura / biomassa do início do ano), equivalente ao F/Fmsy.") +
+  tema_sint
+salva_fig(p04, "S04_trajetorias_FFmsy.png", 32, 13)
+
+## =============================================================================
+## S05. KOBE DO ANO FINAL — 3 modelos
+## =============================================================================
+## Nuvem = sorteios da posterior (pool com pesos iguais por cenário);
+## pontos = mediana de cada cenário. Os números no canto são a probabilidade
+## do pool em cada quadrante — é o que o manejo lê, não o ponto.
+## Eixos cortados em 3 (valores acima ficam encostados na borda).
+cat("\n--- S05 Kobe final ---\n")
+LIM_K <- 3
+sq <- function(x) pmin(pmax(x, 0), LIM_K)
+nuvem <- do.call(rbind, lapply(split(draws_all, draws_all$cenario), function(d) d[sample(nrow(d), min(250, nrow(d))), ]))
+nuvem$familia <- factor(nuvem$familia, ORD_FAM)
+pts <- cen_all
+quad <- do.call(rbind, lapply(split(draws_all, draws_all$modelo), function(d) data.frame(
+  modelo = d$modelo[1],
+  x = c(LIM_K, 0.02, LIM_K, 0.02), y = c(0.05, 0.05, LIM_K, LIM_K),
+  hj = c(1, 0, 1, 0), vj = c(0, 0, 1, 1),
+  lab = sprintf("%s%%", fmt_num(100 * c(mean(d$BBmsy >= 1 & d$FFmsy <= 1), mean(d$BBmsy < 1 & d$FFmsy <= 1),
+                                        mean(d$BBmsy >= 1 & d$FFmsy > 1), mean(d$BBmsy < 1 & d$FFmsy > 1)), 0)))))
+p05 <- ggplot() +
+  annotate("rect", xmin = 1, xmax = Inf, ymin = -Inf, ymax = 1, fill = "#2E9E5B", alpha = 0.18) +
+  annotate("rect", xmin = -Inf, xmax = 1, ymin = -Inf, ymax = 1, fill = "#E8B400", alpha = 0.20) +
+  annotate("rect", xmin = 1, xmax = Inf, ymin = 1, ymax = Inf, fill = "#E07B00", alpha = 0.20) +
+  annotate("rect", xmin = -Inf, xmax = 1, ymin = 1, ymax = Inf, fill = "#C0392B", alpha = 0.20) +
+  geom_point(data = nuvem, aes(sq(BBmsy), sq(FFmsy), colour = familia), size = 0.35, alpha = 0.12) +
+  geom_point(data = pts, aes(sq(BBmsy), sq(FFmsy), fill = familia), shape = 21, colour = "white",
+             size = 2.9, stroke = 0.6) +
+  geom_text(data = quad, aes(x, y, label = lab, hjust = hj, vjust = vj), size = 3.2, colour = INK, fontface = "bold") +
+  facet_wrap(~modelo, nrow = 1, labeller = as_labeller(function(m) paste0(m, " (", ANO_FINAL[m], ")"))) +
+  scale_colour_manual(values = COR_FAM, guide = "none") +
+  scale_fill_manual(values = COR_FAM, labels = ROT_FAM) +
+  coord_cartesian(xlim = c(0, LIM_K), ylim = c(0, LIM_K), expand = FALSE) +
+  guides(fill = guide_legend(nrow = 2, byrow = TRUE, override.aes = list(size = 3.5))) +
+  labs(title = "Diagrama de Kobe no ano final — três modelos",
+       subtitle = "Verde: saudável | amarelo: sobrepescado sem sobrepesca | laranja: sobrepesca | vermelho: sobrepescado e com sobrepesca. % = probabilidade do pool.",
+       x = "B / Bmsy", y = "F / Fmsy",
+       caption = sprintf("Pool com %d sorteios por cenário (pesos iguais). JABBA inclui as três famílias; ver S07 para cada cenário.", N_POR_CENARIO)) +
+  tema_sint + theme(panel.spacing = unit(1, "lines"))
+salva_fig(p05, "S05_kobe_final.png", 32, 13)
+
+## =============================================================================
+## S06. DISTRIBUIÇÕES CONJUNTAS — Bt/K final e MSY, por modelo
+## =============================================================================
+## Densidade de cada grupo normalizada ao pico (o que se compara é a POSIÇÃO
+## e a LARGURA, não a altura). MSY em escala log: a densidade é calculada
+## em log(MSY) e voltada para a escala original (mudança de variável
+## f_X(x) = f_U(u)/x), como nos scripts de cada modelo.
+cat("\n--- S06 densidades conjuntas ---\n")
+dens_grupo <- function(v, log_x, de = NULL, ate = NULL) do.call(rbind, lapply(ORD_GRUPO, function(g) {
+  x <- draws_all[[v]][draws_all$grupo == g]; x <- x[is.finite(x) & (!log_x | x > 0)]
+  if (length(x) < 20) return(NULL)
+  if (log_x) { d <- density(log(x), adjust = 2.5); xx <- exp(d$x); yy <- d$y / xx
+  } else { d <- density(x, adjust = 1.5, from = de %||% min(x), to = ate %||% max(x)); xx <- d$x; yy <- d$y }
+  data.frame(grupo = g, x = xx, y = yy / max(yy), mediana = median(x))
+}))
+dB <- dens_grupo("BtK", FALSE, 0, max(1, q(draws_all$BtK, 0.995)))
+dM <- dens_grupo("MSY", TRUE)
+dM <- dM[dM$x <= q(draws_all$MSY, 0.995) & dM$x >= q(draws_all$MSY, 0.001), ]
+graf_dens <- function(d, titulo, xlab, log_x) {
+  d$grupo <- factor(d$grupo, ORD_GRUPO)
+  med <- unique(d[, c("grupo", "mediana")])
+  p <- ggplot(d, aes(x, y, colour = grupo, linetype = grupo)) +
+    geom_area(aes(fill = grupo), alpha = 0.08, position = "identity", colour = NA) +
+    geom_line(linewidth = 0.9) +
+    geom_vline(data = med, aes(xintercept = mediana, colour = grupo, linetype = grupo), linewidth = 0.5,
+               show.legend = FALSE) +
+    scale_colour_manual(values = COR_GRUPO, labels = rot_grupo) +
+    scale_fill_manual(values = COR_GRUPO, labels = rot_grupo) +
+    scale_linetype_manual(values = LTY_GRUPO, labels = rot_grupo) +
+    labs(title = titulo, x = xlab, y = "densidade (normalizada ao pico)") +
+    tema_sint + guides(colour = guide_legend(nrow = 2), fill = "none")
+  if (log_x) p <- p + scale_x_log10(labels = fmt_int, breaks = c(300, 500, 1000, 2000, 3000, 5000, 10000, 20000))
+  p
+}
+p06 <- (graf_dens(dB, "B/K no ano final", "B / K", FALSE) |
+          graf_dens(dM, "MSY", "MSY (t/ano, escala log)", TRUE)) +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "bottom")
+p06 <- p06 + plot_annotation(
+  title = "Distribuições conjuntas (todos os cenários de cada modelo combinados)",
+  subtitle = "Linhas verticais = medianas. A largura mede o desacordo entre cenários, não a incerteza de um único modelo.",
+  caption = "MSY converge entre DB-SRA, CMSY++ e JABBA janela completa; o B/K final não — ele segue a premissa (catch-only) ou o índice escolhido (JABBA).",
+  theme = tema_sint)
+salva_fig(p06, "S06_densidades_conjuntas.png", 30, 13)
+
+## =============================================================================
+## S07. STATUS NO ANO FINAL — todos os cenários, os três modelos (slide 30)
+## =============================================================================
+cat("\n--- S07 status final por cenário ---\n")
+s7 <- cen_all
+s7$titulo <- factor(sprintf("%s (%d) · %d cenários", s7$modelo, s7$ano_final,
+                            table(s7$modelo)[as.character(s7$modelo)]))
+s7$titulo <- factor(s7$titulo, unique(s7$titulo[order(s7$modelo)]))
+s7$y <- factor(paste(s7$modelo, s7$rotulo), rev(paste(s7$modelo, s7$rotulo)))
+p07 <- ggplot(s7, aes(y = y)) +
+  annotate("rect", xmin = -Inf, xmax = 1, ymin = -Inf, ymax = Inf, fill = "#C0392B", alpha = 0.08) +
+  geom_vline(xintercept = 1, colour = INK, linewidth = 0.5) +
+  geom_vline(xintercept = 0.5, colour = MUT, linetype = "dotted") +
+  geom_segment(aes(x = sq(BBmsy_lo), xend = sq(BBmsy_hi), yend = y, colour = familia),
+               linewidth = 0.7, alpha = 0.55) +
+  geom_point(aes(x = sq(BBmsy), fill = familia), shape = 21, colour = "white", size = 3, stroke = 0.6) +
+  facet_wrap(~titulo, nrow = 1, scales = "free_y") +
+  scale_y_discrete(labels = function(v) sub("^(DB-SRA|CMSY\\+\\+|JABBA) ", "", v)) +
+  scale_colour_manual(values = COR_FAM, guide = "none") +
+  scale_fill_manual(values = COR_FAM, labels = ROT_FAM) +
+  scale_x_continuous(limits = c(0, LIM_K), breaks = 0:3, expand = expansion(mult = c(0, 0.02))) +
+  guides(fill = guide_legend(nrow = 2, byrow = TRUE, override.aes = list(size = 3.5))) +
+  labs(title = "Status no ano final — todos os cenários, os três modelos",
+       subtitle = "Ponto = mediana de B/Bmsy; traço = IC 95%. Faixa rosada = sobrepescado (B < Bmsy); pontilhado = 0,5 Bmsy.",
+       x = "B / Bmsy no ano final", y = NULL,
+       caption = "O B/Bmsy vai de ~0,15 a ~2,6 conforme a hipótese: é a premissa (ou o índice) que define o status.") +
+  tema_sint + theme(axis.text.y = element_text(size = 7.5), panel.spacing = unit(1.2, "lines"))
+salva_fig(p07, "S07_status_final_cenarios.png", 34, 18)
+
+## =============================================================================
+## S08. CAPTURAS x MSY DOS TRÊS MODELOS
+## =============================================================================
+## Barras = captura total (a série que entrou nos modelos). Linhas = mediana
+## do MSY do pool de cada grupo; faixa = intervalo interquartil (50%
+## central). A pergunta que a figura responde: por quanto tempo e quanto a
+## captura ficou acima do nível que cada modelo considera sustentável.
+cat("\n--- S08 capturas x MSY ---\n")
+msy_g <- do.call(rbind, lapply(ORD_GRUPO, function(g) {
+  x <- draws_all$MSY[draws_all$grupo == g]
+  if (!length(x)) return(NULL)
+  data.frame(grupo = g, med = median(x), q1 = q(x, .25), q3 = q(x, .75), lo = q(x, .025), hi = q(x, .975))
+}))
+msy_g$grupo <- factor(msy_g$grupo, ORD_GRUPO)
+cap$tipo <- ifelse(grepl("interpol|media|média", cap$fonte, ignore.case = TRUE), "Ano corrigido (2014, 2018)",
+                   ifelse(grepl("cerco", cap$fonte, ignore.case = TRUE), "Só cerco (2024–2025, só no JABBA)",
+                          "Observada"))
+x_fim <- max(cap$ano) + 0.6
+## rótulos à direita: se duas medianas ficam muito perto (DB-SRA e CMSY++
+## costumam ficar), afasta os textos verticalmente — as linhas continuam
+## no lugar certo, só o texto é deslocado.
+sep_min <- 0.045 * max(cap$captura, msy_g$q3)
+o <- order(msy_g$med); y_lab <- msy_g$med[o]
+for (i in seq_along(y_lab)[-1]) y_lab[i] <- max(y_lab[i], y_lab[i - 1] + sep_min)
+msy_g$y_lab[o] <- y_lab
+p08 <- ggplot() +
+  geom_rect(data = msy_g, aes(xmin = min(cap$ano) - 0.5, xmax = x_fim, ymin = q1, ymax = q3, group = grupo),
+            fill = COR_GRUPO[as.character(msy_g$grupo)], alpha = 0.08) +
+  geom_col(data = cap, aes(ano, captura, fill = tipo), width = 0.75) +
+  geom_segment(data = msy_g, aes(x = min(cap$ano) - 0.5, xend = x_fim, y = med, yend = med,
+                                 colour = grupo, linetype = grupo), linewidth = 1) +
+  geom_text(data = msy_g, aes(x = x_fim + 0.3, y = y_lab,
+                              label = sprintf("%s: %s t", grupo, fmt_int(med))),
+            hjust = 0, size = 3.1, colour = INK) +
+  scale_fill_manual(values = c("Observada" = "#AFBBC6", "Ano corrigido (2014, 2018)" = "#7F8C95",
+                               "Só cerco (2024–2025, só no JABBA)" = "#D5DCE2")) +
+  scale_colour_manual(values = COR_GRUPO, guide = "none") +
+  scale_linetype_manual(values = LTY_GRUPO, guide = "none") +
+  scale_x_continuous(breaks = seq(1990, 2025, 5), expand = expansion(add = c(0.5, 9))) +
+  scale_y_continuous(labels = fmt_int, expand = expansion(mult = c(0, 0.05))) +
+  coord_cartesian(clip = "off") +
+  labs(title = "Capturas históricas × MSY estimado pelos três modelos",
+       subtitle = "Linha = mediana do MSY (todos os cenários do grupo, pesos iguais); faixa = 50% central. Tracejado = JABBA janela curta.",
+       x = NULL, y = "Toneladas",
+       caption = sprintf("IC 95%% do MSY: %s.", paste(sprintf("%s %s–%s t", msy_g$grupo, fmt_int(msy_g$lo), fmt_int(msy_g$hi)), collapse = "; "))) +
+  tema_sint + theme(panel.grid.major.x = element_blank())
+salva_fig(p08, "S08_capturas_MSY.png", 32, 13)
+
+## =============================================================================
+## S09. TABELA DE STATUS POR MODELO E FAMÍLIA DE CENÁRIOS
+## =============================================================================
+## Faixas = menor e maior MEDIANA entre os cenários da família (não o IC).
+## Probabilidades = pool da família (pesos iguais por cenário).
+## A coluna "Leitura" é interpretação (a mesma da apresentação) e fica num
+## dicionário aqui embaixo para ser editada à mão se os resultados mudarem.
+cat("\n--- S09 tabela de status por modelo e família ---\n")
+LEITURA <- c(
+  "DB-SRA|NN_CMSY"          = "Base; aceitação muito baixa",
+  "DB-SRA|zBRT"             = "Base; B/K final no teto da priori",
+  "DB-SRA|Target_switch"    = "Alternativa plausível",
+  "DB-SRA|Uninformative_bk" = "Sensibilidade; não defensável",
+  "CMSY++|NN_CMSY"          = "Base; viabilidade muito baixa",
+  "CMSY++|zBRT"             = "Base; RU(B/K) ≈ 0 (B/K = priori)",
+  "CMSY++|Target_switch"    = "Alternativa plausível",
+  "CMSY++|Uninformative_bk" = "Sensibilidade",
+  "JABBA|J_completa"        = "Mal ajustado; r, K e psi ≈ prioris",
+  "JABBA|J_bimodal"         = "Indeterminado (duas soluções)",
+  "JABBA|J_curta"           = "Sem âncora histórica; psi define o nível")
+fx <- function(x, d = 2) if (length(x) == 1 || diff(range(x)) < 10^-d) fmt_num(median(x), d) else
+  paste(fmt_num(min(x), d), "–", fmt_num(max(x), d))
+tab_s9 <- do.call(rbind, lapply(split(cen_all, list(cen_all$modelo, cen_all$familia), drop = TRUE), function(d) {
+  dd <- draws_all[draws_all$cenario %in% d$cenario, ]
+  pB <- mean(dd$BBmsy < 1); pF <- mean(dd$FFmsy > 1)
+  data.frame(Modelo = as.character(d$modelo[1]), Familia = sub("^JABBA: ", "", ROT_FAM[as.character(d$familia[1])]),
+             Cenarios = nrow(d), Ano = d$ano_final[1],
+             BBmsy_final = fx(d$BBmsy), FFmsy_final = fx(d$FFmsy),
+             P_sobrepescado = pB, P_sobrepesca = pF,
+             Sobrepescado = ifelse(pB >= 0.8, "Sim", ifelse(pB <= 0.2, "Não", "Incerto")),
+             Sobrepesca   = ifelse(pF >= 0.8, "Sim", ifelse(pF <= 0.2, "Não", "Incerto")),
+             Leitura = unname(LEITURA[paste(d$modelo[1], d$familia[1], sep = "|")]),
+             ord_m = as.integer(d$modelo[1]), ord_f = match(as.character(d$familia[1]), ORD_FAM))
+}))
+tab_s9 <- tab_s9[order(tab_s9$ord_m, tab_s9$ord_f), ]
+tab_s9$ord_m <- tab_s9$ord_f <- NULL; rownames(tab_s9) <- NULL
+salva_tab(tab_s9, "tabela_status_modelo_familia")
+
+## versão figura: grade de células com ggplot (sem pacotes extras de tabela)
+cols <- c("Modelo", "Família", "Cen.", "B/Bmsy final", "F/Fmsy final", "P(B<Bmsy)", "P(F>Fmsy)",
+          "Sobrepescado", "Sobrepesca", "Leitura")
+larg <- c(1.1, 3.0, 0.6, 1.4, 1.4, 1.1, 1.1, 1.2, 1.1, 3.4)
+x0 <- cumsum(c(0, head(larg, -1)))
+cel <- do.call(rbind, lapply(seq_len(nrow(tab_s9)), function(i) {
+  r <- tab_s9[i, ]
+  data.frame(lin = i, col = seq_along(cols), x = x0, w = larg,
+             txt = c(r$Modelo, r$Familia, r$Cenarios, r$BBmsy_final, r$FFmsy_final,
+                     fmt_num(r$P_sobrepescado, 2), fmt_num(r$P_sobrepesca, 2), r$Sobrepescado, r$Sobrepesca,
+                     ifelse(is.na(r$Leitura), "", r$Leitura)),
+             stringsAsFactors = FALSE)
+}))
+cel$cor_txt <- INK
+cel$cor_txt[cel$col == 1] <- COR_MODELO[cel$txt[cel$col == 1]]
+estado_cor <- c("Sim" = "#C0392B", "Não" = "#1E7F4F", "Incerto" = "#B36B00")
+k <- cel$col %in% 8:9; cel$cor_txt[k] <- estado_cor[cel$txt[k]]
+cel$negrito <- ifelse(cel$col %in% c(1, 8, 9), "bold", "plain")
+cel$fundo <- ifelse(cel$lin %% 2 == 0, "#F2F5F7", "white")
+cab <- data.frame(x = x0, w = larg, txt = cols)
+nl <- nrow(tab_s9)
+p09 <- ggplot() +
+  geom_rect(data = cel, aes(xmin = x, xmax = x + w, ymin = -lin - 0.5, ymax = -lin + 0.5), fill = cel$fundo) +
+  geom_rect(data = cab, aes(xmin = x, xmax = x + w, ymin = -0.5, ymax = 0.5), fill = "#1F4E79") +
+  geom_text(data = cab, aes(x = x + 0.06, y = 0, label = txt), hjust = 0, colour = "white", fontface = "bold", size = 3.1) +
+  geom_text(data = cel, aes(x = x + 0.06, y = -lin, label = txt), hjust = 0, colour = cel$cor_txt,
+            fontface = cel$negrito, size = 2.9) +
+  coord_cartesian(xlim = c(0, sum(larg)), ylim = c(-nl - 0.5, 0.5), expand = FALSE) +
+  labs(title = "Status por modelo e família de cenários",
+       caption = paste0("Faixas = menor–maior mediana entre os cenários da família. P = probabilidade no pool da família (pesos iguais). ",
+                        "Sim/Não = P >= 0,8 / <= 0,2; entre os dois = Incerto. Anos finais: DB-SRA e CMSY++ ",
+                        ano_db, ", JABBA ", ano_jb, ".")) +
+  theme_void(base_size = 11) +
+  theme(plot.title = element_text(face = "bold", size = 13, colour = INK, margin = margin(b = 6)),
+        plot.caption = element_text(colour = MUT, size = 8, hjust = 0),
+        plot.background = element_rect(fill = "white", colour = NA), plot.margin = margin(10, 10, 10, 10))
+salva_fig(p09, "S09_tabela_status_modelo_familia.png", 34, 2.2 + 0.85 * (nl + 1))
+
+## =============================================================================
+## S10. CAPTURA x CPUE — por que o índice não resolve (slide 29)
+## =============================================================================
+## Se a CPUE medisse abundância numa pescaria que derrubou o estoque, ela
+## deveria CAIR enquanto a captura se mantém/sobe (ou pelo menos se
+## descolar dela). Aqui, em todos os índices, as duas sobem e descem juntas
+## no mesmo ano (Spearman alto e positivo): assinatura de esforço/
+## direcionamento, não de biomassa. Painel da esquerda: séries divididas
+## pela própria média (base comum = 1), sem eixo duplo.
+cat("\n--- S10 captura x CPUE ---\n")
+cp <- read.csv(file.path(DIR_CI, "cenarios_cpue_macarellus.csv"))
+cp <- merge(cp, data.frame(tempo = cap$ano, captura = cap$captura), by = "tempo")
+rho <- do.call(rbind, lapply(split(cp, cp$cenario), function(d) data.frame(
+  cenario = d$cenario[1], n = nrow(d),
+  rho = suppressWarnings(cor(d$indice, d$captura, method = "spearman", use = "complete.obs")))))
+rho$rot <- sub("^(C[0-9]+) ", "\\1 · ", rho$cenario)
+rho <- rho[order(rho$cenario), ]
+rho$rot <- factor(rho$rot, rev(rho$rot))
+salva_tab(rho[, c("cenario", "n", "rho")], "spearman_captura_indices")
+
+nom <- grep("^C1", unique(cp$cenario), value = TRUE)[1]   # CPUE nominal da série inteira
+pad <- grep("^C5", unique(cp$cenario), value = TRUE)[1]   # padronizada com tática
+s10 <- rbind(data.frame(ano = cap$ano, serie = "Captura total", v = cap$captura / mean(cap$captura[cap$ano %in% cp$tempo])),
+             do.call(rbind, lapply(na.omit(c(nom, pad)), function(k) {
+               d <- cp[cp$cenario == k, ]; data.frame(ano = d$tempo, serie = k, v = d$indice / mean(d$indice))
+             })))
+s10$serie <- factor(s10$serie, unique(s10$serie))   # captura primeiro na legenda
+COR_S10 <- setNames(c("#8A949C", "#D2602A", "#2A6FB5")[seq_along(unique(s10$serie))], unique(s10$serie))
+p10a <- ggplot(s10, aes(ano, v, colour = serie)) +
+  geom_vline(xintercept = 2014.5, colour = MUT, linetype = "dotted") +
+  annotate("text", x = 2014.7, y = max(s10$v) * 0.98, label = "troca de alvo", hjust = 0, size = 3, colour = MUT) +
+  geom_line(linewidth = 0.9) + geom_point(size = 1.4) +
+  scale_colour_manual(values = COR_S10) +
+  guides(colour = guide_legend(nrow = 2)) +
+  labs(title = "Captura e CPUE sobem e descem juntas", x = NULL, y = "Valor relativo (média = 1)") +
+  tema_sint
+p10b <- ggplot(rho, aes(rho, rot)) +
+  geom_col(fill = "#2A6FB5", width = 0.6) +
+  geom_text(aes(label = fmt_num(rho, 2)), hjust = -0.2, size = 3.2, colour = INK) +
+  geom_vline(xintercept = 0, colour = INK, linewidth = 0.4) +
+  scale_x_continuous(limits = c(min(0, min(rho$rho) - 0.1), 1.12)) +
+  labs(title = "ρ de Spearman (mesmo ano)", x = "ρ (índice × captura)", y = NULL) +
+  tema_sint + theme(panel.grid.major.y = element_blank())
+p10 <- (p10a | p10b) + plot_layout(widths = c(2, 1)) +
+  plot_annotation(caption = "Esperado se a CPUE medisse depleção: ρ negativo ou perto de zero. Observado: positivo em todos os índices.",
+                  theme = tema_sint)
+salva_fig(p10, "S10_captura_x_cpue.png", 32, 12)
+
+## =============================================================================
+## S11. K x MSY — o que é robusto e o que não é
+## =============================================================================
+## Cada ponto = um sorteio. Nos três modelos a nuvem é "deitada": K varia
+## mais de uma ordem de grandeza enquanto o MSY fica numa faixa estreita —
+## r e K se compensam (MSY = rK/4 no Schaefer). É a base para reportar o MSY
+## e NÃO reportar K ou biomassa absoluta.
+cat("\n--- S11 K x MSY ---\n")
+n11 <- do.call(rbind, lapply(split(draws_all, draws_all$cenario), function(d) d[sample(nrow(d), min(300, nrow(d))), ]))
+n11 <- n11[n11$K > 0 & n11$MSY > 0, ]
+n11$grupo <- factor(n11$grupo, ORD_GRUPO)
+msy_comum <- draws_all$MSY[draws_all$grupo != "JABBA janela curta"]   # pool dos 3 modelos com a série inteira
+p11 <- ggplot(n11, aes(K, MSY)) +
+  annotate("rect", xmin = min(n11$K) / 1.5, xmax = max(n11$K) * 1.5, ymin = q(msy_comum, .25), ymax = q(msy_comum, .75),
+           fill = INK, alpha = 0.05) +
+  geom_point(aes(colour = grupo), size = 0.4, alpha = 0.15) +
+  facet_wrap(~grupo, nrow = 1, labeller = as_labeller(rot_grupo)) +
+  scale_colour_manual(values = COR_GRUPO, guide = "none") +
+  scale_x_log10(labels = fmt_int, breaks = c(3000, 10000, 30000, 100000)) +
+  scale_y_continuous(labels = fmt_int) +
+  coord_cartesian(ylim = c(0, q(n11$MSY, 0.995))) +
+  labs(title = "K × MSY — o K varia mais de uma ordem de grandeza; o MSY, muito menos",
+       subtitle = "Cada ponto = um sorteio. Faixa cinza = 50% central do MSY no pool DB-SRA + CMSY++ + JABBA janela completa.",
+       x = "K (t, escala log)", y = "MSY (t/ano)") +
+  tema_sint
+salva_fig(p11, "S11_K_x_MSY.png", 32, 11)
+
+## =============================================================================
+## 12. TABELA-RESUMO DA COMPARAÇÃO DOS MODELOS (parte numérica do slide 32)
+## =============================================================================
+cat("\n--- tabela de comparação dos modelos ---\n")
+ic <- function(x, d = 0) sprintf("%s (%s–%s)", if (d) fmt_num(median(x), d) else fmt_int(median(x)),
+                                 if (d) fmt_num(q(x, .025), d) else fmt_int(q(x, .025)),
+                                 if (d) fmt_num(q(x, .975), d) else fmt_int(q(x, .975)))
+tab_comp <- do.call(rbind, lapply(ORD_GRUPO, function(g) {
+  dd <- draws_all[draws_all$grupo == g, ]; if (!nrow(dd)) return(NULL)
+  cc <- cen_all[cen_all$cenario %in% unique(dd$cenario), ]
+  data.frame(Grupo = g, Ano_final = cc$ano_final[1], Cenarios = nrow(cc),
+             MSY_t = ic(dd$MSY), K_t = ic(dd$K), BtK_final = ic(dd$BtK, 2),
+             BBmsy_medianas = fx(cc$BBmsy), FFmsy_medianas = fx(cc$FFmsy),
+             Cenarios_sobrepescados = sprintf("%d de %d", sum(cc$BBmsy < 1), nrow(cc)),
+             Cenarios_com_sobrepesca = sprintf("%d de %d", sum(cc$FFmsy > 1), nrow(cc)),
+             P_sobrepescado_pool = round(mean(dd$BBmsy < 1), 2),
+             P_sobrepesca_pool = round(mean(dd$FFmsy > 1), 2))
+}))
+salva_tab(tab_comp, "tabela_comparacao_modelos")
+print(tab_comp, row.names = FALSE)
+
+## ---- mensagens-chave impressas no console (para o texto do relatório) ------
+cat("\n===== SÍNTESE — números para o texto =====\n")
+for (i in seq_len(nrow(tab_comp))) with(tab_comp[i, ], cat(sprintf(
+  "%-22s MSY %s t | B/K final %s | B/Bmsy (medianas) %s | F/Fmsy %s | sobrepescados %s\n",
+  Grupo, MSY_t, BtK_final, BBmsy_medianas, FFmsy_medianas, Cenarios_sobrepescados)))
+cat(sprintf("Spearman índice x captura: de %s a %s (todos positivos = %s)\n",
+            fmt_num(min(rho$rho), 2), fmt_num(max(rho$rho), 2), all(rho$rho > 0)))
+cat("Figuras e tabelas em:", DIR_SINT, "\n")
+cat("\n############ FIM DA SÍNTESE ############\n")

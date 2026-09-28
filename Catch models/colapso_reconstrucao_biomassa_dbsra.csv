@@ -1,10 +1,10 @@
 "cenario","n_colapso","frac_colapso"
-"zBRT_Vieira (2019)",1,0.00317460317460317
 "NN_CMSY_Jardim (1999)",0,0
 "NN_CMSY_Santos (2018)",0,0
 "NN_CMSY_Vieira (2019)",0,0
 "zBRT_Jardim (1999)",0,0
 "zBRT_Santos (2018)",0,0
+"zBRT_Vieira (2019)",0,0
 "Target_switch_Jardim (1999)",0,0
 "Target_switch_Santos (2018)",0,0
 "Target_switch_Vieira (2019)",0,0
