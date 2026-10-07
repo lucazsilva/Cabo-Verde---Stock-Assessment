@@ -1803,7 +1803,10 @@ plot_prior_post <- function(prior_dens_fun, post_values, xlim, xlab, col_post, m
 
 gerar_priori_posteriori <- function(cenario_id, cen_row,
                                     fmsym_mean = 0.8, fmsym_sd = 0.3,
-                                    bmsyk_mean = 0.35, bmsyk_sd = 0.1,
+                                    # 0.4 = a MESMA media da priori de Bmsy/K usada no dbsra()
+                                    # (bmsyk = list(..., mean = 0.4, sd = 0.1)); antes estava 0.35,
+                                    # o que desenhava a priori deslocada nos graficos
+                                    bmsyk_mean = 0.4, bmsyk_sd = 0.1,
                                     m_sd = 0.10) {
   res <- resultados_dbsra[[cenario_id]]
   acc <- res$Values
@@ -2117,6 +2120,55 @@ final_exp$ano_ref <- refyr
 write.csv(traj_exp,  "trajetorias_dbsra.csv",       row.names = FALSE)
 write.csv(final_exp, "posteriores_finais_dbsra.csv", row.names = FALSE)
 cat("CSV salvos: trajetorias_dbsra.csv e posteriores_finais_dbsra.csv (usados na sintese dos 3 modelos)\n")
+
+## ---------------------------------------------------------------------
+## Tabela de resultados POR HIPÓTESE de depleção final (tabela do relatório)
+## ---------------------------------------------------------------------
+# Uma linha por hipótese de B/K final. Cada célula é a FAIXA (mínimo–máximo)
+# das MEDIANAS dos três cenários de M daquela hipótese — mostra ao mesmo
+# tempo o valor típico e quanto a escolha de M mexe nele.
+#   Aceitação (%) ... % das 10.000 simulações aceitas (tabela_aceitacao)
+#   K, MSY, Bmsy/K, Fmsy/M e B/K ... medianas das simulações aceitas
+#                                    (tabela_resumo; B/K = BtK no refyr)
+#   B/Bmsy e F/Fmsy no refyr ....... medianas por trajetória aceita
+#                                    (final_exp, exportado logo acima;
+#                                     F/Fmsy aqui = U/Umsy, ver nota acima)
+# Saída: tabela_resultados_hipotese_dbsra.csv / .xlsx (pasta do script).
+faixa_txt <- function(x, dig) {
+  r <- formatC(range(x), format = "f", digits = dig, big.mark = ".", decimal.mark = ",")
+  if (r[1] == r[2]) r[1] else paste0(r[1], "–", r[2])     # "a–b" (ou só "a")
+}
+med_cen <- function(v) {                     # mediana de uma variável, por cenário
+  d <- tabela_resumo[tabela_resumo$variavel == v, c("cenario_id", "mediana")]
+  setNames(d$mediana, d$cenario_id)
+}
+med_fin <- function(v) tapply(final_exp[[v]], final_exp$cenario_id, median)
+ordem_hip <- intersect(c("NN_CMSY", "zBRT", "Target_switch", "Uninformative_bk"),
+                       unique(tabela_aceitacao$hipotese))
+nome_hip  <- c(NN_CMSY = "Rede neural (NN-CMSY++)", zBRT = "zBRT",
+               Target_switch = "Mudança de alvo", Uninformative_bk = "Não informativa")
+tab_hip_dbsra <- do.call(rbind, lapply(ordem_hip, function(h) {
+  ids <- tabela_aceitacao$cenario_id[tabela_aceitacao$hipotese == h]
+  data.frame(
+    Hipotese        = nome_hip[[h]],
+    Cenarios_M      = length(ids),
+    Aceitacao_pct   = faixa_txt(tabela_aceitacao$pct_aceitacao[tabela_aceitacao$hipotese == h], 1),
+    K_mil_t         = faixa_txt(med_cen("K")[ids] / 1000, 1),
+    MSY_t           = faixa_txt(med_cen("MSY")[ids], 0),
+    BtK_refyr       = faixa_txt(med_cen("BtK")[ids], 2),
+    BmsyK           = faixa_txt(med_cen("BmsyK")[ids], 2),
+    FmsyM           = faixa_txt(med_cen("FmsyM")[ids], 2),
+    BBmsy_refyr     = faixa_txt(med_fin("BBmsy")[ids], 2),
+    FFmsy_refyr     = faixa_txt(med_fin("FFmsy")[ids], 2),
+    check.names = FALSE)
+}))
+names(tab_hip_dbsra) <- c("Hipótese", "Cenários de M", "Aceitação (%)", "K (mil t)", "MSY (t)",
+                          sprintf("B%d/K", refyr), "Bmsy/K", "Fmsy/M",
+                          sprintf("B/Bmsy %d", refyr), sprintf("F/Fmsy %d", refyr))
+cat("\n===== Resultados do DB-SRA por hipótese (faixa das medianas entre os M) =====\n")
+print(tab_hip_dbsra, row.names = FALSE)
+write.csv(tab_hip_dbsra, "tabela_resultados_hipotese_dbsra.csv", row.names = FALSE, fileEncoding = "UTF-8")
+write_xlsx(tab_hip_dbsra, path = "tabela_resultados_hipotese_dbsra.xlsx")
 
 ## ---------------------------------------------------------------------
 ## Grafico unico -- todos os cenarios sobrepostos (mediana + IC 95%)

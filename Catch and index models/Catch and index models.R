@@ -5665,6 +5665,8 @@ cat("\n===== FIM =====\n")
 ##
 ##   S01_priors_deplecao.png             prioris de B/K inicial (1989) e final
 ##   S02_aceitacao_cenarios.png          % de simulações aceitas: DB-SRA x CMSY++
+##   S02a_aceitacao_dbsra.png            o painel do DB-SRA da S02, sozinho
+##   S02b_viabilidade_cmsy.png           o painel do CMSY++ da S02, sozinho
 ##   S03_trajetorias_relativas.png       B/K e B/Bmsy, todos os cenários, 3 modelos
 ##   S04_trajetorias_FFmsy.png           F/Fmsy, todos os cenários, 3 modelos
 ##   S05_kobe_final.png                  Kobe do ano final, 3 modelos
@@ -5674,6 +5676,13 @@ cat("\n===== FIM =====\n")
 ##   S09_tabela_status_modelo_familia.png  tabela de status por modelo e família
 ##   S10_captura_x_cpue.png              captura e CPUE andam juntas (Spearman)
 ##   S11_K_x_MSY.png                     o que é robusto (MSY) e o que não é (K)
+##   S12_priori_posteriori_dbsra.png     priori x posteriori do DB-SRA (B/K final, Bmsy/K)
+##   S13_priori_posteriori_cmsy.png      priori x posteriori do CMSY++ (r, B/K final)
+##   S14_priori_posteriori_jabba.png     priori x posteriori do JABBA (r, K, MSY, psi, B/K)
+##   S15_indices_cpue_padronizados.png   variantes do índice padronizado e IC 95%
+##   S16_series_finais_cpue.png          séries finais de CPUE C1–C6 (entrada do JABBA)
+##   S17_residuos_rmse_jabba.png         resíduos do JABBA por índice + RMSE/SDNR
+##   S18_tornado_sensibilidade_3modelos.png  sensibilidade (tornado) dos 3 modelos
 ##   tabela_status_modelo_familia.csv    (e .xlsx)
 ##   tabela_comparacao_modelos.csv       (e .xlsx) — números da tabela-resumo
 ##   tabela_cenarios_3modelos.csv        1 linha por cenário, os 3 modelos
@@ -5690,6 +5699,10 @@ cat("\n===== FIM =====\n")
 ##   * Catch and index models/ — este script:
 ##       - desembarques_macarellus_1989_2025.csv (seção 12 da parte 03)
 ##       - cenarios_cpue_macarellus.csv (índices C1–C6)
+##       - indices_todos_cenarios.csv (variantes do índice padronizado, S15)
+##       - JABBA_macarellus/jabba_residuos.csv, jabba_ajuste_convergencia.csv
+##         e jabba_tornado_sensibilidade.csv (S17 e S18)
+##   * Catch models/tornado_sensibilidade_msy_dbsra.csv e _cmsy.csv (S18)
 ##       - JABBA_macarellus/: jabba_trajetorias.csv, jabba_status_final.csv,
 ##         jabba_bimodalidade_BK.csv, jabba_cenarios_racional.csv e os
 ##         macarellus_CV_<cenario>_jabba.rdata (posteriores completas)
@@ -5957,6 +5970,20 @@ i_jb <- cen_all$modelo == "JABBA"
 j <- match(cen_all$cenario[i_jb], stat_jb$cenario)
 cen_all[i_jb, c("BBmsy", "BBmsy_lo", "BBmsy_hi", "FFmsy", "FFmsy_lo", "FFmsy_hi")] <-
   stat_jb[j, c("BBmsy", "BBmsy_lci", "BBmsy_uci", "FFmsy", "FFmsy_lci", "FFmsy_uci")]
+## DB-SRA: medianas e IC 95% de TODAS as trajetórias aceitas
+## (posteriores_finais_dbsra.csv), e não da subamostra de N_POR_CENARIO
+## sorteios usada no pool. Assim os números por cenário não dependem do
+## sorteio e batem com a tabela por hipótese gravada pelo Catch_models.R
+## (tabela_resultados_hipotese_dbsra.csv). As probabilidades P_* continuam
+## vindo do pool (pesos iguais), que é o que elas resumem.
+i_db <- cen_all$modelo == "DB-SRA"
+res_db <- do.call(rbind, lapply(split(fin_db, fin_db$cenario_id), function(d) data.frame(
+  cenario = d$cenario_id[1],
+  BBmsy = median(d$BBmsy), BBmsy_lo = q(d$BBmsy, .025), BBmsy_hi = q(d$BBmsy, .975),
+  FFmsy = median(d$FFmsy), FFmsy_lo = q(d$FFmsy, .025), FFmsy_hi = q(d$FFmsy, .975),
+  BtK = median(d$BtK), MSY = median(d$MSY), K = median(d$K))))
+j <- match(cen_all$cenario[i_db], res_db$cenario)
+cen_all[i_db, names(res_db)[-1]] <- res_db[j, -1]
 cen_all$ano_final <- ANO_FINAL[cen_all$modelo]
 cen_all$modelo  <- factor(cen_all$modelo, ORD_MOD)
 cen_all$familia <- factor(cen_all$familia, ORD_FAM)
@@ -6069,6 +6096,18 @@ p02 <- graf_acc(a_db, "DB-SRA — simulações aceitas (%)", "Fonte de M") /
                   caption = "Quanto mais baixa a depleção final imposta, menos simulações reproduzem a série sem colapsar.",
                   theme = tema_sint)
 salva_fig(p02, "S02_aceitacao_cenarios.png", 26, 20)
+
+## ---- S02a / S02b: os mesmos dois painéis, cada um no seu arquivo ----------
+## A S02 junta DB-SRA e CMSY++ numa figura só (bom para apresentação). Para o
+## relatório e para a revista cada modelo precisa da sua figura (a revista
+## pede um arquivo por figura), por isso os dois painéis são salvos também
+## separados. O conteúdo é idêntico ao da S02 (mesma função graf_acc).
+##   S02a = DB-SRA: % das 10.000 simulações aceitas, por hipótese e fonte de M
+##   S02b = CMSY++: taxa de viabilidade dos pares r-K, por hipótese e priori de r
+salva_fig(graf_acc(a_db, "DB-SRA — simulações aceitas (%)", "Fonte de M"),
+          "S02a_aceitacao_dbsra.png", 24, 11)
+salva_fig(graf_acc(a_cm, "CMSY++ — taxa de viabilidade dos pares r-K (%)", "Priori de r"),
+          "S02b_viabilidade_cmsy.png", 24, 11)
 
 ## =============================================================================
 ## S03. TRAJETÓRIAS RELATIVAS — B/K e B/Bmsy, todos os cenários, 3 modelos
@@ -6454,6 +6493,519 @@ tab_comp <- do.call(rbind, lapply(ORD_GRUPO, function(g) {
 salva_tab(tab_comp, "tabela_comparacao_modelos")
 print(tab_comp, row.names = FALSE)
 
+## =============================================================================
+## FIGURAS PARA O RELATÓRIO E PARA O ARTIGO (S12 a S18)
+## =============================================================================
+## Estas figuras refazem, num padrão visual único (o mesmo tema_sint e as
+## mesmas cores das hipóteses/famílias), gráficos que antes saíam espalhados
+## em cada parte do script e em estilos diferentes. Todas vão para a pasta
+## Sintese_3_modelos, prontas para o relatório e para a submissão:
+##   S12 priori x posteriori do DB-SRA (B/K no ano final e Bmsy/K)
+##   S13 priori x posteriori do CMSY++ (r e B/K no ano final)
+##   S14 priori x posteriori do JABBA (r, K, MSY, psi e B/K final)
+##   S15 índices de CPUE padronizados (variantes do modelo) e IC 95%
+##   S16 séries finais de CPUE usadas no JABBA (C1 a C6)
+##   S17 resíduos do JABBA por índice + RMSE/SDNR por cenário
+##   S18 análise de sensibilidade (tornado) dos três modelos
+## Resolução: salva_fig() grava em PNG a 300 dpi (padrão de qualidade
+## exigido pela maioria das revistas). Para 600 dpi, troque o dpi lá em cima.
+
+## ---- utilitários comuns às figuras priori x posteriori (S12, S13, S14) ------
+## Padrão visual (o mesmo nas três figuras):
+##   área cinza ............ densidade da PRIORI
+##   linha colorida ........ densidade da POSTERIORI (cor da hipótese/família)
+##   pontilhado cinza ...... mediana da priori
+##   pontilhado colorido ... mediana da posteriori
+## Cada painel tem a PRÓPRIA escala de densidade (eixo y): uma priori larga
+## e uma posteriori estreita não cabem numa escala comum. Por isso os painéis
+## são montados um a um e unidos com o patchwork, em vez de facet.
+COR_PRIORI <- "grey82"
+
+## Densidade de uma amostra numa grade [de, ate] (kernel gaussiano).
+## log = TRUE: estima a densidade de log(x) e devolve x na escala original;
+## usado para K e MSY, que variam em ordens de grandeza (o eixo x do painel
+## vai em escala log, e a forma da curva fica legível).
+dens_grade <- function(x, de, ate, log = FALSE, n = 512) {
+  x <- x[is.finite(x)]
+  if (log) { x <- log(x[x > 0]); de <- log(de); ate <- log(ate) }
+  d <- density(x, from = de, to = ate, n = n)
+  data.frame(x = if (log) exp(d$x) else d$x, y = d$y)
+}
+
+## Monta UM painel priori x posteriori.
+##   pri, pos ....... data.frame(x, y) com as densidades (pri = NULL: sem priori)
+##   med_pri, med_pos medianas (linhas pontilhadas)
+##   cor ............ cor da posteriori (hipótese/família)
+##   logx ........... eixo x em escala log (K e MSY)
+## A legenda (Priori / Posteriori) é a mesma em todos os painéis e o
+## patchwork a junta numa só, embaixo da figura (guides = "collect").
+painel_pp <- function(pri, pos, med_pri, med_pos, cor, xlab, ylab = NULL,
+                      titulo = NULL, logx = FALSE, xlim = NULL) {
+  p <- ggplot()
+  if (!is.null(pri)) {
+    p <- p + geom_area(data = pri, aes(x, y, fill = "Priori"), colour = NA) +
+      geom_vline(xintercept = med_pri, colour = "grey50", linetype = "dotted", linewidth = 0.5)
+  }
+  p <- p +
+    geom_line(data = pos, aes(x, y, linetype = "Posteriori"), colour = cor, linewidth = 1) +
+    geom_vline(xintercept = med_pos, colour = cor, linetype = "dotted", linewidth = 0.6) +
+    scale_fill_manual(values = c(Priori = COR_PRIORI), limits = "Priori") +
+    scale_linetype_manual(values = c(Posteriori = "solid"), limits = "Posteriori") +
+    guides(fill = guide_legend(order = 1),
+           linetype = guide_legend(order = 2, override.aes = list(colour = INK, linewidth = 1))) +
+    scale_y_continuous(expand = expansion(mult = c(0, 0.06))) +
+    labs(x = xlab, y = ylab, title = titulo) +
+    tema_sint +
+    theme(plot.title = element_text(size = 11.5, hjust = 0.5, face = "bold", colour = INK),
+          axis.text = element_text(size = 8.5), axis.title = element_text(size = 9.5),
+          axis.line.y = element_line(colour = "#8A949C", linewidth = 0.3),
+          panel.grid.major.x = element_blank(),
+          plot.margin = margin(4, 10, 4, 4))
+  if (logx) {
+    p <- p + scale_x_log10(labels = fmt_int, limits = xlim, expand = expansion(mult = 0.01))
+  } else if (!is.null(xlim)) {
+    p <- p + scale_x_continuous(limits = xlim, expand = expansion(mult = 0.01),
+                                breaks = scales::breaks_pretty(5))
+  }
+  p
+}
+
+## parâmetros (alfa, beta) de uma beta a partir da média e do desvio-padrão
+beta_par <- function(m, s) { k <- m * (1 - m) / s^2 - 1; c(a = m * k, b = (1 - m) * k) }
+
+## Junta uma lista de painéis em grade, com a legenda única embaixo.
+monta_pp <- function(paineis, ncol, caption = NULL) {
+  wrap_plots(paineis, ncol = ncol) +
+    plot_layout(guides = "collect") +
+    plot_annotation(caption = caption, theme = tema_sint) &
+    theme(legend.position = "bottom")
+}
+
+## =============================================================================
+## S12. PRIORI x POSTERIORI — DB-SRA
+## =============================================================================
+## Prioris EXATAMENTE como na chamada do dbsra() no Catch_models.R:
+##   btk   (B/K no ano de referência): uniforme entre bk_lo e bk_hi da hipótese
+##   bmsyk (Bmsy/K): beta com média 0,4 e desvio-padrão 0,1, truncada em 0,05–0,95
+## Se mudar a priori lá, mude aqui (BMSYK_*). A priori de B/K vem do próprio
+## arquivo (colunas bk_lo/bk_hi), então acompanha sozinha.
+## Posteriori: trajetórias aceitas (posteriores_finais_dbsra.csv), reunindo
+## os três valores de M de cada hipótese — M quase não altera B/K nem
+## Bmsy/K (ver Tabela de resultados por hipótese), e juntar deixa a
+## figura com 4 colunas (uma por hipótese), legível no formato de página.
+## Leitura: posteriori encostada no limite superior da priori de B/K = as
+## capturas "empurram" a biomassa final para cima; posteriori de Bmsy/K à
+## esquerda de 0,4 = o modelo prefere curvas de produção com o máximo em
+## biomassas mais baixas.
+cat("\n--- S12 priori x posteriori DB-SRA ---\n")
+BMSYK_MEDIA <- 0.4; BMSYK_DP <- 0.1; BMSYK_LIM <- c(0.05, 0.95)
+ab_bmsyk <- beta_par(BMSYK_MEDIA, BMSYK_DP)
+hips_db  <- intersect(ORD_FAM, unique(fin_db$hipotese))
+
+## priori de Bmsy/K: beta truncada (densidade renormalizada dentro dos limites)
+x_bm   <- seq(0, 0.8, length.out = 801)
+pri_bm <- data.frame(x = x_bm, y = ifelse(x_bm >= BMSYK_LIM[1] & x_bm <= BMSYK_LIM[2],
+                                          dbeta(x_bm, ab_bmsyk["a"], ab_bmsyk["b"]), 0) /
+                       diff(pbeta(BMSYK_LIM, ab_bmsyk["a"], ab_bmsyk["b"])))
+## mediana da beta truncada (pelo inverso da acumulada)
+p_lim  <- pbeta(BMSYK_LIM, ab_bmsyk["a"], ab_bmsyk["b"])
+med_bm <- qbeta(mean(p_lim), ab_bmsyk["a"], ab_bmsyk["b"])
+
+pp_db <- list()
+for (h in hips_db) {
+  d  <- fin_db[fin_db$hipotese == h, ]
+  lo <- d$bk_lo[1]; hi <- d$bk_hi[1]; cor <- COR_FAM[[h]]
+  ## priori uniforme de B/K: grade fina para as bordas ficarem verticais
+  x_bk   <- seq(0, 1, length.out = 2001)
+  pri_bk <- data.frame(x = x_bk, y = ifelse(x_bk >= lo & x_bk <= hi, 1 / (hi - lo), 0))
+  pp_db[[paste0(h, "_bk")]] <- painel_pp(
+    pri_bk, dens_grade(d$BtK, 0, 1), (lo + hi) / 2, median(d$BtK), cor,
+    xlab = bquote(B[.(ano_db)] / K), ylab = if (h == hips_db[1]) "Densidade" else NULL,
+    titulo = ROT_FAM[[h]], xlim = c(0, 1))
+  pp_db[[paste0(h, "_bm")]] <- painel_pp(
+    pri_bm, dens_grade(d$BmsyK, 0, 0.8), med_bm, median(d$BmsyK), cor,
+    xlab = expression(B[MSY] / K), ylab = if (h == hips_db[1]) "Densidade" else NULL,
+    xlim = c(0, 0.8))
+}
+## ordem: linha 1 = B/K das 4 hipóteses; linha 2 = Bmsy/K
+p12 <- monta_pp(c(pp_db[paste0(hips_db, "_bk")], pp_db[paste0(hips_db, "_bm")]),
+                ncol = length(hips_db),
+                caption = sprintf(paste0("Posteriori = simulações aceitas dos três cenários de M de cada hipótese. ",
+                                         "Pontilhado: medianas da priori (cinza) e da posteriori (cor). Priori de B/K: ",
+                                         "uniforme; de Bmsy/K: beta (média %s, dp %s) truncada em %s–%s."),
+                                  fmt_num(BMSYK_MEDIA, 1), fmt_num(BMSYK_DP, 1),
+                                  fmt_num(BMSYK_LIM[1], 2), fmt_num(BMSYK_LIM[2], 2)))
+salva_fig(p12, "S12_priori_posteriori_dbsra.png", 30, 15)
+
+## =============================================================================
+## S13. PRIORI x POSTERIORI — CMSY++
+## =============================================================================
+## O rk_out do CMSY++ traz, linha a linha, um sorteio da PRIORI (priorr,
+## priork, priormsy, priorfinalbk) e um da POSTERIORI (postr, postk,
+## postmsy, postfinalbk) de cada cenário. Aqui entram r e B/K no último ano.
+## Para ficar no mesmo formato da S12 (4 colunas = 4 hipóteses de depleção),
+## fixa-se UMA priori de r: a dos métodos demográficos (Euler-Lotka), que é
+## a de referência. Para ver outra, troque R_PP_CMSY por "lower resilience",
+## "Higher resilience" ou "Non-informative_r".
+## Leitura: posteriori de r muito mais estreita que a priori = efeito da
+## compensação r x K (não é informação direta sobre r); posteriori de B/K
+## quase igual à priori = as capturas não informam a depleção atual.
+cat("\n--- S13 priori x posteriori CMSY++ ---\n")
+R_PP_CMSY <- "Euler-lotka methods"
+hips_cm <- intersect(ORD_FAM, unique(rk_cm$bk_method))
+rk_pp   <- rk_cm[rk_cm$r_method == R_PP_CMSY, ]
+## eixo de r comum às 4 colunas: até o quantil de 99,5% da priori (a cauda
+## longa da lognormal achataria as curvas se fosse até o máximo)
+lim_r <- c(0, as.numeric(quantile(rk_pp$priorr, 0.995, na.rm = TRUE)))
+pp_cm <- list()
+for (h in hips_cm) {
+  d <- rk_pp[rk_pp$bk_method == h, ]; cor <- COR_FAM[[h]]
+  pp_cm[[paste0(h, "_r")]] <- painel_pp(
+    dens_grade(d$priorr, lim_r[1], lim_r[2]), dens_grade(d$postr, lim_r[1], lim_r[2]),
+    median(d$priorr), median(d$postr), cor,
+    xlab = expression(italic(r) ~ (ano^-1)), ylab = if (h == hips_cm[1]) "Densidade" else NULL,
+    titulo = ROT_FAM[[h]], xlim = lim_r)
+  pp_cm[[paste0(h, "_bk")]] <- painel_pp(
+    dens_grade(d$priorfinalbk, 0, 1), dens_grade(d$postfinalbk, 0, 1),
+    median(d$priorfinalbk), median(d$postfinalbk), cor,
+    xlab = bquote(B[.(ano_cm)] / K), ylab = if (h == hips_cm[1]) "Densidade" else NULL,
+    xlim = c(0, 1))
+}
+p13 <- monta_pp(c(pp_cm[paste0(hips_cm, "_r")], pp_cm[paste0(hips_cm, "_bk")]),
+                ncol = length(hips_cm),
+                caption = sprintf(paste0("Cenários com a priori de r %s. Priori e posteriori = sorteios do rk_out do CMSY++. ",
+                                         "Pontilhado: medianas da priori (cinza) e da posteriori (cor)."),
+                                  if (R_PP_CMSY == "Euler-lotka methods") "dos métodos demográficos (Euler-Lotka)"
+                                  else paste0("\"", ROT_R_CMSY[[R_PP_CMSY]], "\"")))
+salva_fig(p13, "S13_priori_posteriori_cmsy.png", 30, 15)
+
+## =============================================================================
+## S14. PRIORI x POSTERIORI — JABBA
+## =============================================================================
+## Prioris na MESMA parametrização do JAGS (fit$settings), como na seção 12
+## da parte do JABBA:
+##   r   ~ lognormal(log(r.pr[1]),  r.pr[2])
+##   K   ~ lognormal(log(K.pr[1]),  K.pr[2])
+##   psi ~ lognormal(log(psi.pr[1]), psi.pr[2])   (psi = B1989/K)
+##   MSY implícito = r K (1/m)^(1/(m-1)) / m  (Pella-Tomlinson; Schaefer: rK/4)
+## B/K no último ano: só posteriori (o JABBA não tem priori de depleção
+## final — é o índice que informa o fim da série), por isso o painel não
+## tem área cinza.
+## K e MSY em escala log: a priori de K é larga de propósito (CV ~100%) e,
+## em escala linear, a posteriori viraria um risco vertical.
+## CEN_PP_JABBA: um ou mais cenários (uma linha de painéis por cenário).
+## O de referência é o J3; acrescente, p. ex., "J13_C5curto_base" para
+## comparar com a janela curta.
+cat("\n--- S14 priori x posteriori JABBA ---\n")
+CEN_PP_JABBA <- intersect(c("J3_BASE_C2C5"), names(fits_jb))
+N_PRIORI <- 50000   # sorteios da priori (muitos: K e MSY têm cauda longa)
+
+priori_jabba <- function(f, n = N_PRIORI) {
+  s <- f$settings
+  m <- if (!is.null(s$mu.m)) s$mu.m else 2
+  fator_msy <- if (abs(m - 1) < 1e-6) exp(-1) / 1 else (1 / m)^(1 / (m - 1)) / m
+  r <- rlnorm(n, log(s$r.pr[1]), s$r.pr[2])
+  K <- rlnorm(n, log(s$K.pr[1]), s$K.pr[2])
+  list(r = r, K = K, MSY = r * K * fator_msy,
+       psi = if (identical(s$psi.dist, "lnorm")) rlnorm(n, log(s$psi.pr[1]), s$psi.pr[2]) else NULL)
+}
+
+pp_jb <- list()
+for (id in CEN_PP_JABBA) {
+  f   <- fits_jb[[id]]; set.seed(SEMENTE)
+  pr  <- priori_jabba(f)
+  po  <- list(r = f$pars_posterior$r, K = f$pars_posterior$K,
+              MSY = f$refpts_posterior$MSY, psi = f$pars_posterior$psi, bk = f$kobe$bk)
+  cor <- COR_FAM[[fam_jabba(id)]]
+  ano_f  <- max(f$yr)
+  prim   <- id == CEN_PP_JABBA[1]            # títulos só na primeira linha
+  ylab_l <- paste0(rot_jb(id), "\nDensidade")
+  ## limites do eixo x: quantis 0,5%–99,5% da priori e da posteriori juntas
+  lim_q <- function(a, b) as.numeric(quantile(c(a, b), c(0.005, 0.995), na.rm = TRUE))
+  lr <- c(0, lim_q(pr$r, po$r)[2]); lK <- lim_q(pr$K, po$K); lM <- lim_q(pr$MSY, po$MSY)
+  pp_jb[[paste0(id, "_r")]] <- painel_pp(
+    dens_grade(pr$r, lr[1], lr[2]), dens_grade(po$r, lr[1], lr[2]), median(pr$r), median(po$r), cor,
+    xlab = expression(italic(r) ~ (ano^-1)), ylab = ylab_l, titulo = if (prim) "r" else NULL, xlim = lr)
+  pp_jb[[paste0(id, "_K")]] <- painel_pp(
+    dens_grade(pr$K, lK[1], lK[2], log = TRUE), dens_grade(po$K, lK[1], lK[2], log = TRUE),
+    median(pr$K), median(po$K), cor, xlab = "K (t, escala log)",
+    titulo = if (prim) "K" else NULL, logx = TRUE, xlim = lK)
+  pp_jb[[paste0(id, "_MSY")]] <- painel_pp(
+    dens_grade(pr$MSY, lM[1], lM[2], log = TRUE), dens_grade(po$MSY, lM[1], lM[2], log = TRUE),
+    median(pr$MSY), median(po$MSY), cor, xlab = "MSY (t/ano, escala log)",
+    titulo = if (prim) "MSY" else NULL, logx = TRUE, xlim = lM)
+  if (!is.null(pr$psi)) {
+    lp <- c(0, lim_q(pr$psi, po$psi)[2])
+    pp_jb[[paste0(id, "_psi")]] <- painel_pp(
+      dens_grade(pr$psi, lp[1], lp[2]), dens_grade(po$psi, lp[1], lp[2]), median(pr$psi), median(po$psi), cor,
+      xlab = bquote(psi == B[.(min(f$yr))] / K), titulo = if (prim) "Depleção inicial" else NULL, xlim = lp)
+  }
+  lb <- c(0, max(1, as.numeric(quantile(po$bk, 0.995))))
+  pp_jb[[paste0(id, "_bk")]] <- painel_pp(
+    NULL, dens_grade(po$bk, lb[1], lb[2]), NULL, median(po$bk), cor,
+    xlab = bquote(B[.(ano_f)] / K), titulo = if (prim) "Depleção final (sem priori)" else NULL, xlim = lb)
+}
+n_col_jb <- length(pp_jb) / length(CEN_PP_JABBA)
+p14 <- monta_pp(pp_jb, ncol = n_col_jb,
+                caption = paste0("Priori = sorteios da priori especificada no JABBA (mesma parametrização do JAGS); ",
+                                 "MSY da priori = rK/4 (Schaefer). Pontilhado: medianas da priori (cinza) e da posteriori (cor)."))
+salva_fig(p14, "S14_priori_posteriori_jabba.png", 36, 2 + 8.5 * length(CEN_PP_JABBA))
+
+## =============================================================================
+## S15. ÍNDICES DE CPUE PADRONIZADOS — variantes do modelo (2015–2025)
+## =============================================================================
+## Mesmo conteúdo da figura indices_cenarios.png (seção 9 da padronização),
+## no padrão visual da síntese:
+##   A = todas as variantes do índice (série dividida pela própria média);
+##       o cenário circular (PCs COM a cavala na composição) fica cinza e
+##       tracejado: ele está na figura como resultado do teste de
+##       circularidade, não como candidato.
+##   B = índice escolhido (tática discreta) com IC 95% e a CPUE nominal.
+##       IC 95% = índice x exp(±1,96 x EP do log), o mesmo da seção 9.
+## Lê indices_todos_cenarios.csv (gravado pela padronização).
+cat("\n--- S15 índices de CPUE padronizados ---\n")
+idx <- read.csv(file.path(DIR_CI, "indices_todos_cenarios.csv"), check.names = FALSE)
+## rótulos e cores pelo PREFIXO do nome (robusto a pequenas mudanças de texto)
+def_idx <- data.frame(
+  padrao = c("^S1 ", "^S0 ", "^S2 ", "^S2t ", "^S2b .*SEM", "^S2b .*COM", "^S3 "),
+  rot    = c("S1 · nominal", "S0 · padronizada sem tática", "S2 · tática discreta (k-means)",
+             "S2t · tática discreta, Tweedie", "S2b · PCs sem cavala", "S2b · PCs com cavala (circular)",
+             "S3 · esforço dirigido"),
+  cor    = c("#D2602A", "#8E7CC3", "#1F4E79", "#4BA3C3", "#1B9E77", "#A9B1B8", "#E08A00"),
+  tipo   = c("solid", "solid", "solid", "solid", "solid", "dashed", "solid"),
+  stringsAsFactors = FALSE)
+acha_def <- function(nome) { i <- which(vapply(def_idx$padrao, grepl, logical(1), x = nome))
+  if (length(i)) i[length(i)] else NA_integer_ }
+idx$i_def <- vapply(idx$cenario, acha_def, integer(1))
+idx$rot   <- ifelse(is.na(idx$i_def), idx$cenario, def_idx$rot[idx$i_def])
+ord_idx   <- unique(c(def_idx$rot[def_idx$rot %in% idx$rot], idx$rot))
+idx$rot   <- factor(idx$rot, ord_idx)
+cor_idx   <- setNames(c(def_idx$cor, rep(MUT, length(ord_idx)))[match(ord_idx, c(def_idx$rot, ord_idx))], ord_idx)
+cor_idx[is.na(cor_idx)] <- MUT
+tipo_idx  <- setNames(ifelse(ord_idx %in% def_idx$rot, def_idx$tipo[match(ord_idx, def_idx$rot)], "solid"), ord_idx)
+## destaque: o índice escolhido (S2) com linha mais grossa
+idx$larg  <- ifelse(grepl("^S2 ", idx$cenario), 1.3, 0.75)
+
+p15a <- ggplot(idx, aes(tempo, indice, colour = rot, linetype = rot)) +
+  geom_hline(yintercept = 1, colour = MUT, linewidth = 0.3) +
+  geom_line(aes(linewidth = larg)) + geom_point(size = 1.5) +
+  scale_linewidth_identity() +
+  scale_colour_manual(values = cor_idx) + scale_linetype_manual(values = tipo_idx) +
+  scale_x_continuous(breaks = seq(2015, 2025, 2)) +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05))) +
+  guides(colour = guide_legend(ncol = 2), linetype = guide_legend(ncol = 2)) +
+  labs(title = "A. Variantes do índice", x = NULL, y = "Índice relativo (média = 1)") +
+  tema_sint + theme(legend.key.width = unit(1.2, "cm"))
+
+s2  <- idx[grepl("^S2 ", idx$cenario), ]; s2 <- s2[order(s2$tempo), ]
+s1  <- idx[grepl("^S1 ", idx$cenario), ]; s1 <- s1[order(s1$tempo), ]
+s2$lo <- s2$indice * exp(-1.96 * s2$se_log); s2$hi <- s2$indice * exp(1.96 * s2$se_log)
+cor_s2 <- cor_idx[[as.character(s2$rot[1])]]; cor_s1 <- cor_idx[[as.character(s1$rot[1])]]
+p15b <- ggplot() +
+  geom_hline(yintercept = 1, colour = MUT, linewidth = 0.3) +
+  geom_ribbon(data = s2, aes(tempo, ymin = lo, ymax = hi), fill = cor_s2, alpha = 0.15) +
+  geom_line(data = s1, aes(tempo, indice, colour = "Nominal (S1)"), linetype = "dashed", linewidth = 0.8) +
+  geom_point(data = s1, aes(tempo, indice, colour = "Nominal (S1)"), size = 1.4) +
+  geom_line(data = s2, aes(tempo, indice, colour = "Padronizada, tática discreta (S2) e IC 95%"), linewidth = 1.2) +
+  geom_point(data = s2, aes(tempo, indice, colour = "Padronizada, tática discreta (S2) e IC 95%"), size = 1.9) +
+  scale_colour_manual(values = c("Nominal (S1)" = cor_s1, "Padronizada, tática discreta (S2) e IC 95%" = cor_s2)) +
+  scale_x_continuous(breaks = seq(2015, 2025, 2)) +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05))) +
+  guides(colour = guide_legend(ncol = 1)) +
+  labs(title = "B. Índice escolhido e intervalo de 95%", x = NULL, y = "Índice relativo (média = 1)") +
+  tema_sint
+p15 <- (p15a | p15b) + plot_layout(widths = c(1.15, 1))
+salva_fig(p15, "S15_indices_cpue_padronizados.png", 30, 13.5)
+
+## =============================================================================
+## S16. SÉRIES FINAIS DE CPUE (C1 a C6) — as que entram no JABBA
+## =============================================================================
+## Mesmo conteúdo da figura cenarios_finais.png, no padrão da síntese.
+##   A = série inteira 1989–2025 (linha pontilhada = mudança de alvo, 2014/15)
+##   B = só o período pós-mudança de alvo (2015 em diante)
+## Cada série está dividida pela própria média (média = 1).
+cat("\n--- S16 séries finais de CPUE ---\n")
+cpf <- read.csv(file.path(DIR_CI, "cenarios_cpue_macarellus.csv"), check.names = FALSE)
+def_cf <- data.frame(
+  padrao = paste0("^C", 1:6),
+  rot    = c("C1 · nominal 1989–2025", "C2 · nominal pré-alvo (≤ 2014)", "C3 · nominal pós-alvo (≥ 2015)",
+             "C4 · padronizada sem tática", "C5 · padronizada com tática", "C6 · nominal, esforço dirigido"),
+  cor    = c("#8A949C", "#D2602A", "#4BA3C3", "#8E7CC3", "#1F4E79", "#1B9E77"),
+  stringsAsFactors = FALSE)
+i_cf <- vapply(cpf$cenario, function(nm) { i <- which(vapply(def_cf$padrao, grepl, logical(1), x = nm))
+  if (length(i)) i[1] else NA_integer_ }, integer(1))
+cpf$rot <- factor(ifelse(is.na(i_cf), cpf$cenario, def_cf$rot[i_cf]),
+                  unique(c(def_cf$rot[def_cf$rot %in% def_cf$rot[i_cf]], cpf$cenario[is.na(i_cf)])))
+cor_cf <- setNames(def_cf$cor, def_cf$rot)
+cor_cf <- c(cor_cf, setNames(rep(MUT, sum(!levels(cpf$rot) %in% names(cor_cf))),
+                             levels(cpf$rot)[!levels(cpf$rot) %in% names(cor_cf)]))
+ANO_ALVO <- 2014.5   # mudança de alvo da frota (entre 2014 e 2015)
+
+base16 <- function(d, quebra = c(1990, 2025, 5)) ggplot(d, aes(tempo, indice, colour = rot)) +
+  geom_hline(yintercept = 1, colour = MUT, linewidth = 0.3) +
+  geom_line(linewidth = 0.85) + geom_point(size = 1.3) +
+  ## limits = todas as séries: a legenda fica idêntica nos dois painéis e o
+  ## patchwork junta numa só (C2 não aparece no painel B, mas está na legenda)
+  scale_colour_manual(values = cor_cf, limits = levels(cpf$rot), drop = FALSE) +
+  guides(colour = guide_legend(nrow = 2)) +
+  scale_x_continuous(breaks = seq(quebra[1], quebra[2], quebra[3])) +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05))) +
+  labs(x = NULL, y = "Índice relativo (média = 1)") + tema_sint
+p16a <- base16(cpf) +
+  geom_vline(xintercept = ANO_ALVO, colour = MUT, linetype = "dotted") +
+  annotate("text", x = ANO_ALVO + 0.4, y = max(cpf$indice, na.rm = TRUE), label = "mudança\nde alvo",
+           hjust = 0, vjust = 1, size = 3, colour = MUT, lineheight = 0.9) +
+  labs(title = "A. Série completa 1989–2025")
+p16b <- base16(cpf[cpf$tempo > ANO_ALVO, ], c(2015, 2025, 2)) +
+  labs(title = "B. Período após a mudança de alvo (2015–2025)")
+p16 <- (p16a | p16b) + plot_layout(widths = c(1.5, 1), guides = "collect") &
+  theme(legend.position = "bottom")
+salva_fig(p16, "S16_series_finais_cpue.png", 30, 12.5)
+
+## =============================================================================
+## S17. RESÍDUOS DO JABBA POR ÍNDICE + RMSE e SDNR POR CENÁRIO
+## =============================================================================
+## Mesmo conteúdo da figura jabba_residuos_cenarios.png (seção 12.6), no
+## padrão da síntese. Cores = família do cenário (janela curta / completa /
+## completa bimodal), as mesmas das outras figuras do JABBA.
+## O QUE RESPONDE: se cada cenário errasse em anos diferentes, o problema
+## seria de configuração; como todos erram nos MESMOS anos e na mesma
+## direção (linha preta = mediana entre cenários), o problema está no índice.
+## Painel de baixo: RMSE (%) por cenário; 30% é a referência usual de bom
+## ajuste; SDNR perto de 1 = o erro assumido bate com o observado.
+cat("\n--- S17 resíduos e RMSE do JABBA ---\n")
+res_jb <- read.csv(file.path(DIR_JB, "jabba_residuos.csv"), check.names = FALSE)
+aju_jb <- read.csv(file.path(DIR_JB, "jabba_ajuste_convergencia.csv"), check.names = FALSE)
+res_jb$familia <- factor(vapply(res_jb$cenario, fam_jabba, character(1)), ORD_FAM)
+aju_jb$familia <- factor(vapply(aju_jb$cenario, fam_jabba, character(1)), ORD_FAM)
+## nome do índice no painel: mesmo rótulo da S16 (pelo prefixo C1..C6)
+i_ix <- vapply(res_jb$indice, function(nm) { i <- which(vapply(def_cf$padrao, grepl, logical(1), x = nm))
+  if (length(i)) i[1] else NA_integer_ }, integer(1))
+res_jb$rot_ix <- ifelse(is.na(i_ix), res_jb$indice, def_cf$rot[i_ix])
+n_cen_ix <- tapply(res_jb$cenario, res_jb$rot_ix, function(x) length(unique(x)))
+res_jb$rot_ix <- sprintf("%s (%d cenário%s)", res_jb$rot_ix, n_cen_ix[res_jb$rot_ix],
+                         ifelse(n_cen_ix[res_jb$rot_ix] > 1, "s", ""))
+res_jb$rot_ix <- factor(res_jb$rot_ix, sort(unique(res_jb$rot_ix)))
+med_res <- aggregate(residuo_log ~ rot_ix + ano, res_jb, median)
+
+p17a <- ggplot(res_jb, aes(ano, residuo_log)) +
+  geom_hline(yintercept = 0, colour = INK, linewidth = 0.4) +
+  geom_line(aes(group = cenario, colour = familia), linewidth = 0.45, alpha = 0.7) +
+  geom_line(data = med_res, colour = INK, linewidth = 1.1) +
+  geom_point(data = med_res, colour = INK, size = 1.1) +
+  facet_wrap(~rot_ix, scales = "free_x", ncol = 3) +
+  ## sem legenda aqui: as cores são as mesmas das barras do painel B, que
+  ## carregam a legenda (evita duas legendas iguais)
+  scale_colour_manual(values = COR_FAM, guide = "none") +
+  ## só anos inteiros no eixo (sem 2017,5)
+  scale_x_continuous(breaks = function(l) { b <- pretty(l, 5); b[b == round(b)] }) +
+  labs(title = "A. Resíduos do ajuste ao índice (escala log)",
+       subtitle = "Linhas finas = cenários (cor = família); linha preta = mediana entre cenários.",
+       x = NULL, y = "Resíduo (log)") +
+  tema_sint + theme(strip.text = element_text(size = 9.5), panel.spacing.x = unit(0.9, "cm"))
+
+aju_jb <- aju_jb[order(aju_jb$RMSE), ]
+aju_jb$rot <- factor(rot_jb(aju_jb$cenario), rot_jb(aju_jb$cenario))
+p17b <- ggplot(aju_jb, aes(RMSE, rot, fill = familia)) +
+  geom_col(width = 0.68) +
+  geom_vline(xintercept = 30, colour = INK, linetype = "dashed", linewidth = 0.4) +
+  annotate("text", x = 31, y = nrow(aju_jb) + 0.45, label = "30% (referência de bom ajuste)",
+           hjust = 0, vjust = 0, size = 2.9, colour = MUT) +
+  geom_text(aes(label = sprintf("%s%%  ·  SDNR %s", fmt_num(RMSE, 0), fmt_num(SDNR, 2))),
+            hjust = -0.08, size = 2.8, colour = INK) +
+  scale_fill_manual(values = COR_FAM, labels = ROT_FAM, drop = TRUE) +
+  scale_x_continuous(limits = c(0, max(aju_jb$RMSE) * 1.32), expand = expansion(mult = c(0, 0))) +
+  scale_y_discrete(expand = expansion(add = c(0.6, 1.2))) +
+  labs(title = "B. Erro de ajuste por cenário", x = "RMSE (%)", y = NULL) +
+  tema_sint + theme(panel.grid.major.y = element_blank(), axis.text.y = element_text(size = 8.5))
+p17 <- (p17a / p17b) + plot_layout(heights = c(1.25, 1), guides = "collect") &
+  theme(legend.position = "bottom")
+salva_fig(p17, "S17_residuos_rmse_jabba.png", 30, 28)
+
+## =============================================================================
+## S18. ANÁLISE DE SENSIBILIDADE (TORNADO) — DB-SRA, CMSY++ e JABBA
+## =============================================================================
+## Uma barra por fator: vai da menor à maior variação (%) da quantidade de
+## interesse quando se troca SÓ aquele fator, com os demais no cenário de
+## referência. Cada ponto é uma alternativa testada (rótulo = nível).
+## Por que não usar os tornados que cada parte do script já gera: lá as
+## alternativas de um mesmo fator eram EMPILHADAS (somadas), o que exagera
+## o comprimento das barras. Aqui a barra é o intervalo min–max, que é a
+## leitura correta de um tornado de "um fator por vez".
+##   A = DB-SRA, MSY       (tornado_sensibilidade_msy_dbsra.csv)
+##   B = CMSY++, MSY       (tornado_sensibilidade_msy_cmsy.csv; mil t -> t)
+##   C = JABBA, B/Bmsy no último ano (jabba_tornado_sensibilidade.csv)
+cat("\n--- S18 tornado de sensibilidade (3 modelos) ---\n")
+tor_db <- read.csv(file.path(DIR_CM, "tornado_sensibilidade_msy_dbsra.csv"), check.names = FALSE)
+tor_cm <- read.csv(file.path(DIR_CM, "tornado_sensibilidade_msy_cmsy.csv"), check.names = FALSE)
+tor_jb <- read.csv(file.path(DIR_JB, "jabba_tornado_sensibilidade.csv"), check.names = FALSE)
+tor_jb <- tor_jb[tor_jb$metrica == "B/Bmsy final", ]
+tor_cm$valor <- tor_cm$valor * 1000
+
+## nomes curtos dos fatores e dos níveis (só para o gráfico)
+ROT_FATOR <- c("M (mortalidade natural)" = "M", "Bt/K (metodo de depleção)" = "Depleção final",
+               "Método de r (resiliência)" = "Priori de r", "Método Bt/K (depleção)" = "Depleção final",
+               "Forma da curva de producao" = "Forma da curva", "Indice usado" = "Índice usado",
+               "Prior de K" = "Priori de K", "Prior de r" = "Priori de r")
+rot_nivel <- function(x) {
+  fixo <- c("M_Santos(2005-2018)" = "Santos", "M_Vieira(1988-2018)" = "Vieira",
+            "M_Jardim(1981-1994)" = "Jardim", "NN_CMSY" = "NN", "zBRT" = "zBRT",
+            "Target_switch" = "Mud. alvo", "Uninformative_bk" = "Não inf.",
+            "lower resilience" = "r menor", "Higher resilience" = "r maior",
+            "Non-informative_r" = "r não inf.", "Euler-lotka methods" = "Euler-Lotka")
+  out <- unname(fixo[x])
+  ## JABBA: "J6_BASE_Fox" -> "J6 Fox"; "J1_C1_ingenuo" -> "J1 C1"
+  jb  <- is.na(out) & grepl("^J[0-9]+_", x)
+  out[jb] <- sub("^(J[0-9]+)_(BASE_)?([^_]+).*$", "\\1 \\3", x[jb])
+  ifelse(is.na(out), x, out)
+}
+## valor de referência = valor / (1 + delta/100) (o mesmo em todas as linhas)
+ref_tor <- function(d) median(d$valor / (1 + d$delta_pct / 100))
+
+graf_tornado <- function(d, titulo, subtitulo, cor) {
+  d$fator <- ifelse(d$fator %in% names(ROT_FATOR), ROT_FATOR[d$fator], d$fator)
+  d$nivel <- rot_nivel(d$nivel)
+  barras <- do.call(rbind, lapply(split(d, d$fator), function(g)
+    data.frame(fator = g$fator[1], lo = min(0, g$delta_pct), hi = max(0, g$delta_pct),
+               amp = max(g$delta_pct) - min(g$delta_pct))))
+  ## ordem clássica do tornado: maior amplitude em cima
+  niv <- barras$fator[order(barras$amp)]
+  barras$fator <- factor(barras$fator, niv); d$fator <- factor(d$fator, niv)
+  ## Rótulos: pontos muito próximos (menos de 7% da largura do eixo) viram
+  ## UM rótulo só (um nome por linha), senão os textos se sobrepõem; os
+  ## rótulos se alternam acima/abaixo dos pontos.
+  d <- d[order(d$fator, d$delta_pct), ]
+  larg_x <- diff(range(c(0, d$delta_pct)))
+  rot <- do.call(rbind, lapply(split(d, d$fator, drop = TRUE), function(g) {
+    grupo <- cumsum(c(1, diff(g$delta_pct) > 0.07 * larg_x))
+    do.call(rbind, lapply(split(g, grupo), function(k)
+      data.frame(fator = k$fator[1], x = mean(k$delta_pct), nivel = paste(k$nivel, collapse = "\n"))))
+  }))
+  rot$vj <- ave(seq_len(nrow(rot)), rot$fator, FUN = function(i) ifelse(seq_along(i) %% 2 == 1, -0.9, 1.9))
+  ggplot() +
+    geom_vline(xintercept = 0, colour = INK, linewidth = 0.4) +
+    geom_rect(data = barras, aes(xmin = lo, xmax = hi, ymin = as.numeric(fator) - 0.28,
+                                 ymax = as.numeric(fator) + 0.28), fill = cor, alpha = 0.28) +
+    geom_point(data = d, aes(delta_pct, as.numeric(fator)), colour = cor, size = 2.3) +
+    geom_text(data = rot, aes(x, as.numeric(fator), label = nivel, vjust = vj),
+              size = 2.7, colour = INK, lineheight = 0.9) +
+    scale_y_continuous(breaks = seq_along(niv), labels = niv, expand = expansion(add = 0.6)) +
+    scale_x_continuous(expand = expansion(mult = 0.2),
+                       labels = function(x) paste0(ifelse(x > 0, "+", ""), fmt_num(x, 0), "%")) +
+    labs(title = titulo, subtitle = subtitulo, x = "Variação em relação ao cenário de referência", y = NULL) +
+    tema_sint + theme(panel.grid.major.y = element_blank(), axis.text.y = element_text(colour = INK, size = 9.5),
+                      plot.margin = margin(4, 14, 4, 4))
+}
+p18 <- graf_tornado(tor_db, "A. DB-SRA — MSY", sprintf("Referência: %s t", fmt_int(ref_tor(tor_db))),
+                    COR_MODELO[["DB-SRA"]]) |
+  graf_tornado(tor_cm, "B. CMSY++ — MSY", sprintf("Referência: %s t", fmt_int(ref_tor(tor_cm))),
+               COR_MODELO[["CMSY++"]]) |
+  graf_tornado(tor_jb, sprintf("C. JABBA — B/Bmsy em %d", ano_jb),
+               sprintf("Referência: %s (%s)", fmt_num(ref_tor(tor_jb), 2), rot_jb(tor_jb$base[1])),
+               COR_MODELO[["JABBA"]])
+p18 <- p18 + plot_layout(widths = c(1, 1, 1.35))
+salva_fig(p18, "S18_tornado_sensibilidade_3modelos.png", 34, 12.5)
+
 ## ---- mensagens-chave impressas no console (para o texto do relatório) ------
 cat("\n===== SÍNTESE — números para o texto =====\n")
 for (i in seq_len(nrow(tab_comp))) with(tab_comp[i, ], cat(sprintf(
@@ -6463,3 +7015,4 @@ cat(sprintf("Spearman índice x captura: de %s a %s (todos positivos = %s)\n",
             fmt_num(min(rho$rho), 2), fmt_num(max(rho$rho), 2), all(rho$rho > 0)))
 cat("Figuras e tabelas em:", DIR_SINT, "\n")
 cat("\n############ FIM DA SÍNTESE ############\n")
+

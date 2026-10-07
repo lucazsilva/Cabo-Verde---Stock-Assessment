@@ -1,0 +1,7 @@
+"cenario","n","rho"
+"C1 nominal 1989-2025",35,0.728011204481793
+"C2 nominal pre-alvo (<=2014)",25,0.474615384615385
+"C3 nominal pos-alvo (>=2015)",10,0.963636363636364
+"C4 padronizada SEM tatica",10,0.866666666666667
+"C5 padronizada COM tatica",10,0.76969696969697
+"C6 nominal esforco dirigido",10,0.903030303030303
