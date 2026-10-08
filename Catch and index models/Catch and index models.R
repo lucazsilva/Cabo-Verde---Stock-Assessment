@@ -31,6 +31,77 @@
 # limpando ambiente de trabalho...
 rm(list = ls())
 
+# ==============================================================================
+# IDIOMA DAS FIGURAS
+# ==============================================================================
+# Os rótulos dos gráficos (títulos, eixos, legendas e anotações) saem no
+# idioma escolhido aqui:
+#   "en" = inglês (figuras do artigo)
+#   "pt" = português (figuras do relatório)
+# Comentários, mensagens do console e nomes de colunas das tabelas continuam
+# em português. Os PNG têm o MESMO nome nos dois idiomas: trocar o idioma e
+# rodar de novo sobrescreve as figuras (guarde uma cópia se quiser as duas).
+# A síntese (PARTE FINAL) usa a mesma escolha; se ela for rodada sozinha,
+# o idioma é definido de novo lá (inglês por padrão).
+IDIOMA <- "en"
+# L("texto em português", "text in English"): devolve o texto no idioma
+# escolhido. Funciona também com vetores (c(...)) nos dois argumentos.
+L <- function(pt, en) if (identical(IDIOMA, "en")) en else pt
+# TR(x): traduz rótulos que vêm dos PRÓPRIOS DADOS (nomes de cenários, de
+# séries, de fatores do tornado...). Os dados e os CSV continuam em
+# português; só o que aparece no gráfico é traduzido. O que não estiver no
+# dicionário passa direto, sem alteração.
+DIC_EN <- c(
+  ## nomes que vêm dos dados ou de objetos usados também nas tabelas
+  "Outras" = "Others", "outras" = "others",
+  "T1" = "Q1", "T2" = "Q2", "T3" = "Q3", "T4" = "Q4",
+  ## variantes do índice (seção 9 da padronização)
+  "S1 nominal" = "S1 nominal", "S0 sem tática" = "S0 without tactic",
+  "S2 corrigida (tática discreta)" = "S2 corrected (discrete tactic)",
+  "S2b PCs COM cavala (circular)" = "S2b PCs WITH mackerel scad (circular)",
+  "S2b PCs SEM cavala" = "S2b PCs WITHOUT mackerel scad",
+  "S3 esforço dirigido" = "S3 directed effort",
+  ## séries finais de CPUE (entrada do JABBA)
+  "C1 nominal 1989-2025" = "C1 nominal 1989–2025",
+  "C2 nominal pre-alvo (<=2014)" = "C2 nominal pre-switch (≤2014)",
+  "C3 nominal pos-alvo (>=2015)" = "C3 nominal post-switch (≥2015)",
+  "C4 padronizada SEM tatica" = "C4 standardized without tactic",
+  "C5 padronizada COM tatica" = "C5 standardized with tactic",
+  "C6 nominal esforco dirigido" = "C6 nominal, directed effort",
+  ## grupos da síntese
+  "JABBA janela completa" = "JABBA full window", "JABBA janela curta" = "JABBA short window",
+  ## fatores e métricas dos tornados
+  "Indice usado" = "Index used", "Forma da curva de producao" = "Production curve shape",
+  "Prior de r" = "Prior on r", "Prior de K" = "Prior on K", "Janela do modelo" = "Model window",
+  "Prior de psi" = "Prior on psi", "B/Bmsy final" = "Final B/Bmsy", "MSY (janela curta)" = "MSY (short window)",
+  ## tabela S09
+  "Sim" = "Yes", "Não" = "No", "Incerto" = "Uncertain",
+  "Base; aceitação muito baixa" = "Base; very low acceptance",
+  "Base; B/K final no teto da priori" = "Base; final B/K at the prior's upper bound",
+  "Alternativa plausível" = "Plausible alternative",
+  "Sensibilidade; não defensável" = "Sensitivity; not defensible",
+  "Base; viabilidade muito baixa" = "Base; very low viability",
+  "Base; RU(B/K) ≈ 0 (B/K = priori)" = "Base; RU(B/K) ≈ 0 (B/K = prior)",
+  "Sensibilidade" = "Sensitivity",
+  "Mal ajustado; r, K e psi ≈ prioris" = "Poor fit; r, K and psi ≈ priors",
+  "Indeterminado (duas soluções)" = "Undetermined (two solutions)",
+  "Sem âncora histórica; psi define o nível" = "No historical anchor; psi sets the level")
+TR <- function(x) {
+  if (!identical(IDIOMA, "en")) return(x)
+  y <- unname(DIC_EN[as.character(x)])
+  ifelse(is.na(y), as.character(x), y)
+}
+# TRJ(x): nomes dos cenários do JABBA (J3_BASE_C2C5, J12_soC2_historico...)
+# em inglês, só para exibição: "so" -> "only", "historico" -> "historical",
+# "curto" -> "short", "Baixo"/"Alto" -> "Low"/"High", "ingenuo" -> "naive".
+TRJ <- function(x) {
+  if (!identical(IDIOMA, "en")) return(x)
+  x <- gsub("_so(C[0-9])", "_\\1-only", x)
+  x <- gsub("historico", "historical", x); x <- gsub("curto", "short", x)
+  x <- gsub("Baixo", "Low", x); x <- gsub("Alto", "High", x); x <- gsub("ingenuo", "naive", x)
+  x
+}
+
 #@pacotes..
 #install.packages("readxl")
 library(readxl)
@@ -1062,7 +1133,7 @@ stopifnot(exists("viagens"))
 ## =====================================================================
 UM_ANO_SO    <- length(unique(viagens$ano)) == 1
 fator_tempo  <- if (UM_ANO_SO) "fmes" else "fano"
-rotulo_tempo <- if (UM_ANO_SO) "Mês" else "Ano"
+rotulo_tempo <- if (UM_ANO_SO) L("Mês", "Month") else L("Ano", "Year")
 cat(sprintf("\n>> Fator temporal desta rodada: `%s` (%s)\n", fator_tempo,
             if (UM_ANO_SO) "DEMONSTRAÇÃO — um ano só" else
               sprintf("série %s", paste(range(viagens$ano), collapse = "-"))))
@@ -1073,7 +1144,7 @@ sp_nomes <- c(cap_macarellus = "D. macarellus", cap_katsuwonus = "K. pelamis",
               cap_punctatus  = "D. punctatus",  cap_sardinella = "S. maderensis",
               cap_thunnus    = "T. albacares",  cap_spicara    = "S. melanurus",
               cap_elagatis   = "E. bipinnulata", cap_apsilus   = "A. fuscus",
-              cap_auxis      = "Auxis spp.",    cap_outras     = "Outras")
+              cap_auxis      = "Auxis spp.",    cap_outras     = L("Outras", "Others"))
 sp_nomes <- sp_nomes[cols_cap]
 
 ## Antialiasing dos PNG: "cleartype" só existe no Windows; em Linux/Mac
@@ -1253,12 +1324,12 @@ op <- par(mfrow = c(1, 2), mar = c(4.2, 4.6, 3, 1), bty = "l",
 ## cavala e Auxis (as duas da história central) em traço mais grosso
 lwd_sp <- ifelse(cols_cap %in% c("cap_macarellus", "cap_auxis"), 3.2, 1.8)
 matplot(ser$tempo, ser[, cols_cap], type = "l", lty = 1, lwd = lwd_sp,
-        col = cor_sp, xlab = rotulo_tempo, ylab = "Captura (t)",
-        main = "A. Captura por especie")
+        col = cor_sp, xlab = rotulo_tempo, ylab = L("Captura (t)", "Catch (t)"),
+        main = L("A. Captura por especie", "A. Catch by species"))
 legend("topleft", sp_nomes, col = cor_sp, lwd = lwd_sp, bty = "n", cex = 0.8)
 plot(ser$tempo, ser$dias, type = "b", pch = 19, lwd = 2.4, col = COR_NEU,
-     xlab = rotulo_tempo, ylab = "Esforco (dias de pesca)",
-     main = "B. Esforco amostrado da frota de cerco",
+     xlab = rotulo_tempo, ylab = L("Esforco (dias de pesca)", "Effort (fishing days)"),
+     main = L("B. Esforco amostrado da frota de cerco", "B. Sampled effort of the purse-seine fleet"),
      ylim = c(0, max(ser$dias) * 1.05))
 par(op); dev.off()
 cat("\nPNG salvo: exp1_capturas_esforco.png\n")
@@ -1286,7 +1357,7 @@ resto  <- setdiff(cols_cap, top)
 comp <- cbind(comp_raw[, top, drop = FALSE],
               Outras = rowSums(comp_raw[, resto, drop = FALSE], na.rm = TRUE))
 comp <- comp / rowSums(comp)
-nomes_comp <- c(unname(sp_nomes[top]), "Outras especies")
+nomes_comp <- c(unname(sp_nomes[top]), L("Outras especies", "Other species"))
 cor_comp   <- c(unname(COR_ESPECIE[top]), unname(COR_ESPECIE["cap_outras"]))
 
 png("exp2_composicao.png", width = 26, height = 12, res = 300,
@@ -1294,8 +1365,8 @@ png("exp2_composicao.png", width = 26, height = 12, res = 300,
 op <- par(mar = c(4.2, 4.6, 3, 9), bty = "l", cex.main = 0.95, cex = 0.85)
 acum <- t(apply(comp, 1, cumsum))
 plot(NA, xlim = range(ser$tempo), ylim = c(0, 1), xlab = rotulo_tempo,
-     ylab = "Proporcao da captura",
-     main = "Composicao da captura da frota de cerco")
+     ylab = L("Proporcao da captura", "Proportion of catch"),
+     main = L("Composicao da captura da frota de cerco", "Catch composition of the purse-seine fleet"))
 for (k in ncol(acum):1)
   polygon(c(ser$tempo, rev(ser$tempo)), c(acum[, k], rep(0, nrow(acum))),
           col = cor_comp[k], border = "white", lwd = 0.8)
@@ -1314,11 +1385,11 @@ png("exp3_cpue_nominal.png", width = 28, height = 12, res = 300,
 op <- par(mfrow = c(1, 2), mar = c(4.2, 4.6, 3, 1), bty = "l",
           cex.main = 0.95, cex = 0.85)
 plot(ser$tempo, ser$cpue_nom_dia, type = "b", pch = 19, lwd = 2.4, col = COR_MAC,
-     xlab = rotulo_tempo, ylab = "CPUE nominal da cavala (t/dia)",
-     main = "A. CPUE nominal", ylim = c(0, max(ser$cpue_nom_dia) * 1.05))
+     xlab = rotulo_tempo, ylab = L("CPUE nominal da cavala (t/dia)", "Nominal CPUE of mackerel scad (t/day)"),
+     main = L("A. CPUE nominal", "A. Nominal CPUE"), ylim = c(0, max(ser$cpue_nom_dia) * 1.05))
 plot(ser$tempo, 100 * ser$prop_zero, type = "b", pch = 19, lwd = 2.4, col = COR_AUX,
-     xlab = rotulo_tempo, ylab = "% de viagens sem cavala",
-     main = "B. Zeros de direcionamento", ylim = c(0, 100))
+     xlab = rotulo_tempo, ylab = L("% de viagens sem cavala", "% of trips without mackerel scad"),
+     main = L("B. Zeros de direcionamento", "B. Targeting zeros"), ylim = c(0, 100))
 par(op); dev.off()
 cat("PNG salvo: exp3_cpue_nominal.png\n")
 
@@ -1336,10 +1407,10 @@ cat("PNG salvo: exp3_cpue_nominal.png\n")
 barra_prop <- function(prop, n, titulo, xlab, cex_nome = 0.7,
                        cor = "#8FAADC", n_vertical = FALSE) {
   bp <- barplot(100 * prop, col = cor, border = NA, names.arg = NA,
-                ylab = "% de viagens com cavala",
+                ylab = L("% de viagens com cavala", "% of trips with mackerel scad"),
                 xlab = xlab, main = titulo,
                 ylim = c(0, max(100 * prop, na.rm = TRUE) * 1.3))
-  text(bp, par("usr")[3], labels = names(prop), srt = 45, adj = 1,
+  text(bp, par("usr")[3], labels = TR(names(prop)), srt = 45, adj = 1,
        xpd = NA, cex = cex_nome)
   text(bp, 100 * prop, labels = paste0("n=", n), pos = 3, cex = 0.55,
        col = "#52514E", xpd = NA, srt = if (n_vertical) 90 else 0,
@@ -1356,7 +1427,7 @@ op <- par(mfrow = c(2, 2), mar = c(7.5, 4.6, 3, 1), bty = "l",
 pr_b <- tapply(viagens$pos_mac, viagens$filha, mean)
 n_b  <- table(viagens$filha)
 ord  <- names(sort(pr_b, decreasing = TRUE))
-barra_prop(pr_b[ord], n_b[ord], "A. Presenca de cavala (ilha do banco)",
+barra_prop(pr_b[ord], n_b[ord], L("A. Presenca de cavala (ilha do banco)", "A. Presence of mackerel scad (island of fishing ground)"),
            "", cex_nome = 0.70, n_vertical = FALSE)
 
 ## B — QUANTO se pega, dado que pegou (componente de magnitude).
@@ -1370,8 +1441,8 @@ if (nrow(pos_b) > 0) {
   pos_b$filha <- droplevels(pos_b$filha)
   bx <- boxplot(cpue_dia ~ filha, data = pos_b, outline = FALSE, plot = FALSE)
   boxplot(cpue_dia ~ filha, data = pos_b, outline = FALSE, col = "#74C476",
-          xaxt = "n", xlab = "", ylab = "CPUE (t/dia) entre as positivas",
-          lwd = 1, main = "B. Magnitude, so nas viagens com cavala")
+          xaxt = "n", xlab = "", ylab = L("CPUE (t/dia) entre as positivas", "CPUE (t/day) in positive trips"),
+          lwd = 1, main = L("B. Magnitude, so nas viagens com cavala", "B. Magnitude, only in trips with mackerel scad"))
   ## Com 5 ilhas os rótulos cabem na horizontal; a versão rotada a 45
   ## graus era necessária quando aqui havia 15 nomes de banco.
   axis(1, at = seq_along(bx$names), labels = bx$names, cex.axis = 0.72,
@@ -1383,12 +1454,12 @@ if (nrow(pos_b) > 0) {
 ##     e isso também é resultado.
 barra_prop(tapply(viagens$pos_mac, viagens$npesc_cat, mean),
            table(viagens$npesc_cat),
-           "C. Tripulacao (proxy de poder de pesca)", "Numero de pescadores",
+           L("C. Tripulacao (proxy de poder de pesca)", "C. Crew size (proxy of fishing power)"), L("Numero de pescadores", "Number of fishers"),
            cor = "#B497D6")
 
 ## D — trimestre (decisão L9). É a variável sazonal que vai para o modelo.
 barra_prop(tapply(viagens$pos_mac, viagens$ftri, mean), table(viagens$ftri),
-           "D. Trimestre (sazonalidade)", "Trimestre", cor = "#E8A33D")
+           L("D. Trimestre (sazonalidade)", "D. Quarter (seasonality)"), L("Trimestre", "Quarter"), cor = "#E8A33D")
 par(op); dev.off()
 cat("PNG salvo: exp4_covariaveis.png\n")
 
@@ -1412,9 +1483,9 @@ cpue_at <- tapply(viagens$cap_macarellus, list(viagens$ano, viagens$ftri), sum) 
   tapply(viagens$dias,           list(viagens$ano, viagens$ftri), sum)
 cor_tri <- hcl.colors(4, palette = "Zissou 1")
 matplot(as.numeric(rownames(cpue_at)), cpue_at, type = "b", pch = 19, lty = 1,
-        lwd = 2, col = cor_tri, xlab = "Ano", ylab = "CPUE (t/dia)",
-        main = "A. CPUE nominal por ano e trimestre")
-legend("topright", colnames(cpue_at), col = cor_tri, lwd = 2, pch = 19,
+        lwd = 2, col = cor_tri, xlab = L("Ano", "Year"), ylab = L("CPUE (t/dia)", "CPUE (t/day)"),
+        main = L("A. CPUE nominal por ano e trimestre", "A. Nominal CPUE by year and quarter"))
+legend("topright", TR(colnames(cpue_at)), col = cor_tri, lwd = 2, pch = 19,
        bty = "n", cex = 0.8)
 
 ## B — sazonalidade mensal: presença e magnitude na mesma figura
@@ -1422,8 +1493,8 @@ pr_m <- tapply(viagens$pos_mac, viagens$mes, mean)
 cp_m <- tapply(viagens$cap_macarellus, viagens$mes, sum) /
   tapply(viagens$dias, viagens$mes, sum)
 plot(as.numeric(names(pr_m)), 100 * pr_m, type = "b", pch = 19, lwd = 2.2,
-     col = COR_MAC, xlab = "Mes", ylab = "% de viagens com cavala",
-     main = "B. Sazonalidade mensal", xaxt = "n",
+     col = COR_MAC, xlab = L("Mes", "Month"), ylab = L("% de viagens com cavala", "% of trips with mackerel scad"),
+     main = L("B. Sazonalidade mensal", "B. Monthly seasonality"), xaxt = "n",
      ylim = c(0, max(100 * pr_m) * 1.15))
 axis(1, at = 1:12)
 abline(v = c(3.5, 6.5, 9.5), lty = 3, col = COR_NEU)   # limites de trimestre
@@ -1432,8 +1503,8 @@ plot(as.numeric(names(cp_m)), cp_m, type = "b", pch = 17, lty = 2, lwd = 2,
      col = COR_AUX, axes = FALSE, xlab = "", ylab = "",
      ylim = c(0, max(cp_m) * 1.15))
 axis(4, col.axis = COR_AUX)
-mtext("CPUE (t/dia)", side = 4, line = 2.2, cex = 0.8, col = COR_AUX)
-legend("topright", c("% com cavala", "CPUE (eixo dir.)"),
+mtext(L("CPUE (t/dia)", "CPUE (t/day)"), side = 4, line = 2.2, cex = 0.8, col = COR_AUX)
+legend("topright", c(L("% com cavala", "% with mackerel scad"), L("CPUE (eixo dir.)", "CPUE (right axis)")),
        col = c(COR_MAC, COR_AUX), lwd = 2, pch = c(19, 17), lty = c(1, 2),
        bty = "n", cex = 0.8)
 
@@ -1450,19 +1521,19 @@ cp_b <- sort(cp_b, decreasing = TRUE)
 ## quem lê; o que importa é a FORMA do perfil (quão desigual é a frota).
 barplot(cp_b, col = COR_MAC, border = NA, names.arg = rep("", length(cp_b)),
         ylim = c(0, max(cp_b) * 1.12),
-        ylab = "CPUE de cavala (t/dia)",
-        xlab = sprintf("Embarcacoes ordenadas (n = %d)", length(cp_b)),
-        main = "C. CPUE por embarcacao (>=30 viagens)")
+        ylab = L("CPUE de cavala (t/dia)", "Mackerel scad CPUE (t/day)"),
+        xlab = sprintf(L("Embarcacoes ordenadas (n = %d)", "Vessels, ranked (n = %d)"), length(cp_b)),
+        main = L("C. CPUE por embarcacao (>=30 viagens)", "C. CPUE by vessel (≥30 trips)"))
 media_frota <- sum(viagens$cap_macarellus) / sum(viagens$dias)
 abline(h = media_frota, lty = 2, col = COR_AUX, lwd = 2)
-text(par("usr")[2], media_frota+0.15*media_frota, "media da frota", 
+text(par("usr")[2], media_frota+0.15*media_frota, L("media da frota", "fleet mean"), 
      pos = 2,adj = c(1, -5), offset = 0.5, cex = 1, col = COR_AUX)
 
 ## D — a frota muda? barcos ativos por ano e concentração do esforço
 nb_ano <- tapply(viagens$barco_id, viagens$ano, function(x) length(unique(x)))
 plot(as.numeric(names(nb_ano)), nb_ano, type = "b", pch = 19, lwd = 2.2,
-     col = COR_MAC, xlab = "Ano", ylab = "Embarcacoes ativas",
-     main = "D. Composicao da frota ao longo da serie",
+     col = COR_MAC, xlab = L("Ano", "Year"), ylab = L("Embarcacoes ativas", "Active vessels"),
+     main = L("D. Composicao da frota ao longo da serie", "D. Fleet composition over the series"),
      ylim = c(0, max(nb_ano) * 1.15))
 par(new = TRUE)
 vpb <- as.numeric(table(viagens$ano)) / nb_ano
@@ -1470,8 +1541,8 @@ plot(as.numeric(names(nb_ano)), vpb, type = "b", pch = 17, lty = 2, lwd = 2,
      col = COR_AUX, axes = FALSE, xlab = "", ylab = "",
      ylim = c(0, max(vpb) * 1.15))
 axis(4, col.axis = COR_AUX)
-mtext("Viagens por embarcacao", side = 4, line = 2.2, cex = 0.8, col = COR_AUX)
-legend("bottomright", c("barcos ativos", "viagens/barco (dir.)"),
+mtext(L("Viagens por embarcacao", "Trips per vessel"), side = 4, line = 2.2, cex = 0.8, col = COR_AUX)
+legend("bottomright", c(L("barcos ativos", "active vessels"), L("viagens/barco (dir.)", "trips/vessel (right)")),
        col = c(COR_MAC, COR_AUX), lwd = 2, pch = c(19, 17), lty = c(1, 2),
        bty = "n", cex = 0.8)
 par(op); dev.off()
@@ -1659,14 +1730,14 @@ png("exp6_taticas.png", width = 30, height = 10.5, res = 300,
 op <- par(mfrow = c(1, 3), mar = c(4.6, 4.4, 3, 1), oma = c(0, 0, 0, 7),
           bty = "l", cex.main = 0.95, cex = 0.85)
 plot(ks, sil, type = "b", pch = 19, lwd = 2, col = COR_MAC,
-     xlab = "Numero de grupos (k)", ylab = "Silhueta media", main = "A. Escolha de k")
+     xlab = L("Numero de grupos (k)", "Number of clusters (k)"), ylab = L("Silhueta media", "Mean silhouette width"), main = L("A. Escolha de k", "A. Choice of k"))
 points(k_otimo, sil[ks == k_otimo], pch = 21, bg = COR_AUX, cex = 1.9)
 plot(pca$x[, 1], pca$x[, 2], col = adjustcolor(cor_cl[km$cluster], 0.6),
      pch = 16, cex = 0.7, xlab = sprintf("PC1 (%.0f%%)", var_exp[1]),
      ylab = sprintf("PC2 (%.0f%%)", var_exp[2]),
-     main = "B. Taticas no espaco de composicao")
+     main = L("B. Taticas no espaco de composicao", "B. Tactics in composition space"))
 points(km$centers[, 1], km$centers[, 2], pch = 21, bg = cor_cl, cex = 2, lwd = 1.5)
-legend("topleft", nome_cl, col = cor_cl, pch = 16, bty = "n", cex = 0.8, pt.cex = 1.6)
+legend("topleft", TR(nome_cl), col = cor_cl, pch = 16, bty = "n", cex = 0.8, pt.cex = 1.6)
 ## As linhas de t(cent) seguem a ordem das colunas de comp_bm (= cols_cap);
 ## cor e nome saem do NOME da coluna, então barra e legenda batem sempre.
 ## A 1ª linha é desenhada na base da barra, então a legenda vai invertida
@@ -1674,9 +1745,9 @@ legend("topleft", nome_cl, col = cor_cl, pch = 16, bty = "n", cex = 0.8, pt.cex 
 sp_cent  <- colnames(comp_bm)
 cor_cent <- unname(COR_ESPECIE[sp_cent])
 bp <- barplot(t(cent), col = cor_cent, border = "white",
-              names.arg = nome_cl,
-              las = 2, cex.names = 0.65, ylab = "Proporcao media da captura",
-              main = "C. Composicao de cada tatica")
+              names.arg = TR(nome_cl),
+              las = 2, cex.names = 0.65, ylab = L("Proporcao media da captura", "Mean proportion of catch"),
+              main = L("C. Composicao de cada tatica", "C. Composition of each tactic"))
 legend(max(bp) + 0.8, 1, rev(unname(sp_nomes[sp_cent])), fill = rev(cor_cent),
        border = NA, bty = "n", cex = 0.8, xpd = NA)
 par(op); dev.off()
@@ -1709,8 +1780,8 @@ tat <- prop.table(table(viagens$tempo, viagens$alvo), margin = 1)
 cor_tat <- cor_cl[colnames(tat)]
 matplot(as.numeric(rownames(tat)), tat, type = "b", pch = 19, lty = 1, lwd = 2.2,
         col = cor_tat, ylim = c(0, 1), xlab = rotulo_tempo,
-        ylab = "Proporcao das viagens", main = "A. Mistura de taticas")
-legend("topleft", colnames(tat), col = cor_tat, lwd = 2.2, pch = 19, bty = "n", cex = 1)
+        ylab = L("Proporcao das viagens", "Proportion of trips"), main = L("A. Mistura de taticas", "A. Mix of tactics"))
+legend("topleft", TR(colnames(tat)), col = cor_tat, lwd = 2.2, pch = 19, bty = "n", cex = 1)
 mat_d <- sapply(levels(viagens$alvo), function(g) {
   x <- dias_alvo[dias_alvo$alvo == g, ]
   v <- setNames(rep(0, nrow(ser)), ser$tempo)
@@ -1718,9 +1789,9 @@ mat_d <- sapply(levels(viagens$alvo), function(g) {
 })
 matplot(ser$tempo, mat_d, type = "l", lty = 1, lwd = 2.4, col = cor_cl[colnames(mat_d)],
         ylim = c(0, max(c(mat_d, ser$dias)) * 1.05), xlab = rotulo_tempo,
-        ylab = "Dias de pesca", main = "B. Esforco dirigido por tatica")
+        ylab = L("Dias de pesca", "Fishing days"), main = L("B. Esforco dirigido por tatica", "B. Directed effort by tactic"))
 lines(ser$tempo, ser$dias, lwd = 2, lty = 2, col = COR_NEU)
-legend("topleft", c(levels(viagens$alvo), "esforco total"),
+legend("topleft", c(TR(levels(viagens$alvo)), L("esforco total", "total effort")),
        col = c(cor_cl[levels(viagens$alvo)], COR_NEU), lwd = 2.2,
        lty = c(rep(1, nlevels(viagens$alvo)), 2), bty = "n", cex = 1)
 par(op); dev.off()
@@ -2844,25 +2915,25 @@ op <- par(mfrow = c(1, 2), mar = c(4.4, 4.6, 3, 1), bty = "l",
 cens <- unique(indices$cenario)
 plot(NA, xlim = range(indices$tempo),
      ylim = c(0, max(indices$indice, na.rm = TRUE) * 1.12),
-     xlab = rotulo_tempo, ylab = "Indice relativo (media = 1)",
-     main = "A. Cenarios de indice")
+     xlab = rotulo_tempo, ylab = L("Indice relativo (media = 1)", "Relative index (mean = 1)"),
+     main = L("A. Cenarios de indice", "A. Index scenarios"))
 for (cen in cens) {
   d <- indices[indices$cenario == cen, ]
   lines(d$tempo, d$indice, lwd = 2.4, col = cores_cen[cen])
   points(d$tempo, d$indice, pch = 19, cex = 0.8, col = cores_cen[cen])
 }
-legend("topright", cens, col = cores_cen[cens], lwd = 2.3, bty = "n", cex = 0.9)
+legend("topright", TR(cens), col = cores_cen[cens], lwd = 2.3, bty = "n", cex = 0.9)
 
 lo <- S2$indice * exp(-1.96 * S2$se_log); hi <- S2$indice * exp(1.96 * S2$se_log)
 plot(S2$tempo, S2$indice, type = "n", ylim = c(0, max(hi, na.rm = TRUE) * 1.05),
-     xlab = rotulo_tempo, ylab = "Indice (media = 1)",
-     main = "B. Indice corrigido com IC 95%")
+     xlab = rotulo_tempo, ylab = L("Indice (media = 1)", "Index (mean = 1)"),
+     main = L("B. Indice corrigido com IC 95%", "B. Corrected index with 95% CI"))
 polygon(c(S2$tempo, rev(S2$tempo)), c(lo, rev(hi)),
         col = adjustcolor(COR_MAC, 0.18), border = NA)
 lines(S2$tempo, S2$indice, lwd = 2.6, col = COR_MAC)
 points(S2$tempo, S2$indice, pch = 19, col = COR_MAC)
 lines(S1$tempo, S1$indice, lwd = 2, col = COR_AUX, lty = 2)
-legend("topright", c("corrigida (IC 95%)", "nominal"), col = c(COR_MAC, COR_AUX),
+legend("topright", L(c("corrigida (IC 95%)", "nominal"), c("corrected (95% CI)", "nominal")), col = c(COR_MAC, COR_AUX),
        lwd = c(2.6, 2), lty = c(1, 2), bty = "n", cex = 0.9)
 par(op); dev.off()
 cat("\nPNG salvo: indices_cenarios.png\n")
@@ -3137,30 +3208,30 @@ cor_c["C5 padronizada COM tatica"] <- COR_MAC
 cor_c["C6 nominal esforco dirigido"] <- COR_S2
 
 plot(NA, xlim = range(cenarios$tempo), ylim = c(0, max(cenarios$indice, na.rm = TRUE) * 1.1),
-     xlab = "Ano", ylab = "Indice relativo (media = 1)",
-     main = "A. Serie completa 1989-2025")
+     xlab = L("Ano", "Year"), ylab = L("Indice relativo (media = 1)", "Relative index (mean = 1)"),
+     main = L("A. Serie completa 1989-2025", "A. Full series 1989–2025"))
 abline(v = ANO_CORTE_ALVO + 0.5, lty = 3, col = "grey40")
 ## rótulo embaixo, para não brigar com a legenda no canto superior
 text(ANO_CORTE_ALVO + 0.1, max(cenarios$indice, na.rm = TRUE) * 0.02,
-     "mudanca de alvo", pos = 4, cex = 0.9, col = "grey30")
+     L("mudanca de alvo", "target switch"), pos = 4, cex = 0.9, col = "grey30")
 for (cen in unique(cenarios$cenario)) {
   d <- cenarios[cenarios$cenario == cen, ]
   lines(d$tempo, d$indice, lwd = 2.2, col = cor_c[cen])
   points(d$tempo, d$indice, pch = 19, cex = 0.6, col = cor_c[cen])
 }
-legend("topright", names(cor_c), col = cor_c, lwd = 2.2, bty = "n", cex = 0.9,pt.cex = 1.8)
+legend("topright", TR(names(cor_c)), col = cor_c, lwd = 2.2, bty = "n", cex = 0.9,pt.cex = 1.8)
 
 ## painel B: só o período padronizado, onde os cenários são comparáveis
 sub <- cenarios[cenarios$tempo > ANO_CORTE_ALVO, ]
 plot(NA, xlim = range(sub$tempo), ylim = c(0, max(sub$indice, na.rm = TRUE) * 1.1),
-     xlab = "Ano", ylab = "Indice relativo (media = 1)",
-     main = sprintf("B. Periodo pos-alvo (>=%d)", ANO_CORTE_ALVO + 1))
+     xlab = L("Ano", "Year"), ylab = L("Indice relativo (media = 1)", "Relative index (mean = 1)"),
+     main = sprintf(L("B. Periodo pos-alvo (>=%d)", "B. Post-switch period (≥%d)"), ANO_CORTE_ALVO + 1))
 for (cen in unique(sub$cenario)) {
   d <- sub[sub$cenario == cen, ]
   lines(d$tempo, d$indice, lwd = 2.4, col = cor_c[cen])
   points(d$tempo, d$indice, pch = 19, cex = 0.8, col = cor_c[cen])
 }
-legend("topright", unique(sub$cenario), col = cor_c[unique(sub$cenario)],
+legend("topright", TR(unique(sub$cenario)), col = cor_c[unique(sub$cenario)],
        lwd = 2.4, bty = "n", cex = 0.9,pt.cex = 1.5)
 par(op); dev.off()
 cat("PNG salvo: cenarios_finais.png\n")
@@ -3365,11 +3436,11 @@ png("desembarques_macarellus.png", width = 24, height = 12, res = 300,
 op <- par(mar = c(4.4, 4.6, 3, 1), bty = "l", cex.main = 0.95, cex = 0.9)
 d <- desembarques
 y_max <- max(c(d$Desemb_total_t, d$Catch_macarellus_t, valor_orig_2018), na.rm = TRUE) * 1.15
-plot(d$Yr, d$Desemb_total_t, type = "n", xlab = "Ano",
-     ylab = "Desembarque de cavala preta (t)", ylim = c(0, y_max),
-     main = "Serie de desembarques - D. macarellus (Cabo Verde)")
+plot(d$Yr, d$Desemb_total_t, type = "n", xlab = L("Ano", "Year"),
+     ylab = L("Desembarque de cavala preta (t)", "Mackerel scad landings (t)"), ylim = c(0, y_max),
+     main = L("Serie de desembarques - D. macarellus (Cabo Verde)", "Landings series - D. macarellus (Cabo Verde)"))
 abline(v = ANO_CORTE_ALVO + 0.5, lty = 3, col = "grey40")
-text(ANO_CORTE_ALVO + 0.5, y_max * 0.97, "mudanca de alvo", pos = 2,
+text(ANO_CORTE_ALVO + 0.5, y_max * 0.97, L("mudanca de alvo", "target switch"), pos = 2,
      cex = 0.8, col = "grey30")
 lines(d$Yr, d$Catch_macarellus_t, lwd = 2.5, col = COR_NEU)
 points(d$Yr, d$Catch_macarellus_t, pch = 16, cex = 1, col = COR_NEU)
@@ -3394,20 +3465,21 @@ if (!is.na(valor_orig_2018)) {
   segments(2018, valor_orig_2018, 2018, d$Desemb_total_t[d$Yr == 2018],
            lty = 3, col = "grey45")
 }
-leg_txt <- c("Desembarque total (todas as artes)", "Desembarque do cerco")
+leg_txt <- L(c("Desembarque total (todas as artes)", "Desembarque do cerco"), c("Total landings (all gears)", "Purse-seine landings"))
 leg_pch <- c(19, 16); leg_col <- c(COR_MAC, COR_NEU); leg_bg <- c(NA, NA)
 leg_lty <- c(1, 1); leg_lwd <- c(2.4, 2.5)
-rotulo <- c("2018: media dos vizinhos"        = "2018: media de 2015-17 e 2019-21",
-            "interpolado (total < cerco)"     = "interpolado (total < cerco)",
-            "cerco como piso (total < cerco)" = "cerco como piso (total < cerco)",
-            "cerco (sem total no ano)"        = "sem total: desembarque do cerco")
+## os NOMES são as fontes nos dados (não traduzir); os VALORES são o texto da legenda
+rotulo <- c("2018: media dos vizinhos"        = L("2018: media de 2015-17 e 2019-21", "2018: mean of 2015–17 and 2019–21"),
+            "interpolado (total < cerco)"     = L("interpolado (total < cerco)", "interpolated (total < purse seine)"),
+            "cerco como piso (total < cerco)" = L("cerco como piso (total < cerco)", "purse seine as floor (total < purse seine)"),
+            "cerco (sem total no ano)"        = L("sem total: desembarque do cerco", "no total: purse-seine landings"))
 for (f in setdiff(presentes, "IMar total (todas as artes)")) {
   leg_txt <- c(leg_txt, rotulo[[f]]); leg_pch <- c(leg_pch, estilo[[f]]$pch)
   leg_col <- c(leg_col, estilo[[f]]$col); leg_bg <- c(leg_bg, estilo[[f]]$bg)
   leg_lty <- c(leg_lty, NA); leg_lwd <- c(leg_lwd, 1.6)
 }
 if (!is.na(valor_orig_2018)) {
-  leg_txt <- c(leg_txt, sprintf("2018 original (%.0f t, fora)", valor_orig_2018))
+  leg_txt <- c(leg_txt, sprintf(L("2018 original (%.0f t, fora)", "2018 original (%.0f t, excluded)"), valor_orig_2018))
   leg_pch <- c(leg_pch, 4); leg_col <- c(leg_col, "grey45"); leg_bg <- c(leg_bg, NA)
   leg_lty <- c(leg_lty, NA); leg_lwd <- c(leg_lwd, 1.6)
 }
@@ -4457,12 +4529,14 @@ for (i in seq_len(nrow(cenarios)))
               cenarios$k_min[i], cenarios$k_max[i], cenarios$papel[i]))
 
 ## Rótulo curto e legível para cada índice nas figuras.
-rot_curto <- c(C1_nominal_total = "C1 nom total",
-               C2_nominal_pre_alvo = "C2 nom pre",
-               C3_nominal_pos_alvo = "C3 nom pos",
-               C4_padronizada_sem_tatica = "C4 padr s/tat",
-               C5_padronizada_com_tatica = "C5 padr c/tat",
-               C6_nominal_dirigida = "C6 nom dirigida")
+## nomes curtos dos índices: são os que aparecem nos gráficos do próprio
+## JABBA (ajustes, resíduos) e na tabela de resíduos -> no idioma escolhido
+rot_curto <- c(C1_nominal_total = L("C1 nom total", "C1 nom total"),
+               C2_nominal_pre_alvo = L("C2 nom pre", "C2 nom pre-switch"),
+               C3_nominal_pos_alvo = L("C3 nom pos", "C3 nom post-switch"),
+               C4_padronizada_sem_tatica = L("C4 padr s/tat", "C4 std no tactic"),
+               C5_padronizada_com_tatica = L("C5 padr c/tat", "C5 std tactic"),
+               C6_nominal_dirigida = L("C6 nom dirigida", "C6 nom directed"))
 
 
 ## =========================================================================
@@ -4765,28 +4839,28 @@ op <- par(mfrow = c(2, 2), mar = c(4.2, 4.4, 2.6, 1), bty = "l",
 ## 2015-2025) usam só o trecho final dela — ver seção 5.8.
 plot(capt$Yr, capt$Catch, type = "h", lwd = 4, lend = 1, col = COR_NEU,
      ylim = c(0, max(capt$Catch) * 1.05),
-     xlab = "Ano", ylab = "Captura (t)",
-     main = "A. Remocoes usadas no modelo (J13-J17 usam so 2015-2025)")
+     xlab = L("Ano", "Year"), ylab = L("Captura (t)", "Catch (t)"),
+     main = L("A. Remocoes usadas no modelo (J13-J17 usam so 2015-2025)", "A. Removals used in the model (J13-J17 use only 2015-2025)"))
 
 ## (B) e (C) trajetórias
 quadro <- function(v, ylab, titulo, ref = 1) {
   s <- tab_series[tab_series$variavel == v, ]
   plot(NA, xlim = range(s$ano), ylim = c(0, max(s$uci, na.rm = TRUE) * 1.05),
-       xlab = "Ano", ylab = ylab, main = titulo)
+       xlab = L("Ano", "Year"), ylab = ylab, main = titulo)
   abline(h = ref, lty = 2, col = "grey40")
   for (nm in names(fits)) {
     d <- s[s$cenario == nm, ]
     lines(d$ano, d$mu, lwd = 2.2, col = cor_cen[nm])
   }
 }
-quadro("BBmsy", "B / Bmsy", "B. Biomassa relativa")
-quadro("FFmsy", "F / Fmsy", "C. Mortalidade por pesca relativa")
+quadro("BBmsy", "B / Bmsy", L("B. Biomassa relativa", "B. Relative biomass"))
+quadro("FFmsy", "F / Fmsy", L("C. Mortalidade por pesca relativa", "C. Relative fishing mortality"))
 
 ## (D) Kobe — só o ponto final de cada cenário, sobre os quadrantes
 s_max <- max(c(tab_status$BBmsy_uci, 2), na.rm = TRUE)
 f_max <- max(c(tab_status$FFmsy_uci, 2), na.rm = TRUE)
 plot(NA, xlim = c(0, s_max), ylim = c(0, f_max), xlab = "B / Bmsy", ylab = "F / Fmsy",
-     main = "D. Kobe - ano final por cenario")
+     main = L("D. Kobe - ano final por cenario", "D. Kobe - final year by scenario"))
 rect(0, 1, 1, f_max, col = adjustcolor("#D7301F", 0.18), border = NA)  # vermelho
 rect(1, 0, s_max, 1, col = adjustcolor("#4DAF4A", 0.18), border = NA)  # verde
 rect(0, 0, 1, 1, col = adjustcolor("#FF7F00", 0.15), border = NA)      # laranja
@@ -4799,7 +4873,7 @@ for (nm in names(fits)) {
   points(r$BBmsy, r$FFmsy, pch = 21, bg = cor_cen[nm], col = "white", cex = 1.8, lwd = 1.5)
 }
 ## Legenda com fundo: sem ele os rótulos somem dentro do quadrante colorido.
-legend("topright", names(fits), col = cor_cen, pch = 19, pt.cex = 1.2, cex = 0.58,
+legend("topright", TRJ(names(fits)), col = cor_cen, pch = 19, pt.cex = 1.2, cex = 0.58,
        bg = adjustcolor("white", 0.82), box.col = NA)
 par(op); dev.off()
 cat("PNG salvo: jabba_painel_cenarios.png\n")
@@ -4965,7 +5039,7 @@ if (RODAR_PROJECAO) {
   plot_proj <- function(res, ylab) {
     plot(res$ano, res$mediana, type = "n",
          xlim = range(res$ano), ylim = range(0, res$li, res$ls, na.rm = TRUE),
-         xlab = "Ano", ylab = ylab, bty = "l")
+         xlab = L("Ano", "Year"), ylab = ylab, bty = "l")
     abline(h = 1, lty = 2, col = COR_NEU)
     for (tac in levels(kbtrj_proj$run)) {
       d <- res[res$TAC == tac, ]
@@ -4982,8 +5056,8 @@ if (RODAR_PROJECAO) {
   png(file.path(DIR_SAIDA, "jabba_projecoes.png"), width = 26, height = 11,
       res = 300, antialias = AA, units = "cm")
   op <- par(mfrow = c(1, 2), mar = c(4.2, 4.4, 2.6, 1), bty = "l", cex = 0.8)
-  plot_proj(res_stock,   "B/Bmsy projetado")
-  plot_proj(res_harvest, "F/Fmsy projetado")
+  plot_proj(res_stock,   L("B/Bmsy projetado", "Projected B/Bmsy"))
+  plot_proj(res_harvest, L("F/Fmsy projetado", "Projected F/Fmsy"))
   par(op); dev.off()
   cat("PNG salvo: jabba_projecoes.png\n")
 } else {
@@ -5110,7 +5184,7 @@ dens_pico <- function(x, log_x = FALSE, from = NULL, to = NULL, adjust = 1.2) {
 painel_pri_post <- function(prior, post, xlab, col_post, main, log_x = FALSE,
                             lim01 = FALSE) {
   if (is.null(post) || !length(post)) { plot.new(); title(main = main, cex.main = 0.85)
-    text(0.5, 0.5, "sem amostras", cex = 0.8, col = COR_NEU); return(invisible(NULL)) }
+    text(0.5, 0.5, L("sem amostras", "no samples"), cex = 0.8, col = COR_NEU); return(invisible(NULL)) }
   vals <- c(if (!is.null(prior)) prior, post)
   vals <- vals[is.finite(vals)]
   xl <- as.numeric(quantile(vals, c(0.005, 0.995), na.rm = TRUE))
@@ -5118,7 +5192,7 @@ painel_pri_post <- function(prior, post, xlab, col_post, main, log_x = FALSE,
   dp  <- if (!is.null(prior)) dens_pico(prior, log_x) else NULL
   dpo <- dens_pico(post, log_x, from = if (lim01) 0 else NULL, to = if (lim01) 1 else NULL)
   plot(NA, xlim = xl, ylim = c(0, 1.08), xlab = xlab,
-       ylab = "densidade (normalizada ao pico)", main = main,
+       ylab = L("densidade (normalizada ao pico)", "density (scaled to peak)"), main = main,
        bty = "l", log = if (log_x) "x" else "", cex.main = 0.85)
   if (!is.null(dp))  { polygon(c(dp$x, rev(dp$x)), c(dp$y, rep(0, length(dp$y))),
                                col = adjustcolor("grey45", 0.12), border = NA)
@@ -5127,7 +5201,7 @@ painel_pri_post <- function(prior, post, xlab, col_post, main, log_x = FALSE,
   ## Medianas marcadas: é delas que sai a razão posterior/prior do teste.
   if (!is.null(prior)) abline(v = median(prior), col = "grey45", lty = 3)
   abline(v = median(post), col = col_post, lty = 3)
-  legend("topright", c(if (!is.null(prior)) "Priori", "Posteriori"),
+  legend("topright", c(if (!is.null(prior)) L("Priori", "Prior"), L("Posteriori", "Posterior")),
          col = c(if (!is.null(prior)) "grey45", col_post),
          lty = c(if (!is.null(prior)) 2, 1), lwd = 2.2, bty = "n", cex = 0.72)
 }
@@ -5158,13 +5232,13 @@ for (nm in names(fits)) {
   paineis <- list(
     list(pri = pr$r,      pos = po$r,      lab = "r",              cor = COR_MAC, log = FALSE),
     list(pri = pr$K,      pos = po$K,      lab = "K (t)",          cor = COR_AUX, log = TRUE),
-    list(pri = pr$MSY,    pos = po$MSY,    lab = "MSY (t/ano)",    cor = COR_S2,  log = TRUE),
-    list(pri = pr$psi,    pos = po$psi,    lab = "psi (B inicial/K)", cor = COR_S3, log = FALSE),
-    list(pri = pr$sigma2, pos = po$sigma2, lab = "sigma2 (erro de processo)", cor = COR_S2D, log = TRUE),
-    list(pri = NULL,      pos = po$BB0,    lab = "B/K no ultimo ano", cor = "#B03060", log = FALSE, lim01 = TRUE))
+    list(pri = pr$MSY,    pos = po$MSY,    lab = L("MSY (t/ano)", "MSY (t/yr)"),    cor = COR_S2,  log = TRUE),
+    list(pri = pr$psi,    pos = po$psi,    lab = L("psi (B inicial/K)", "psi (initial B/K)"), cor = COR_S3, log = FALSE),
+    list(pri = pr$sigma2, pos = po$sigma2, lab = L("sigma2 (erro de processo)", "sigma2 (process error)"), cor = COR_S2D, log = TRUE),
+    list(pri = NULL,      pos = po$BB0,    lab = L("B/K no ultimo ano", "B/K in the final year"), cor = "#B03060", log = FALSE, lim01 = TRUE))
   for (j in seq_len(nq))
     paineis[[length(paineis) + 1]] <- list(pri = NULL, pos = po$q[[j]],
-                                           lab = sprintf("%s (capturabilidade)", names(po$q)[j]),
+                                           lab = sprintf(L("%s (capturabilidade)", "%s (catchability)"), names(po$q)[j]),
                                            cor = "#8C6D31", log = TRUE)
   
   nc <- 4; nr <- ceiling(length(paineis) / nc)
@@ -5174,9 +5248,9 @@ for (nm in names(fits)) {
             bty = "l", cex = 0.72)
   for (p in paineis)
     painel_pri_post(p$pri, p$pos, p$lab, p$cor,
-                    main = sprintf("%s - %s", sub(" .*", "", p$lab), nm),
+                    main = sprintf("%s - %s", sub(" .*", "", p$lab), TRJ(nm)),
                     log_x = isTRUE(p$log), lim01 = isTRUE(p$lim01))
-  mtext(sprintf("Priori x posteriori - %s", nm), outer = TRUE, cex = 0.85, font = 2)
+  mtext(sprintf(L("Priori x posteriori - %s", "Prior x posterior - %s"), TRJ(nm)), outer = TRUE, cex = 0.85, font = 2)
   par(op); dev.off()
   
   ## --- o teste em número, não em figura ---------------------------------
@@ -5285,7 +5359,7 @@ escreve_csv_utf8(tab_q, file.path(DIR_SAIDA, "jabba_capturabilidade_q.csv"))
 ## Mesma figura que existe no CMSY++ e no DB-SRA, para o conjunto ficar
 ## comparável entre os três métodos.
 cat("\n--- 12.3 boxplots das posteriores por cenário ---\n")
-vars_box <- list(r = "r", K = "K (t)", MSY = "MSY (t/ano)", BB0 = "B/K no ultimo ano")
+vars_box <- list(r = "r", K = "K (t)", MSY = L("MSY (t/ano)", "MSY (t/yr)"), BB0 = L("B/K no ultimo ano", "B/K in the final year"))
 draws_todos <- setNames(lapply(names(fits), draws_cen), names(fits))
 
 png(file.path(DIR_FIG, "jabba_boxplots_posteriores.png"),
@@ -5302,7 +5376,7 @@ for (v in names(vars_box)) {
           log = if (usa_log) "y" else "")
   if (v == "BB0") abline(h = 0.5, col = "firebrick", lty = 2)
   axis(1, at = seq_along(fits), labels = FALSE)
-  text(x = seq_along(fits), y = par("usr")[3], labels = names(fits),
+  text(x = seq_along(fits), y = par("usr")[3], labels = TRJ(names(fits)),
        srt = 45, adj = 1, xpd = NA, cex = 0.6)
 }
 par(op); dev.off()
@@ -5331,16 +5405,17 @@ dens_conjunta <- function(x, log_x, xlab, titulo, arquivo, lim01 = FALSE) {
   op <- par(mar = c(4.8, 5, 3.4, 1), bty = "l", cex.main = 0.9)
   plot(d$x, d$y, type = "n", log = if (log_x) "x" else "",
        xlim = if (lim01) c(0, 1) else range(d$x),
-       xlab = xlab, ylab = "densidade (normalizada ao pico)", main = titulo)
+       xlab = xlab, ylab = L("densidade (normalizada ao pico)", "density (scaled to peak)"), main = titulo)
   faixa <- d$x >= q[1] & d$x <= q[5]
   polygon(c(d$x[faixa], rev(d$x[faixa])), c(d$y[faixa], rep(0, sum(faixa))),
           col = adjustcolor(COR_MAC, 0.18), border = NA)
   lines(d$x, d$y, col = COR_MAC, lwd = 2.4)
   abline(v = q[c(1, 5)], col = COR_AUX, lty = 2, lwd = 1.6)
   abline(v = q[3], col = COR_MAC, lty = 1, lwd = 1.8)
-  mtext("pool de cenários: a largura mede o DESACORDO entre cenários, não a incerteza de um modelo",
+  mtext(L("pool de cenários: a largura mede o DESACORDO entre cenários, não a incerteza de um modelo",
+          "pool of scenarios: the width measures DISAGREEMENT among scenarios, not the uncertainty of one model"),
         side = 3, line = 0.2, cex = 0.62, col = "grey30")
-  legend("topright", c("densidade conjunta", "faixa de 95%", "mediana"),
+  legend("topright", L(c("densidade conjunta", "faixa de 95%", "mediana"), c("joint density", "95% interval", "median")),
          col = c(COR_MAC, adjustcolor(COR_MAC, 0.4), COR_MAC),
          lwd = c(2.4, 8, 1.8), bty = "n", cex = 0.72)
   par(op); dev.off()
@@ -5350,11 +5425,13 @@ dens_conjunta <- function(x, log_x, xlab, titulo, arquivo, lim01 = FALSE) {
 
 msy_pool <- unlist(lapply(CEN_POOL, function(nm) draws_todos[[nm]]$MSY))
 btk_pool <- unlist(lapply(CEN_POOL, function(nm) draws_todos[[nm]]$BB0))
-q_msy <- dens_conjunta(msy_pool, TRUE, "MSY (t/ano)",
-                       "Distribuicao conjunta do MSY - cenarios de janela completa (JABBA)",
+q_msy <- dens_conjunta(msy_pool, TRUE, L("MSY (t/ano)", "MSY (t/yr)"),
+                       L("Distribuicao conjunta do MSY - cenarios de janela completa (JABBA)",
+                         "Joint distribution of MSY - full-window scenarios (JABBA)"),
                        "jabba_msy_densidade_conjunta.png")
-q_btk <- dens_conjunta(btk_pool, FALSE, "B/K no ultimo ano",
-                       "Distribuicao conjunta de B/K final - cenarios de janela completa (JABBA)",
+q_btk <- dens_conjunta(btk_pool, FALSE, L("B/K no ultimo ano", "B/K in the final year"),
+                       L("Distribuicao conjunta de B/K final - cenarios de janela completa (JABBA)",
+                         "Joint distribution of final B/K - full-window scenarios (JABBA)"),
                        "jabba_btk_densidade_conjunta.png", lim01 = TRUE)
 names(q_msy)[2] <- "MSY"; names(q_btk)[2] <- "BK_final"
 cat("\nQuantis do MSY (pool):\n");     print(transform(q_msy, MSY = round(MSY, 1)), row.names = FALSE)
@@ -5378,8 +5455,8 @@ op <- par(mfrow = c(1, 2), mar = c(4.5, 4.8, 3, 1), bty = "l", cex = 0.8, cex.ma
 for (v in c("BBmsy", "B")) {
   s <- tab_series[tab_series$variavel == v, ]
   plot(NA, xlim = range(s$ano), ylim = c(0, quantile(s$uci, 0.995, na.rm = TRUE) * 1.05),
-       xlab = "Ano", ylab = if (v == "BBmsy") "B / Bmsy" else "Biomassa (t)",
-       main = if (v == "BBmsy") "Biomassa relativa (B/Bmsy)" else "Biomassa absoluta (t)")
+       xlab = L("Ano", "Year"), ylab = if (v == "BBmsy") "B / Bmsy" else L("Biomassa (t)", "Biomass (t)"),
+       main = if (v == "BBmsy") L("Biomassa relativa (B/Bmsy)", "Relative biomass (B/Bmsy)") else L("Biomassa absoluta (t)", "Absolute biomass (t)"))
   for (nm in names(fits)) {
     d <- s[s$cenario == nm, ]; d <- d[order(d$ano), ]
     if (!nrow(d)) next
@@ -5391,7 +5468,7 @@ for (v in c("BBmsy", "B")) {
     if (nrow(d)) lines(d$ano, d$mu, col = cor_cen_fig[nm], lwd = 2.6)
   }
   if (v == "BBmsy") abline(h = 1, col = "firebrick", lty = 2)
-  legend("topright", names(fits), col = cor_cen_fig, lwd = 2.4, bty = "n", cex = 0.5)
+  legend("topright", TRJ(names(fits)), col = cor_cen_fig, lwd = 2.4, bty = "n", cex = 0.5)
 }
 par(op); dev.off()
 cat("PNG salvo: jabba_trajetorias_biomassa.png\n")
@@ -5420,8 +5497,8 @@ if (!is.null(tab_residuos) && nrow(tab_residuos)) {
     d <- tab_residuos[tab_residuos$indice == ix, ]
     anos_ix <- sort(unique(d$ano))
     plot(NA, xlim = range(anos_ix), ylim = range(d$residuo_log, na.rm = TRUE) * 1.1,
-         xlab = "Ano", ylab = "Residuo (log)",
-         main = sprintf("%s  (n = %d anos, %d cenarios)", ix, length(anos_ix),
+         xlab = L("Ano", "Year"), ylab = L("Residuo (log)", "Residual (log)"),
+         main = sprintf(L("%s  (n = %d anos, %d cenarios)", "%s  (n = %d years, %d scenarios)"), ix, length(anos_ix),
                         length(unique(d$cenario))))
     ## dispersão entre cenários, ano a ano
     if (length(unique(d$cenario)) > 2)
@@ -5443,13 +5520,14 @@ if (!is.null(tab_residuos) && nrow(tab_residuos)) {
   ## painel inferior: RMSE por cenário, com o SDNR anotado
   par(mar = c(4.2, 11, 3, 2))
   ta <- tab_ajuste[order(tab_ajuste$RMSE), ]
-  bp <- barplot(ta$RMSE, horiz = TRUE, names.arg = ta$cenario, las = 1,
+  bp <- barplot(ta$RMSE, horiz = TRUE, names.arg = TRJ(ta$cenario), las = 1,
                 col = cor_cen_fig[ta$cenario], border = NA, xlim = c(0, max(ta$RMSE) * 1.25),
-                xlab = "RMSE (%)", main = "Erro de ajuste ao indice por cenario (RMSE) e SDNR",
+                xlab = "RMSE (%)", main = L("Erro de ajuste ao indice por cenario (RMSE) e SDNR", "Fit error to the index by scenario (RMSE) and SDNR"),
                 cex.names = 0.62)
   abline(v = 30, col = "forestgreen", lty = 2, lwd = 1.6)
   text(max(ta$RMSE) * 1.02, bp, sprintf("SDNR %.2f", ta$SDNR), cex = 0.6, adj = 0, xpd = NA)
-  mtext("linha verde = 30%, referencia usual de bom ajuste | SDNR ~1 = o erro assumido bate com o observado",
+  mtext(L("linha verde = 30%, referencia usual de bom ajuste | SDNR ~1 = o erro assumido bate com o observado",
+          "green line = 30%, usual reference for a good fit | SDNR ~1 = assumed error matches the observed"),
         side = 3, line = 0.15, cex = 0.58, col = "grey30", adj = 0)
   par(op); layout(1); dev.off()
   cat("PNG salvo: jabba_residuos_cenarios.png\n")
@@ -5524,17 +5602,17 @@ tornado <- function(base_id, metrica, metrica_nome, arquivo) {
       res = 300, antialias = AA, units = "cm")
   op <- par(mar = c(4.6, 13, 5, 13), bty = "l")
   plot(NA, xlim = xl, ylim = c(0.5, length(ordem_f) + 0.5), yaxt = "n", ylab = "",
-       xlab = sprintf("Variacao da mediana de %s em relacao ao cenario base (%%)", metrica_nome))
-  mtext(sprintf("Tornado - sensibilidade de %s (JABBA)", metrica_nome),
+       xlab = sprintf(L("Variacao da mediana de %s em relacao ao cenario base (%%)", "Change in the median %s relative to the base scenario (%%)"), TR(metrica_nome)))
+  mtext(sprintf(L("Tornado - sensibilidade de %s (JABBA)", "Tornado - sensitivity of %s (JABBA)"), TR(metrica_nome)),
         side = 3, line = 2.6, cex = 1.05, font = 2, adj = 0)
-  mtext(sprintf("Base: %s | mediana de %s = %.3g", base_id, metrica_nome, v_base),
+  mtext(sprintf(L("Base: %s | mediana de %s = %.3g", "Base: %s | median %s = %.3g"), TRJ(base_id), TR(metrica_nome), v_base),
         side = 3, line = 1.1, cex = 0.8, adj = 0)
   abline(v = pretty(xl), col = "grey92"); abline(v = 0, col = "black", lwd = 1.4)
   for (i in seq_len(nrow(te))) rect(te$xmin[i], te$y[i] - 0.32, te$xmax[i], te$y[i] + 0.32,
                                     col = cores_n[te$nivel[i]], border = "white")
-  axis(2, at = seq_along(ordem_f), labels = rev(ordem_f), las = 1, tick = FALSE, cex.axis = 0.82)
-  legend(x = xl[2] * 1.08, y = length(ordem_f) + 0.5, xpd = NA, legend = names(cores_n),
-         fill = cores_n, bty = "n", cex = 0.72, title = "Cenario alternativo", xjust = 0)
+  axis(2, at = seq_along(ordem_f), labels = TR(rev(ordem_f)), las = 1, tick = FALSE, cex.axis = 0.82)
+  legend(x = xl[2] * 1.08, y = length(ordem_f) + 0.5, xpd = NA, legend = TRJ(names(cores_n)),
+         fill = cores_n, bty = "n", cex = 0.72, title = L("Cenario alternativo", "Alternative scenario"), xjust = 0)
   par(op); dev.off()
   cat(sprintf("PNG salvo: %s\n", arquivo))
   cbind(base = base_id, metrica = metrica_nome, te[, c("fator", "nivel", "valor", "delta_pct")])
@@ -5726,6 +5804,71 @@ cat("\n===== FIM =====\n")
 
 cat("\n\n############ PARTE FINAL — SÍNTESE DOS TRÊS MODELOS ############\n")
 
+## ---- idioma das figuras --------------------------------------------------
+## Se esta parte for rodada sozinha (sem o começo do script), define aqui o
+## idioma e as funções de tradução (as mesmas do início do script).
+if (!exists("IDIOMA")) IDIOMA <- "en"
+if (!exists("TRJ")) {
+  # L("texto em português", "text in English"): devolve o texto no idioma
+  # escolhido. Funciona também com vetores (c(...)) nos dois argumentos.
+  L <- function(pt, en) if (identical(IDIOMA, "en")) en else pt
+  # TR(x): traduz rótulos que vêm dos PRÓPRIOS DADOS (nomes de cenários, de
+  # séries, de fatores do tornado...). Os dados e os CSV continuam em
+  # português; só o que aparece no gráfico é traduzido. O que não estiver no
+  # dicionário passa direto, sem alteração.
+  DIC_EN <- c(
+    ## nomes que vêm dos dados ou de objetos usados também nas tabelas
+    "Outras" = "Others", "outras" = "others",
+    "T1" = "Q1", "T2" = "Q2", "T3" = "Q3", "T4" = "Q4",
+    ## variantes do índice (seção 9 da padronização)
+    "S1 nominal" = "S1 nominal", "S0 sem tática" = "S0 without tactic",
+    "S2 corrigida (tática discreta)" = "S2 corrected (discrete tactic)",
+    "S2b PCs COM cavala (circular)" = "S2b PCs WITH mackerel scad (circular)",
+    "S2b PCs SEM cavala" = "S2b PCs WITHOUT mackerel scad",
+    "S3 esforço dirigido" = "S3 directed effort",
+    ## séries finais de CPUE (entrada do JABBA)
+    "C1 nominal 1989-2025" = "C1 nominal 1989–2025",
+    "C2 nominal pre-alvo (<=2014)" = "C2 nominal pre-switch (≤2014)",
+    "C3 nominal pos-alvo (>=2015)" = "C3 nominal post-switch (≥2015)",
+    "C4 padronizada SEM tatica" = "C4 standardized without tactic",
+    "C5 padronizada COM tatica" = "C5 standardized with tactic",
+    "C6 nominal esforco dirigido" = "C6 nominal, directed effort",
+    ## grupos da síntese
+    "JABBA janela completa" = "JABBA full window", "JABBA janela curta" = "JABBA short window",
+    ## fatores e métricas dos tornados
+    "Indice usado" = "Index used", "Forma da curva de producao" = "Production curve shape",
+    "Prior de r" = "Prior on r", "Prior de K" = "Prior on K", "Janela do modelo" = "Model window",
+    "Prior de psi" = "Prior on psi", "B/Bmsy final" = "Final B/Bmsy", "MSY (janela curta)" = "MSY (short window)",
+    ## tabela S09
+    "Sim" = "Yes", "Não" = "No", "Incerto" = "Uncertain",
+    "Base; aceitação muito baixa" = "Base; very low acceptance",
+    "Base; B/K final no teto da priori" = "Base; final B/K at the prior's upper bound",
+    "Alternativa plausível" = "Plausible alternative",
+    "Sensibilidade; não defensável" = "Sensitivity; not defensible",
+    "Base; viabilidade muito baixa" = "Base; very low viability",
+    "Base; RU(B/K) ≈ 0 (B/K = priori)" = "Base; RU(B/K) ≈ 0 (B/K = prior)",
+    "Sensibilidade" = "Sensitivity",
+    "Mal ajustado; r, K e psi ≈ prioris" = "Poor fit; r, K and psi ≈ priors",
+    "Indeterminado (duas soluções)" = "Undetermined (two solutions)",
+    "Sem âncora histórica; psi define o nível" = "No historical anchor; psi sets the level")
+  TR <- function(x) {
+    if (!identical(IDIOMA, "en")) return(x)
+    y <- unname(DIC_EN[as.character(x)])
+    ifelse(is.na(y), as.character(x), y)
+  }
+  # TRJ(x): nomes dos cenários do JABBA (J3_BASE_C2C5, J12_soC2_historico...)
+  # em inglês, só para exibição: "so" -> "only", "historico" -> "historical",
+  # "curto" -> "short", "Baixo"/"Alto" -> "Low"/"High", "ingenuo" -> "naive".
+  TRJ <- function(x) {
+    if (!identical(IDIOMA, "en")) return(x)
+    x <- gsub("_so(C[0-9])", "_\\1-only", x)
+    x <- gsub("historico", "historical", x); x <- gsub("curto", "short", x)
+    x <- gsub("Baixo", "Low", x); x <- gsub("Alto", "High", x); x <- gsub("ingenuo", "naive", x)
+    x
+  }
+}
+
+
 suppressPackageStartupMessages({
   library(ggplot2)
   library(patchwork)
@@ -5770,14 +5913,14 @@ COR_MODELO <- c("DB-SRA" = "#2A6FB5", "CMSY++" = "#D2602A", "JABBA" = "#1B9E77")
 COR_FAM <- c(NN_CMSY = "#C0392B", zBRT = "#E08A00", Target_switch = "#1B9E77",
              Uninformative_bk = "#2A6FB5",
              J_curta = "#C0392B", J_bimodal = "#8A949C", J_completa = "#2A6FB5")
-ROT_FAM <- c(NN_CMSY = "NN-CMSY++", zBRT = "zBRT", Target_switch = "Mudança de alvo",
-             Uninformative_bk = "Não informativa",
-             J_curta = "JABBA: janela curta 2015–2025",
-             J_bimodal = "JABBA: janela completa, B/K bimodal",
-             J_completa = "JABBA: janela completa 1989–2025")
+ROT_FAM <- c(NN_CMSY = "NN-CMSY++", zBRT = "zBRT", Target_switch = L("Mudança de alvo", "Target switch"),
+             Uninformative_bk = L("Não informativa", "Uninformative"),
+             J_curta = L("JABBA: janela curta 2015–2025", "JABBA: short window 2015–2025"),
+             J_bimodal = L("JABBA: janela completa, B/K bimodal", "JABBA: full window, bimodal B/K"),
+             J_completa = L("JABBA: janela completa 1989–2025", "JABBA: full window 1989–2025"))
 ORD_FAM <- names(COR_FAM)
-ROT_R_CMSY <- c("Euler-lotka methods" = "Euler-Lotka", "lower resilience" = "r menor",
-                "Higher resilience" = "r maior", "Non-informative_r" = "r não inf.")
+ROT_R_CMSY <- c("Euler-lotka methods" = "Euler-Lotka", "lower resilience" = L("r menor", "lower r"),
+                "Higher resilience" = L("r maior", "higher r"), "Non-informative_r" = L("r não inf.", "uninf. r"))
 INK <- "#1F2933"; MUT <- "#5B6770"; GRADE <- "#E3E8EC"
 
 ## tema único de todas as figuras: grade e eixos recessivos, texto em tinta
@@ -5804,8 +5947,9 @@ salva_tab <- function(d, nome) {
   if (tem_writexl) writexl::write_xlsx(d, file.path(DIR_SINT, paste0(nome, ".xlsx")))
   cat("  Tabela salva:", nome, "\n")
 }
-fmt_num <- function(x, d = 2) formatC(x, format = "f", digits = d, big.mark = ".", decimal.mark = ",")
-fmt_int <- function(x) formatC(round(x), format = "d", big.mark = ".", decimal.mark = ",")
+## separadores de milhar e decimal no padrão do idioma (pt: 1.234,5; en: 1,234.5)
+fmt_num <- function(x, d = 2) formatC(x, format = "f", digits = d, big.mark = L(".", ","), decimal.mark = L(",", "."))
+fmt_int <- function(x) formatC(round(x), format = "d", big.mark = L(".", ","), decimal.mark = L(",", "."))
 `%||%` <- function(a, b) if (is.null(a)) b else a   # "a, ou b se a for NULL"
 
 ## ---- 0.4 checagem dos arquivos de entrada ----------------------------------
@@ -5909,7 +6053,7 @@ fam_jabba <- function(id) {
   "J_completa"
 }
 ## rótulo legível: "J3_BASE_C2C5" -> "J3 · BASE C2C5"
-rot_jb <- function(id) gsub("_", " ", sub("^(J[0-9]+)_", "\\1 · ", id))
+rot_jb <- function(id) gsub("_", " ", sub("^(J[0-9]+)_", "\\1 · ", TRJ(id)))
 
 ## posteriores completas: da memória (fits do JABBA) ou dos .rdata
 jabba_na_memoria <- exists("fits") && is.list(fits) && length(fits) &&
@@ -6005,7 +6149,7 @@ COR_GRUPO <- c(COR_MODELO[1:2], "JABBA janela completa" = unname(COR_MODELO[3]),
                "JABBA janela curta" = unname(COR_MODELO[3]))
 LTY_GRUPO <- c("DB-SRA" = "solid", "CMSY++" = "solid", "JABBA janela completa" = "solid",
                "JABBA janela curta" = "22")
-rot_grupo <- function(g) paste0(g, " (", ifelse(startsWith(g, "JABBA"), ANO_FINAL["JABBA"], ANO_FINAL[g]), ")")
+rot_grupo <- function(g) paste0(TR(g), " (", ifelse(startsWith(g, "JABBA"), ANO_FINAL["JABBA"], ANO_FINAL[g]), ")")
 
 ## =============================================================================
 ## S01. PRIORIS DE DEPLEÇÃO: início (1989, iguais nos 3 modelos) e fim
@@ -6023,8 +6167,10 @@ ano_bk <- bk_hip$ano[1]
 ## JABBA: lognormal(mediana PSI_MED, CV PSI_CV) -> sdlog = sqrt(log(1+CV^2))
 sd_psi <- sqrt(log(1 + PSI_CV^2))
 ini <- data.frame(
-  modelo = factor(c("DB-SRA  (b1k uniforme)", "CMSY++  (stb uniforme)", "JABBA  (psi lognormal)"),
-                  rev(c("DB-SRA  (b1k uniforme)", "CMSY++  (stb uniforme)", "JABBA  (psi lognormal)"))),
+  modelo = factor(L(c("DB-SRA  (b1k uniforme)", "CMSY++  (stb uniforme)", "JABBA  (psi lognormal)"),
+                    c("DB-SRA  (uniform b1k)", "CMSY++  (uniform stb)", "JABBA  (lognormal psi)")),
+                  rev(L(c("DB-SRA  (b1k uniforme)", "CMSY++  (stb uniforme)", "JABBA  (psi lognormal)"),
+                        c("DB-SRA  (uniform b1k)", "CMSY++  (uniform stb)", "JABBA  (lognormal psi)")))),
   lo = c(B1K_LO, B1K_LO, qlnorm(.10, log(PSI_MED), sd_psi)),
   hi = c(B1K_HI, B1K_HI, qlnorm(.90, log(PSI_MED), sd_psi)),
   lo95 = c(NA, NA, qlnorm(.025, log(PSI_MED), sd_psi)),
@@ -6041,8 +6187,9 @@ p_ini <- ggplot(ini, aes(y = modelo)) +
             hjust = -0.15, size = 3.2, colour = INK) +
   annotate("text", x = 0.5, y = 3.45, label = "Bmsy (Schaefer)", size = 2.8, colour = MUT) +
   scale_x_continuous(limits = c(0, 1.2), breaks = seq(0, 1, 0.25)) +
-  labs(title = bquote(bold("Depleção inicial  B"[1989]*"/K")), x = "B/K", y = NULL,
-       subtitle = "Igual nos 3 modelos (JABBA: barra 80%, traço 95%)") +
+  labs(title = if (IDIOMA == "en") bquote(bold("Initial depletion  B"[1989]*"/K")) else bquote(bold("Depleção inicial  B"[1989]*"/K")),
+       x = "B/K", y = NULL,
+       subtitle = L("Igual nos 3 modelos (JABBA: barra 80%, traço 95%)", "Same in the 3 models (JABBA: bar 80%, line 95%)")) +
   tema_sint
 
 p_fim <- ggplot(bk_hip, aes(y = rot)) +
@@ -6053,12 +6200,16 @@ p_fim <- ggplot(bk_hip, aes(y = rot)) +
             hjust = -0.15, size = 3.2, colour = INK) +
   scale_colour_manual(values = COR_FAM, guide = "none") +
   scale_x_continuous(limits = c(0, 1.2), breaks = seq(0, 1, 0.2)) +
-  labs(title = bquote(bold("Depleção final  B"[.(ano_bk)]*"/K  (hipóteses)")), x = "B/K no último ano",
-       y = NULL, subtitle = "DB-SRA e CMSY++ (o JABBA não usa priori de B/K final: o índice informa o fim)") +
+  labs(title = if (IDIOMA == "en") bquote(bold("Final depletion  B"[.(ano_bk)]*"/K  (hypotheses)")) else bquote(bold("Depleção final  B"[.(ano_bk)]*"/K  (hipóteses)")),
+       x = L("B/K no último ano", "B/K in the final year"), y = NULL,
+       subtitle = L("DB-SRA e CMSY++ (o JABBA não usa priori de B/K final: o índice informa o fim)",
+                    "DB-SRA and CMSY++ (JABBA uses no final B/K prior: the index informs the end)")) +
   tema_sint
 p01 <- (p_ini | p_fim) + plot_layout(widths = c(1, 1.6)) +
-  plot_annotation(caption = paste0("Início: a pesca industrial é anterior a 1989 e a série abre com 55% do pico histórico de captura. ",
-                                   "Fim: NN-CMSY++ e zBRT inferidos da forma da série; mudança de alvo e não informativa são alternativas."),
+  plot_annotation(caption = L(paste0("Início: a pesca industrial é anterior a 1989 e a série abre com 55% do pico histórico de captura. ",
+                                     "Fim: NN-CMSY++ e zBRT inferidos da forma da série; mudança de alvo e não informativa são alternativas."),
+                              paste0("Start: industrial fishing predates 1989 and the series opens at 55% of the historical catch peak. ",
+                                     "End: NN-CMSY++ and zBRT inferred from the shape of the catch series; target switch and uninformative are alternatives.")),
                   theme = tema_sint)
 salva_fig(p01, "S01_priors_deplecao.png", 30, 11)
 
@@ -6085,15 +6236,17 @@ graf_acc <- function(d, titulo, sub_eixo) {
     facet_grid(~rot_fam, scales = "free_x", space = "free_x", switch = "x") +
     scale_fill_manual(values = COR_FAM, guide = "none") +
     scale_y_continuous(expand = expansion(mult = c(0, 0.12))) +
-    labs(title = titulo, x = sub_eixo, y = "% das simulações") +
+    labs(title = titulo, x = sub_eixo, y = L("% das simulações", "% of simulations")) +
     tema_sint + theme(strip.placement = "outside", strip.text = element_text(hjust = 0.5, size = 9.5),
                       axis.text.x = element_text(size = 8.5, angle = 30, hjust = 1),
                       panel.grid.major.x = element_blank())
 }
-p02 <- graf_acc(a_db, "DB-SRA — simulações aceitas (%)", "Fonte de M") /
-  graf_acc(a_cm, "CMSY++ — taxa de viabilidade dos pares r-K (%)", "Priori de r") +
-  plot_annotation(title = "Quanto de cada hipótese de depleção final é compatível com as capturas",
-                  caption = "Quanto mais baixa a depleção final imposta, menos simulações reproduzem a série sem colapsar.",
+p02 <- graf_acc(a_db, L("DB-SRA — simulações aceitas (%)", "DB-SRA — accepted simulations (%)"), L("Fonte de M", "Source of M")) /
+  graf_acc(a_cm, L("CMSY++ — taxa de viabilidade dos pares r-K (%)", "CMSY++ — viability rate of r-K pairs (%)"), L("Priori de r", "Prior on r")) +
+  plot_annotation(title = L("Quanto de cada hipótese de depleção final é compatível com as capturas",
+                            "How compatible each final-depletion hypothesis is with the catches"),
+                  caption = L("Quanto mais baixa a depleção final imposta, menos simulações reproduzem a série sem colapsar.",
+                              "The lower the imposed final depletion, the fewer simulations reproduce the series without collapse."),
                   theme = tema_sint)
 salva_fig(p02, "S02_aceitacao_cenarios.png", 26, 20)
 
@@ -6104,9 +6257,9 @@ salva_fig(p02, "S02_aceitacao_cenarios.png", 26, 20)
 ## separados. O conteúdo é idêntico ao da S02 (mesma função graf_acc).
 ##   S02a = DB-SRA: % das 10.000 simulações aceitas, por hipótese e fonte de M
 ##   S02b = CMSY++: taxa de viabilidade dos pares r-K, por hipótese e priori de r
-salva_fig(graf_acc(a_db, "DB-SRA — simulações aceitas (%)", "Fonte de M"),
+salva_fig(graf_acc(a_db, L("DB-SRA — simulações aceitas (%)", "DB-SRA — accepted simulations (%)"), L("Fonte de M", "Source of M")),
           "S02a_aceitacao_dbsra.png", 24, 11)
-salva_fig(graf_acc(a_cm, "CMSY++ — taxa de viabilidade dos pares r-K (%)", "Priori de r"),
+salva_fig(graf_acc(a_cm, L("CMSY++ — taxa de viabilidade dos pares r-K (%)", "CMSY++ — viability rate of r-K pairs (%)"), L("Priori de r", "Prior on r")),
           "S02b_viabilidade_cmsy.png", 24, 11)
 
 ## =============================================================================
@@ -6117,22 +6270,48 @@ salva_fig(graf_acc(a_cm, "CMSY++ — taxa de viabilidade dos pares r-K (%)", "Pr
 ## B/Bmsy é a escala de manejo, comparável entre modelos com curvas de
 ## produção diferentes (Bmsy/K = 0,5 no Schaefer, ~0,3 no DB-SRA, 0,37 no Fox).
 cat("\n--- S03 trajetórias relativas ---\n")
+## O que mudou em relação à versão anterior: cada cenário agora mostra, além
+## da mediana (linha), o intervalo de 95% (faixa MUITO clara, alpha baixo,
+## para não esconder as linhas). E a região "ruim" de cada painel ganhou um
+## fundo vermelho bem claro:
+##   - painel B/Bmsy: abaixo de 1 (estoque sobrepescado);
+##   - painel B/K: abaixo do Bmsy/K de cada modelo — 0,5 no CMSY++ e no
+##     JABBA (Schaefer) e a mediana das posteriores de Bmsy/K no DB-SRA
+##     (~0,3), porque nesse modelo o Bmsy/K é estimado (priori beta).
+## Os limites superiores dos intervalos são cortados em LIM_TRAJ para que
+## uma cauda muito longa não achate o gráfico (o corte é dito na legenda).
+LIM_TRAJ <- c("B / K" = 1.2, "B / Bmsy" = 3)
 tr <- traj_all[traj_all$variavel %in% c("BK", "BBmsy"), ]
 tr$variavel <- factor(ifelse(tr$variavel == "BK", "B / K", "B / Bmsy"), c("B / K", "B / Bmsy"))
 tr$familia  <- factor(tr$familia, ORD_FAM)
-ref <- data.frame(variavel = factor(c("B / K", "B / Bmsy"), levels(tr$variavel)), y = c(0.5, 1))
-p03 <- ggplot(tr, aes(ano, med, group = cenario, colour = familia)) +
+tr$lo_plot  <- pmax(tr$lo, 0)
+tr$hi_plot  <- pmin(tr$hi, LIM_TRAJ[as.character(tr$variavel)])
+bmsyk_db <- median(fin_db$BmsyK)   # Bmsy/K do DB-SRA (mediana das trajetórias aceitas)
+## linha de referência e área sombreada: uma linha por painel (modelo x variável)
+ref <- expand.grid(modelo = levels(tr$modelo), variavel = levels(tr$variavel))
+ref$modelo   <- factor(ref$modelo, levels(tr$modelo))
+ref$variavel <- factor(ref$variavel, levels(tr$variavel))
+ref$y <- ifelse(ref$variavel == "B / Bmsy", 1, ifelse(ref$modelo == "DB-SRA", bmsyk_db, 0.5))
+p03 <- ggplot(tr, aes(ano, med, group = cenario)) +
+  geom_rect(data = ref, aes(xmin = -Inf, xmax = Inf, ymin = 0, ymax = y), inherit.aes = FALSE,
+            fill = "#C0392B", alpha = 0.07) +
+  geom_ribbon(aes(ymin = lo_plot, ymax = hi_plot, fill = familia), alpha = 0.035, colour = NA) +
   geom_hline(data = ref, aes(yintercept = y), colour = INK, linewidth = 0.4, linetype = "dashed") +
-  geom_line(linewidth = 0.65, alpha = 0.85) +
+  geom_line(aes(colour = familia), linewidth = 0.65, alpha = 0.9) +
   facet_grid(variavel ~ modelo, scales = "free_y", switch = "y") +
   scale_colour_manual(values = COR_FAM, labels = ROT_FAM, drop = TRUE) +
-  scale_y_continuous(limits = c(0, NA)) +
+  scale_fill_manual(values = COR_FAM, guide = "none") +
+  scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.03))) +
   guides(colour = guide_legend(nrow = 2, byrow = TRUE, override.aes = list(linewidth = 1.6, alpha = 1))) +
-  labs(title = "Trajetórias de biomassa relativa — todos os cenários dos três modelos",
-       subtitle = "Linha = mediana de cada cenário. Tracejado: B/K = 0,5 e B/Bmsy = 1.",
+  labs(title = L("Trajetórias de biomassa relativa — todos os cenários dos três modelos",
+                 "Relative biomass trajectories — all scenarios of the three models"),
+       subtitle = sprintf(L("Linha = mediana; faixa = intervalo de 95%% de cada cenário. Vermelho claro: abaixo de Bmsy (B/Bmsy < 1; no B/K, Bmsy/K = 0,5 no CMSY++ e no JABBA e %s no DB-SRA).",
+                            "Line = median; band = 95%% interval of each scenario. Light red: below Bmsy (B/Bmsy < 1; for B/K, Bmsy/K = 0.5 in CMSY++ and JABBA and %s in DB-SRA)."),
+                          fmt_num(bmsyk_db, 2)),
        x = NULL, y = NULL,
-       caption = paste0("DB-SRA: biomassa no início do ano (até ", ano_db + 1, "); CMSY++ até ", ano_cm,
-                        "; JABBA até ", ano_jb, " (janela curta começa em 2015). CMSY++: B/K = 0,5 × B/Bmsy (Schaefer).")) +
+       caption = sprintf(L("DB-SRA: biomassa no início do ano (até %d); CMSY++ até %d; JABBA até %d (janela curta começa em 2015). Limites superiores dos intervalos cortados em %s (B/K) e %s (B/Bmsy).",
+                           "DB-SRA: biomass at the start of the year (up to %d); CMSY++ up to %d; JABBA up to %d (short window starts in 2015). Upper interval limits truncated at %s (B/K) and %s (B/Bmsy)."),
+                         ano_db + 1, ano_cm, ano_jb, fmt_num(LIM_TRAJ[1], 1), fmt_num(LIM_TRAJ[2], 0))) +
   tema_sint + theme(strip.placement = "outside", strip.text.y = element_text(angle = 90, hjust = 0.5))
 salva_fig(p03, "S03_trajetorias_relativas.png", 32, 18)
 
@@ -6141,21 +6320,33 @@ salva_fig(p03, "S03_trajetorias_relativas.png", 32, 18)
 ## =============================================================================
 ## Escala log porque F/Fmsy varia de ~0,01 (JABBA, estoque "grande") a >1:
 ## em escala linear os cenários de pesca baixa virariam uma linha no zero.
+## Como na S03: faixa clara = intervalo de 95% de cada cenário; fundo
+## vermelho claro = acima de Fmsy (sobrepesca). Os intervalos são cortados
+## em LIM_F (escala log não aceita zero e caudas enormes achatam o painel).
 cat("\n--- S04 trajetórias de F/Fmsy ---\n")
+LIM_F <- c(0.005, 10)
 tf <- traj_all[traj_all$variavel == "FFmsy" & is.finite(traj_all$med) & traj_all$med > 0, ]
 tf$familia <- factor(tf$familia, ORD_FAM)
-p04 <- ggplot(tf, aes(ano, med, group = cenario, colour = familia)) +
-  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 1, ymax = Inf, fill = "#C0392B", alpha = 0.06) +
+tf$lo_plot <- pmin(pmax(tf$lo, LIM_F[1]), LIM_F[2])
+tf$hi_plot <- pmin(pmax(tf$hi, LIM_F[1]), LIM_F[2])
+p04 <- ggplot(tf, aes(ano, med, group = cenario)) +
+  annotate("rect", xmin = -Inf, xmax = Inf, ymin = 1, ymax = Inf, fill = "#C0392B", alpha = 0.07) +
+  geom_ribbon(aes(ymin = lo_plot, ymax = hi_plot, fill = familia), alpha = 0.035, colour = NA) +
   geom_hline(yintercept = 1, colour = INK, linewidth = 0.4, linetype = "dashed") +
-  geom_line(linewidth = 0.65, alpha = 0.85) +
+  geom_line(aes(colour = familia), linewidth = 0.65, alpha = 0.9) +
   facet_wrap(~modelo, nrow = 1) +
   scale_y_log10(breaks = c(0.01, 0.03, 0.1, 0.3, 1, 3, 10), labels = function(x) fmt_num(x, 2)) +
+  coord_cartesian(ylim = LIM_F) +
   scale_colour_manual(values = COR_FAM, labels = ROT_FAM) +
+  scale_fill_manual(values = COR_FAM, guide = "none") +
   guides(colour = guide_legend(nrow = 2, byrow = TRUE, override.aes = list(linewidth = 1.6, alpha = 1))) +
-  labs(title = "Pressão de pesca relativa (F/Fmsy) — todos os cenários",
-       subtitle = "Faixa rosada = sobrepesca (F > Fmsy). Escala logarítmica.",
+  labs(title = L("Pressão de pesca relativa (F/Fmsy) — todos os cenários",
+                 "Relative fishing pressure (F/Fmsy) — all scenarios"),
+       subtitle = L("Linha = mediana; faixa = intervalo de 95% de cada cenário. Vermelho claro: sobrepesca (F > Fmsy). Escala logarítmica.",
+                    "Line = median; band = 95% interval of each scenario. Light red: overfishing (F > Fmsy). Log scale."),
        x = NULL, y = "F / Fmsy",
-       caption = "DB-SRA: taxa de exploração relativa U/Umsy (U = captura / biomassa do início do ano), equivalente ao F/Fmsy.") +
+       caption = L("DB-SRA: taxa de exploração relativa U/Umsy (U = captura / biomassa do início do ano), equivalente ao F/Fmsy.",
+                   "DB-SRA: relative exploitation rate U/Umsy (U = catch / start-of-year biomass), equivalent to F/Fmsy.")) +
   tema_sint
 salva_fig(p04, "S04_trajetorias_FFmsy.png", 32, 13)
 
@@ -6192,10 +6383,12 @@ p05 <- ggplot() +
   scale_fill_manual(values = COR_FAM, labels = ROT_FAM) +
   coord_cartesian(xlim = c(0, LIM_K), ylim = c(0, LIM_K), expand = FALSE) +
   guides(fill = guide_legend(nrow = 2, byrow = TRUE, override.aes = list(size = 3.5))) +
-  labs(title = "Diagrama de Kobe no ano final — três modelos",
-       subtitle = "Verde: saudável | amarelo: sobrepescado sem sobrepesca | laranja: sobrepesca | vermelho: sobrepescado e com sobrepesca. % = probabilidade do pool.",
+  labs(title = L("Diagrama de Kobe no ano final — três modelos", "Kobe plot in the final year — three models"),
+       subtitle = L("Verde: saudável | amarelo: sobrepescado sem sobrepesca | laranja: sobrepesca | vermelho: sobrepescado e com sobrepesca. % = probabilidade do pool.",
+                    "Green: healthy | yellow: overfished, no overfishing | orange: overfishing | red: overfished and overfishing. % = probability in the pool."),
        x = "B / Bmsy", y = "F / Fmsy",
-       caption = sprintf("Pool com %d sorteios por cenário (pesos iguais). JABBA inclui as três famílias; ver S07 para cada cenário.", N_POR_CENARIO)) +
+       caption = sprintf(L("Pool com %d sorteios por cenário (pesos iguais). JABBA inclui as três famílias; ver S07 para cada cenário.",
+                           "Pool of %d draws per scenario (equal weights). JABBA includes the three families; see S07 for each scenario."), N_POR_CENARIO)) +
   tema_sint + theme(panel.spacing = unit(1, "lines"))
 salva_fig(p05, "S05_kobe_final.png", 32, 13)
 
@@ -6228,19 +6421,21 @@ graf_dens <- function(d, titulo, xlab, log_x) {
     scale_colour_manual(values = COR_GRUPO, labels = rot_grupo) +
     scale_fill_manual(values = COR_GRUPO, labels = rot_grupo) +
     scale_linetype_manual(values = LTY_GRUPO, labels = rot_grupo) +
-    labs(title = titulo, x = xlab, y = "densidade (normalizada ao pico)") +
+    labs(title = titulo, x = xlab, y = L("densidade (normalizada ao pico)", "density (scaled to peak)")) +
     tema_sint + guides(colour = guide_legend(nrow = 2), fill = "none")
   if (log_x) p <- p + scale_x_log10(labels = fmt_int, breaks = c(300, 500, 1000, 2000, 3000, 5000, 10000, 20000))
   p
 }
-p06 <- (graf_dens(dB, "B/K no ano final", "B / K", FALSE) |
-          graf_dens(dM, "MSY", "MSY (t/ano, escala log)", TRUE)) +
+p06 <- (graf_dens(dB, L("B/K no ano final", "B/K in the final year"), "B / K", FALSE) |
+          graf_dens(dM, "MSY", L("MSY (t/ano, escala log)", "MSY (t/yr, log scale)"), TRUE)) +
   plot_layout(guides = "collect") &
   theme(legend.position = "bottom")
 p06 <- p06 + plot_annotation(
-  title = "Distribuições conjuntas (todos os cenários de cada modelo combinados)",
-  subtitle = "Linhas verticais = medianas. A largura mede o desacordo entre cenários, não a incerteza de um único modelo.",
-  caption = "MSY converge entre DB-SRA, CMSY++ e JABBA janela completa; o B/K final não — ele segue a premissa (catch-only) ou o índice escolhido (JABBA).",
+  title = L("Distribuições conjuntas (todos os cenários de cada modelo combinados)", "Joint distributions (all scenarios of each model combined)"),
+  subtitle = L("Linhas verticais = medianas. A largura mede o desacordo entre cenários, não a incerteza de um único modelo.",
+               "Vertical lines = medians. The width measures disagreement among scenarios, not the uncertainty of a single model."),
+  caption = L("MSY converge entre DB-SRA, CMSY++ e JABBA janela completa; o B/K final não — ele segue a premissa (catch-only) ou o índice escolhido (JABBA).",
+              "MSY converges among DB-SRA, CMSY++ and full-window JABBA; final B/K does not — it follows the assumption (catch-only) or the chosen index (JABBA)."),
   theme = tema_sint)
 salva_fig(p06, "S06_densidades_conjuntas.png", 30, 13)
 
@@ -6249,10 +6444,10 @@ salva_fig(p06, "S06_densidades_conjuntas.png", 30, 13)
 ## =============================================================================
 cat("\n--- S07 status final por cenário ---\n")
 s7 <- cen_all
-s7$titulo <- factor(sprintf("%s (%d) · %d cenários", s7$modelo, s7$ano_final,
+s7$titulo <- factor(sprintf(L("%s (%d) · %d cenários", "%s (%d) · %d scenarios"), s7$modelo, s7$ano_final,
                             table(s7$modelo)[as.character(s7$modelo)]))
 s7$titulo <- factor(s7$titulo, unique(s7$titulo[order(s7$modelo)]))
-s7$y <- factor(paste(s7$modelo, s7$rotulo), rev(paste(s7$modelo, s7$rotulo)))
+s7$y <- factor(paste(s7$modelo, s7$rotulo), unique(rev(paste(s7$modelo, s7$rotulo))))
 p07 <- ggplot(s7, aes(y = y)) +
   annotate("rect", xmin = -Inf, xmax = 1, ymin = -Inf, ymax = Inf, fill = "#C0392B", alpha = 0.08) +
   geom_vline(xintercept = 1, colour = INK, linewidth = 0.5) +
@@ -6266,10 +6461,12 @@ p07 <- ggplot(s7, aes(y = y)) +
   scale_fill_manual(values = COR_FAM, labels = ROT_FAM) +
   scale_x_continuous(limits = c(0, LIM_K), breaks = 0:3, expand = expansion(mult = c(0, 0.02))) +
   guides(fill = guide_legend(nrow = 2, byrow = TRUE, override.aes = list(size = 3.5))) +
-  labs(title = "Status no ano final — todos os cenários, os três modelos",
-       subtitle = "Ponto = mediana de B/Bmsy; traço = IC 95%. Faixa rosada = sobrepescado (B < Bmsy); pontilhado = 0,5 Bmsy.",
-       x = "B / Bmsy no ano final", y = NULL,
-       caption = "O B/Bmsy vai de ~0,15 a ~2,6 conforme a hipótese: é a premissa (ou o índice) que define o status.") +
+  labs(title = L("Status no ano final — todos os cenários, os três modelos", "Status in the final year — all scenarios, three models"),
+       subtitle = L("Ponto = mediana de B/Bmsy; traço = IC 95%. Faixa rosada = sobrepescado (B < Bmsy); pontilhado = 0,5 Bmsy.",
+                    "Point = median B/Bmsy; line = 95% CI. Pink area = overfished (B < Bmsy); dotted = 0.5 Bmsy."),
+       x = L("B / Bmsy no ano final", "B / Bmsy in the final year"), y = NULL,
+       caption = L("O B/Bmsy vai de ~0,15 a ~2,6 conforme a hipótese: é a premissa (ou o índice) que define o status.",
+                   "B/Bmsy ranges from ~0.15 to ~2.6 depending on the hypothesis: the assumption (or index) defines status.")) +
   tema_sint + theme(axis.text.y = element_text(size = 7.5), panel.spacing = unit(1.2, "lines"))
 salva_fig(p07, "S07_status_final_cenarios.png", 34, 18)
 
@@ -6287,9 +6484,12 @@ msy_g <- do.call(rbind, lapply(ORD_GRUPO, function(g) {
   data.frame(grupo = g, med = median(x), q1 = q(x, .25), q3 = q(x, .75), lo = q(x, .025), hi = q(x, .975))
 }))
 msy_g$grupo <- factor(msy_g$grupo, ORD_GRUPO)
-cap$tipo <- ifelse(grepl("interpol|media|média", cap$fonte, ignore.case = TRUE), "Ano corrigido (2014, 2018)",
-                   ifelse(grepl("cerco", cap$fonte, ignore.case = TRUE), "Só cerco (2024–2025, só no JABBA)",
-                          "Observada"))
+## rótulos da legenda das barras (no idioma escolhido)
+TIPO_OBS <- L("Observada", "Observed")
+TIPO_COR <- L("Ano corrigido (2014, 2018)", "Corrected year (2014, 2018)")
+TIPO_CER <- L("Só cerco (2024–2025, só no JABBA)", "Purse seine only (2024–2025, JABBA only)")
+cap$tipo <- ifelse(grepl("interpol|media|média", cap$fonte, ignore.case = TRUE), TIPO_COR,
+                   ifelse(grepl("cerco", cap$fonte, ignore.case = TRUE), TIPO_CER, TIPO_OBS))
 x_fim <- max(cap$ano) + 0.6
 ## rótulos à direita: se duas medianas ficam muito perto (DB-SRA e CMSY++
 ## costumam ficar), afasta os textos verticalmente — as linhas continuam
@@ -6305,19 +6505,19 @@ p08 <- ggplot() +
   geom_segment(data = msy_g, aes(x = min(cap$ano) - 0.5, xend = x_fim, y = med, yend = med,
                                  colour = grupo, linetype = grupo), linewidth = 1) +
   geom_text(data = msy_g, aes(x = x_fim + 0.3, y = y_lab,
-                              label = sprintf("%s: %s t", grupo, fmt_int(med))),
+                              label = sprintf("%s: %s t", TR(as.character(grupo)), fmt_int(med))),
             hjust = 0, size = 3.1, colour = INK) +
-  scale_fill_manual(values = c("Observada" = "#AFBBC6", "Ano corrigido (2014, 2018)" = "#7F8C95",
-                               "Só cerco (2024–2025, só no JABBA)" = "#D5DCE2")) +
+  scale_fill_manual(values = setNames(c("#AFBBC6", "#7F8C95", "#D5DCE2"), c(TIPO_OBS, TIPO_COR, TIPO_CER))) +
   scale_colour_manual(values = COR_GRUPO, guide = "none") +
   scale_linetype_manual(values = LTY_GRUPO, guide = "none") +
   scale_x_continuous(breaks = seq(1990, 2025, 5), expand = expansion(add = c(0.5, 9))) +
   scale_y_continuous(labels = fmt_int, expand = expansion(mult = c(0, 0.05))) +
   coord_cartesian(clip = "off") +
-  labs(title = "Capturas históricas × MSY estimado pelos três modelos",
-       subtitle = "Linha = mediana do MSY (todos os cenários do grupo, pesos iguais); faixa = 50% central. Tracejado = JABBA janela curta.",
-       x = NULL, y = "Toneladas",
-       caption = sprintf("IC 95%% do MSY: %s.", paste(sprintf("%s %s–%s t", msy_g$grupo, fmt_int(msy_g$lo), fmt_int(msy_g$hi)), collapse = "; "))) +
+  labs(title = L("Capturas históricas × MSY estimado pelos três modelos", "Historical catches × MSY estimated by the three models"),
+       subtitle = L("Linha = mediana do MSY (todos os cenários do grupo, pesos iguais); faixa = 50% central. Tracejado = JABBA janela curta.",
+                    "Line = median MSY (all scenarios of the group, equal weights); band = central 50%. Dashed = JABBA short window."),
+       x = NULL, y = L("Toneladas", "Tonnes"),
+       caption = sprintf(L("IC 95%% do MSY: %s.", "95%% CI of MSY: %s."), paste(sprintf("%s %s–%s t", TR(as.character(msy_g$grupo)), fmt_int(msy_g$lo), fmt_int(msy_g$hi)), collapse = "; "))) +
   tema_sint + theme(panel.grid.major.x = element_blank())
 salva_fig(p08, "S08_capturas_MSY.png", 32, 13)
 
@@ -6360,8 +6560,10 @@ tab_s9$ord_m <- tab_s9$ord_f <- NULL; rownames(tab_s9) <- NULL
 salva_tab(tab_s9, "tabela_status_modelo_familia")
 
 ## versão figura: grade de células com ggplot (sem pacotes extras de tabela)
-cols <- c("Modelo", "Família", "Cen.", "B/Bmsy final", "F/Fmsy final", "P(B<Bmsy)", "P(F>Fmsy)",
-          "Sobrepescado", "Sobrepesca", "Leitura")
+cols <- L(c("Modelo", "Família", "Cen.", "B/Bmsy final", "F/Fmsy final", "P(B<Bmsy)", "P(F>Fmsy)",
+            "Sobrepescado", "Sobrepesca", "Leitura"),
+          c("Model", "Family", "Scen.", "Final B/Bmsy", "Final F/Fmsy", "P(B<Bmsy)", "P(F>Fmsy)",
+            "Overfished", "Overfishing", "Interpretation"))
 larg <- c(1.1, 3.0, 0.6, 1.4, 1.4, 1.1, 1.1, 1.2, 1.1, 3.4)
 x0 <- cumsum(c(0, head(larg, -1)))
 cel <- do.call(rbind, lapply(seq_len(nrow(tab_s9)), function(i) {
@@ -6376,6 +6578,8 @@ cel$cor_txt <- INK
 cel$cor_txt[cel$col == 1] <- COR_MODELO[cel$txt[cel$col == 1]]
 estado_cor <- c("Sim" = "#C0392B", "Não" = "#1E7F4F", "Incerto" = "#B36B00")
 k <- cel$col %in% 8:9; cel$cor_txt[k] <- estado_cor[cel$txt[k]]
+## a cor é decidida pelo texto em português; só depois o texto é traduzido
+cel$txt[cel$col %in% c(8, 9, 10)] <- TR(cel$txt[cel$col %in% c(8, 9, 10)])
 cel$negrito <- ifelse(cel$col %in% c(1, 8, 9), "bold", "plain")
 cel$fundo <- ifelse(cel$lin %% 2 == 0, "#F2F5F7", "white")
 cab <- data.frame(x = x0, w = larg, txt = cols)
@@ -6387,10 +6591,13 @@ p09 <- ggplot() +
   geom_text(data = cel, aes(x = x + 0.06, y = -lin, label = txt), hjust = 0, colour = cel$cor_txt,
             fontface = cel$negrito, size = 2.9) +
   coord_cartesian(xlim = c(0, sum(larg)), ylim = c(-nl - 0.5, 0.5), expand = FALSE) +
-  labs(title = "Status por modelo e família de cenários",
-       caption = paste0("Faixas = menor–maior mediana entre os cenários da família. P = probabilidade no pool da família (pesos iguais). ",
-                        "Sim/Não = P >= 0,8 / <= 0,2; entre os dois = Incerto. Anos finais: DB-SRA e CMSY++ ",
-                        ano_db, ", JABBA ", ano_jb, ".")) +
+  labs(title = L("Status por modelo e família de cenários", "Status by model and family of scenarios"),
+       caption = L(paste0("Faixas = menor–maior mediana entre os cenários da família. P = probabilidade no pool da família (pesos iguais). ",
+                          "Sim/Não = P >= 0,8 / <= 0,2; entre os dois = Incerto. Anos finais: DB-SRA e CMSY++ ",
+                          ano_db, ", JABBA ", ano_jb, "."),
+                   paste0("Ranges = lowest–highest median among the scenarios of the family. P = probability in the pool of the family (equal weights). ",
+                          "Yes/No = P >= 0.8 / <= 0.2; in between = Uncertain. Final years: DB-SRA and CMSY++ ",
+                          ano_db, ", JABBA ", ano_jb, "."))) +
   theme_void(base_size = 11) +
   theme(plot.title = element_text(face = "bold", size = 13, colour = INK, margin = margin(b = 6)),
         plot.caption = element_text(colour = MUT, size = 8, hjust = 0),
@@ -6412,36 +6619,37 @@ cp <- merge(cp, data.frame(tempo = cap$ano, captura = cap$captura), by = "tempo"
 rho <- do.call(rbind, lapply(split(cp, cp$cenario), function(d) data.frame(
   cenario = d$cenario[1], n = nrow(d),
   rho = suppressWarnings(cor(d$indice, d$captura, method = "spearman", use = "complete.obs")))))
-rho$rot <- sub("^(C[0-9]+) ", "\\1 · ", rho$cenario)
+rho$rot <- sub("^(C[0-9]+) ", "\\1 · ", TR(rho$cenario))
 rho <- rho[order(rho$cenario), ]
 rho$rot <- factor(rho$rot, rev(rho$rot))
 salva_tab(rho[, c("cenario", "n", "rho")], "spearman_captura_indices")
 
 nom <- grep("^C1", unique(cp$cenario), value = TRUE)[1]   # CPUE nominal da série inteira
 pad <- grep("^C5", unique(cp$cenario), value = TRUE)[1]   # padronizada com tática
-s10 <- rbind(data.frame(ano = cap$ano, serie = "Captura total", v = cap$captura / mean(cap$captura[cap$ano %in% cp$tempo])),
+s10 <- rbind(data.frame(ano = cap$ano, serie = L("Captura total", "Total catch"), v = cap$captura / mean(cap$captura[cap$ano %in% cp$tempo])),
              do.call(rbind, lapply(na.omit(c(nom, pad)), function(k) {
-               d <- cp[cp$cenario == k, ]; data.frame(ano = d$tempo, serie = k, v = d$indice / mean(d$indice))
+               d <- cp[cp$cenario == k, ]; data.frame(ano = d$tempo, serie = TR(k), v = d$indice / mean(d$indice))
              })))
 s10$serie <- factor(s10$serie, unique(s10$serie))   # captura primeiro na legenda
 COR_S10 <- setNames(c("#8A949C", "#D2602A", "#2A6FB5")[seq_along(unique(s10$serie))], unique(s10$serie))
 p10a <- ggplot(s10, aes(ano, v, colour = serie)) +
   geom_vline(xintercept = 2014.5, colour = MUT, linetype = "dotted") +
-  annotate("text", x = 2014.7, y = max(s10$v) * 0.98, label = "troca de alvo", hjust = 0, size = 3, colour = MUT) +
+  annotate("text", x = 2014.7, y = max(s10$v) * 0.98, label = L("troca de alvo", "target switch"), hjust = 0, size = 3, colour = MUT) +
   geom_line(linewidth = 0.9) + geom_point(size = 1.4) +
   scale_colour_manual(values = COR_S10) +
   guides(colour = guide_legend(nrow = 2)) +
-  labs(title = "Captura e CPUE sobem e descem juntas", x = NULL, y = "Valor relativo (média = 1)") +
+  labs(title = L("Captura e CPUE sobem e descem juntas", "Catch and CPUE rise and fall together"), x = NULL, y = L("Valor relativo (média = 1)", "Relative value (mean = 1)")) +
   tema_sint
 p10b <- ggplot(rho, aes(rho, rot)) +
   geom_col(fill = "#2A6FB5", width = 0.6) +
   geom_text(aes(label = fmt_num(rho, 2)), hjust = -0.2, size = 3.2, colour = INK) +
   geom_vline(xintercept = 0, colour = INK, linewidth = 0.4) +
   scale_x_continuous(limits = c(min(0, min(rho$rho) - 0.1), 1.12)) +
-  labs(title = "ρ de Spearman (mesmo ano)", x = "ρ (índice × captura)", y = NULL) +
+  labs(title = L("ρ de Spearman (mesmo ano)", "Spearman ρ (same year)"), x = L("ρ (índice × captura)", "ρ (index × catch)"), y = NULL) +
   tema_sint + theme(panel.grid.major.y = element_blank())
 p10 <- (p10a | p10b) + plot_layout(widths = c(2, 1)) +
-  plot_annotation(caption = "Esperado se a CPUE medisse depleção: ρ negativo ou perto de zero. Observado: positivo em todos os índices.",
+  plot_annotation(caption = L("Esperado se a CPUE medisse depleção: ρ negativo ou perto de zero. Observado: positivo em todos os índices.",
+                              "Expected if CPUE tracked depletion: negative or near-zero ρ. Observed: positive for all indices."),
                   theme = tema_sint)
 salva_fig(p10, "S10_captura_x_cpue.png", 32, 12)
 
@@ -6466,9 +6674,10 @@ p11 <- ggplot(n11, aes(K, MSY)) +
   scale_x_log10(labels = fmt_int, breaks = c(3000, 10000, 30000, 100000)) +
   scale_y_continuous(labels = fmt_int) +
   coord_cartesian(ylim = c(0, q(n11$MSY, 0.995))) +
-  labs(title = "K × MSY — o K varia mais de uma ordem de grandeza; o MSY, muito menos",
-       subtitle = "Cada ponto = um sorteio. Faixa cinza = 50% central do MSY no pool DB-SRA + CMSY++ + JABBA janela completa.",
-       x = "K (t, escala log)", y = "MSY (t/ano)") +
+  labs(title = L("K × MSY — o K varia mais de uma ordem de grandeza; o MSY, muito menos", "K × MSY — K varies by more than an order of magnitude; MSY much less"),
+       subtitle = L("Cada ponto = um sorteio. Faixa cinza = 50% central do MSY no pool DB-SRA + CMSY++ + JABBA janela completa.",
+                    "Each point = one draw. Grey band = central 50% of MSY in the pool DB-SRA + CMSY++ + full-window JABBA."),
+       x = L("K (t, escala log)", "K (t, log scale)"), y = L("MSY (t/ano)", "MSY (t/yr)")) +
   tema_sint
 salva_fig(p11, "S11_K_x_MSY.png", 32, 11)
 
@@ -6520,6 +6729,9 @@ print(tab_comp, row.names = FALSE)
 ## e uma posteriori estreita não cabem numa escala comum. Por isso os painéis
 ## são montados um a um e unidos com o patchwork, em vez de facet.
 COR_PRIORI <- "grey82"
+## rótulos da legenda (priori / posteriori) no idioma escolhido
+LEG_PRI <- L("Priori", "Prior"); LEG_POS <- L("Posteriori", "Posterior")
+LEG_DEN <- L("Densidade", "Density")
 
 ## Densidade de uma amostra numa grade [de, ate] (kernel gaussiano).
 ## log = TRUE: estima a densidade de log(x) e devolve x na escala original;
@@ -6543,14 +6755,14 @@ painel_pp <- function(pri, pos, med_pri, med_pos, cor, xlab, ylab = NULL,
                       titulo = NULL, logx = FALSE, xlim = NULL) {
   p <- ggplot()
   if (!is.null(pri)) {
-    p <- p + geom_area(data = pri, aes(x, y, fill = "Priori"), colour = NA) +
+    p <- p + geom_area(data = pri, aes(x, y, fill = LEG_PRI), colour = NA) +
       geom_vline(xintercept = med_pri, colour = "grey50", linetype = "dotted", linewidth = 0.5)
   }
   p <- p +
-    geom_line(data = pos, aes(x, y, linetype = "Posteriori"), colour = cor, linewidth = 1) +
+    geom_line(data = pos, aes(x, y, linetype = LEG_POS), colour = cor, linewidth = 1) +
     geom_vline(xintercept = med_pos, colour = cor, linetype = "dotted", linewidth = 0.6) +
-    scale_fill_manual(values = c(Priori = COR_PRIORI), limits = "Priori") +
-    scale_linetype_manual(values = c(Posteriori = "solid"), limits = "Posteriori") +
+    scale_fill_manual(values = setNames(COR_PRIORI, LEG_PRI), limits = LEG_PRI) +
+    scale_linetype_manual(values = setNames("solid", LEG_POS), limits = LEG_POS) +
     guides(fill = guide_legend(order = 1),
            linetype = guide_legend(order = 2, override.aes = list(colour = INK, linewidth = 1))) +
     scale_y_continuous(expand = expansion(mult = c(0, 0.06))) +
@@ -6620,19 +6832,22 @@ for (h in hips_db) {
   pri_bk <- data.frame(x = x_bk, y = ifelse(x_bk >= lo & x_bk <= hi, 1 / (hi - lo), 0))
   pp_db[[paste0(h, "_bk")]] <- painel_pp(
     pri_bk, dens_grade(d$BtK, 0, 1), (lo + hi) / 2, median(d$BtK), cor,
-    xlab = bquote(B[.(ano_db)] / K), ylab = if (h == hips_db[1]) "Densidade" else NULL,
+    xlab = bquote(B[.(ano_db)] / K), ylab = if (h == hips_db[1]) LEG_DEN else NULL,
     titulo = ROT_FAM[[h]], xlim = c(0, 1))
   pp_db[[paste0(h, "_bm")]] <- painel_pp(
     pri_bm, dens_grade(d$BmsyK, 0, 0.8), med_bm, median(d$BmsyK), cor,
-    xlab = expression(B[MSY] / K), ylab = if (h == hips_db[1]) "Densidade" else NULL,
+    xlab = expression(B[MSY] / K), ylab = if (h == hips_db[1]) LEG_DEN else NULL,
     xlim = c(0, 0.8))
 }
 ## ordem: linha 1 = B/K das 4 hipóteses; linha 2 = Bmsy/K
 p12 <- monta_pp(c(pp_db[paste0(hips_db, "_bk")], pp_db[paste0(hips_db, "_bm")]),
                 ncol = length(hips_db),
-                caption = sprintf(paste0("Posteriori = simulações aceitas dos três cenários de M de cada hipótese. ",
-                                         "Pontilhado: medianas da priori (cinza) e da posteriori (cor). Priori de B/K: ",
-                                         "uniforme; de Bmsy/K: beta (média %s, dp %s) truncada em %s–%s."),
+                caption = sprintf(L(paste0("Posteriori = simulações aceitas dos três cenários de M de cada hipótese. ",
+                                           "Pontilhado: medianas da priori (cinza) e da posteriori (cor). Priori de B/K: ",
+                                           "uniforme; de Bmsy/K: beta (média %s, dp %s) truncada em %s–%s."),
+                                    paste0("Posterior = accepted simulations of the three M scenarios of each hypothesis. ",
+                                           "Dotted: medians of the prior (grey) and posterior (colour). B/K prior: ",
+                                           "uniform; Bmsy/K prior: beta (mean %s, SD %s) truncated at %s–%s.")),
                                   fmt_num(BMSYK_MEDIA, 1), fmt_num(BMSYK_DP, 1),
                                   fmt_num(BMSYK_LIM[1], 2), fmt_num(BMSYK_LIM[2], 2)))
 salva_fig(p12, "S12_priori_posteriori_dbsra.png", 30, 15)
@@ -6663,19 +6878,21 @@ for (h in hips_cm) {
   pp_cm[[paste0(h, "_r")]] <- painel_pp(
     dens_grade(d$priorr, lim_r[1], lim_r[2]), dens_grade(d$postr, lim_r[1], lim_r[2]),
     median(d$priorr), median(d$postr), cor,
-    xlab = expression(italic(r) ~ (ano^-1)), ylab = if (h == hips_cm[1]) "Densidade" else NULL,
+    xlab = if (IDIOMA == "en") expression(italic(r) ~ (yr^-1)) else expression(italic(r) ~ (ano^-1)), ylab = if (h == hips_cm[1]) LEG_DEN else NULL,
     titulo = ROT_FAM[[h]], xlim = lim_r)
   pp_cm[[paste0(h, "_bk")]] <- painel_pp(
     dens_grade(d$priorfinalbk, 0, 1), dens_grade(d$postfinalbk, 0, 1),
     median(d$priorfinalbk), median(d$postfinalbk), cor,
-    xlab = bquote(B[.(ano_cm)] / K), ylab = if (h == hips_cm[1]) "Densidade" else NULL,
+    xlab = bquote(B[.(ano_cm)] / K), ylab = if (h == hips_cm[1]) LEG_DEN else NULL,
     xlim = c(0, 1))
 }
 p13 <- monta_pp(c(pp_cm[paste0(hips_cm, "_r")], pp_cm[paste0(hips_cm, "_bk")]),
                 ncol = length(hips_cm),
-                caption = sprintf(paste0("Cenários com a priori de r %s. Priori e posteriori = sorteios do rk_out do CMSY++. ",
-                                         "Pontilhado: medianas da priori (cinza) e da posteriori (cor)."),
-                                  if (R_PP_CMSY == "Euler-lotka methods") "dos métodos demográficos (Euler-Lotka)"
+                caption = sprintf(L(paste0("Cenários com a priori de r %s. Priori e posteriori = sorteios do rk_out do CMSY++. ",
+                                           "Pontilhado: medianas da priori (cinza) e da posteriori (cor)."),
+                                    paste0("Scenarios with the %s prior on r. Prior and posterior = draws from the CMSY++ rk_out. ",
+                                           "Dotted: medians of the prior (grey) and posterior (colour).")),
+                                  if (R_PP_CMSY == "Euler-lotka methods") L("dos métodos demográficos (Euler-Lotka)", "demographic (Euler-Lotka)")
                                   else paste0("\"", ROT_R_CMSY[[R_PP_CMSY]], "\"")))
 salva_fig(p13, "S13_priori_posteriori_cmsy.png", 30, 15)
 
@@ -6719,36 +6936,38 @@ for (id in CEN_PP_JABBA) {
   cor <- COR_FAM[[fam_jabba(id)]]
   ano_f  <- max(f$yr)
   prim   <- id == CEN_PP_JABBA[1]            # títulos só na primeira linha
-  ylab_l <- paste0(rot_jb(id), "\nDensidade")
+  ylab_l <- paste0(rot_jb(id), "\n", LEG_DEN)
   ## limites do eixo x: quantis 0,5%–99,5% da priori e da posteriori juntas
   lim_q <- function(a, b) as.numeric(quantile(c(a, b), c(0.005, 0.995), na.rm = TRUE))
   lr <- c(0, lim_q(pr$r, po$r)[2]); lK <- lim_q(pr$K, po$K); lM <- lim_q(pr$MSY, po$MSY)
   pp_jb[[paste0(id, "_r")]] <- painel_pp(
     dens_grade(pr$r, lr[1], lr[2]), dens_grade(po$r, lr[1], lr[2]), median(pr$r), median(po$r), cor,
-    xlab = expression(italic(r) ~ (ano^-1)), ylab = ylab_l, titulo = if (prim) "r" else NULL, xlim = lr)
+    xlab = if (IDIOMA == "en") expression(italic(r) ~ (yr^-1)) else expression(italic(r) ~ (ano^-1)), ylab = ylab_l, titulo = if (prim) "r" else NULL, xlim = lr)
   pp_jb[[paste0(id, "_K")]] <- painel_pp(
     dens_grade(pr$K, lK[1], lK[2], log = TRUE), dens_grade(po$K, lK[1], lK[2], log = TRUE),
-    median(pr$K), median(po$K), cor, xlab = "K (t, escala log)",
+    median(pr$K), median(po$K), cor, xlab = L("K (t, escala log)", "K (t, log scale)"),
     titulo = if (prim) "K" else NULL, logx = TRUE, xlim = lK)
   pp_jb[[paste0(id, "_MSY")]] <- painel_pp(
     dens_grade(pr$MSY, lM[1], lM[2], log = TRUE), dens_grade(po$MSY, lM[1], lM[2], log = TRUE),
-    median(pr$MSY), median(po$MSY), cor, xlab = "MSY (t/ano, escala log)",
+    median(pr$MSY), median(po$MSY), cor, xlab = L("MSY (t/ano, escala log)", "MSY (t/yr, log scale)"),
     titulo = if (prim) "MSY" else NULL, logx = TRUE, xlim = lM)
   if (!is.null(pr$psi)) {
     lp <- c(0, lim_q(pr$psi, po$psi)[2])
     pp_jb[[paste0(id, "_psi")]] <- painel_pp(
       dens_grade(pr$psi, lp[1], lp[2]), dens_grade(po$psi, lp[1], lp[2]), median(pr$psi), median(po$psi), cor,
-      xlab = bquote(psi == B[.(min(f$yr))] / K), titulo = if (prim) "Depleção inicial" else NULL, xlim = lp)
+      xlab = bquote(psi == B[.(min(f$yr))] / K), titulo = if (prim) L("Depleção inicial", "Initial depletion") else NULL, xlim = lp)
   }
   lb <- c(0, max(1, as.numeric(quantile(po$bk, 0.995))))
   pp_jb[[paste0(id, "_bk")]] <- painel_pp(
     NULL, dens_grade(po$bk, lb[1], lb[2]), NULL, median(po$bk), cor,
-    xlab = bquote(B[.(ano_f)] / K), titulo = if (prim) "Depleção final (sem priori)" else NULL, xlim = lb)
+    xlab = bquote(B[.(ano_f)] / K), titulo = if (prim) L("Depleção final (sem priori)", "Final depletion (no prior)") else NULL, xlim = lb)
 }
 n_col_jb <- length(pp_jb) / length(CEN_PP_JABBA)
 p14 <- monta_pp(pp_jb, ncol = n_col_jb,
-                caption = paste0("Priori = sorteios da priori especificada no JABBA (mesma parametrização do JAGS); ",
-                                 "MSY da priori = rK/4 (Schaefer). Pontilhado: medianas da priori (cinza) e da posteriori (cor)."))
+                caption = L(paste0("Priori = sorteios da priori especificada no JABBA (mesma parametrização do JAGS); ",
+                                   "MSY da priori = rK/4 (Schaefer). Pontilhado: medianas da priori (cinza) e da posteriori (cor)."),
+                            paste0("Prior = draws from the prior specified in JABBA (same parametrization as in JAGS); ",
+                                   "prior MSY = rK/4 (Schaefer). Dotted: medians of the prior (grey) and posterior (colour).")))
 salva_fig(p14, "S14_priori_posteriori_jabba.png", 36, 2 + 8.5 * length(CEN_PP_JABBA))
 
 ## =============================================================================
@@ -6768,9 +6987,12 @@ idx <- read.csv(file.path(DIR_CI, "indices_todos_cenarios.csv"), check.names = F
 ## rótulos e cores pelo PREFIXO do nome (robusto a pequenas mudanças de texto)
 def_idx <- data.frame(
   padrao = c("^S1 ", "^S0 ", "^S2 ", "^S2t ", "^S2b .*SEM", "^S2b .*COM", "^S3 "),
-  rot    = c("S1 · nominal", "S0 · padronizada sem tática", "S2 · tática discreta (k-means)",
-             "S2t · tática discreta, Tweedie", "S2b · PCs sem cavala", "S2b · PCs com cavala (circular)",
-             "S3 · esforço dirigido"),
+  rot    = L(c("S1 · nominal", "S0 · padronizada sem tática", "S2 · tática discreta (k-means)",
+               "S2t · tática discreta, Tweedie", "S2b · PCs sem cavala", "S2b · PCs com cavala (circular)",
+               "S3 · esforço dirigido"),
+             c("S1 · nominal", "S0 · standardized without tactic", "S2 · discrete tactic (k-means)",
+               "S2t · discrete tactic, Tweedie", "S2b · PCs without mackerel scad", "S2b · PCs with mackerel scad (circular)",
+               "S3 · directed effort")),
   cor    = c("#D2602A", "#8E7CC3", "#1F4E79", "#4BA3C3", "#1B9E77", "#A9B1B8", "#E08A00"),
   tipo   = c("solid", "solid", "solid", "solid", "solid", "dashed", "solid"),
   stringsAsFactors = FALSE)
@@ -6794,25 +7016,28 @@ p15a <- ggplot(idx, aes(tempo, indice, colour = rot, linetype = rot)) +
   scale_x_continuous(breaks = seq(2015, 2025, 2)) +
   scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05))) +
   guides(colour = guide_legend(ncol = 2), linetype = guide_legend(ncol = 2)) +
-  labs(title = "A. Variantes do índice", x = NULL, y = "Índice relativo (média = 1)") +
+  labs(title = L("A. Variantes do índice", "A. Index variants"), x = NULL, y = L("Índice relativo (média = 1)", "Relative index (mean = 1)")) +
   tema_sint + theme(legend.key.width = unit(1.2, "cm"))
 
 s2  <- idx[grepl("^S2 ", idx$cenario), ]; s2 <- s2[order(s2$tempo), ]
 s1  <- idx[grepl("^S1 ", idx$cenario), ]; s1 <- s1[order(s1$tempo), ]
 s2$lo <- s2$indice * exp(-1.96 * s2$se_log); s2$hi <- s2$indice * exp(1.96 * s2$se_log)
 cor_s2 <- cor_idx[[as.character(s2$rot[1])]]; cor_s1 <- cor_idx[[as.character(s1$rot[1])]]
+## rótulos da legenda do painel B (no idioma escolhido)
+LEG_S1 <- L("Nominal (S1)", "Nominal (S1)")
+LEG_S2 <- L("Padronizada, tática discreta (S2) e IC 95%", "Standardized, discrete tactic (S2) and 95% CI")
 p15b <- ggplot() +
   geom_hline(yintercept = 1, colour = MUT, linewidth = 0.3) +
   geom_ribbon(data = s2, aes(tempo, ymin = lo, ymax = hi), fill = cor_s2, alpha = 0.15) +
-  geom_line(data = s1, aes(tempo, indice, colour = "Nominal (S1)"), linetype = "dashed", linewidth = 0.8) +
-  geom_point(data = s1, aes(tempo, indice, colour = "Nominal (S1)"), size = 1.4) +
-  geom_line(data = s2, aes(tempo, indice, colour = "Padronizada, tática discreta (S2) e IC 95%"), linewidth = 1.2) +
-  geom_point(data = s2, aes(tempo, indice, colour = "Padronizada, tática discreta (S2) e IC 95%"), size = 1.9) +
-  scale_colour_manual(values = c("Nominal (S1)" = cor_s1, "Padronizada, tática discreta (S2) e IC 95%" = cor_s2)) +
+  geom_line(data = s1, aes(tempo, indice, colour = LEG_S1), linetype = "dashed", linewidth = 0.8) +
+  geom_point(data = s1, aes(tempo, indice, colour = LEG_S1), size = 1.4) +
+  geom_line(data = s2, aes(tempo, indice, colour = LEG_S2), linewidth = 1.2) +
+  geom_point(data = s2, aes(tempo, indice, colour = LEG_S2), size = 1.9) +
+  scale_colour_manual(values = setNames(c(cor_s1, cor_s2), c(LEG_S1, LEG_S2))) +
   scale_x_continuous(breaks = seq(2015, 2025, 2)) +
   scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05))) +
   guides(colour = guide_legend(ncol = 1)) +
-  labs(title = "B. Índice escolhido e intervalo de 95%", x = NULL, y = "Índice relativo (média = 1)") +
+  labs(title = L("B. Índice escolhido e intervalo de 95%", "B. Selected index and 95% interval"), x = NULL, y = L("Índice relativo (média = 1)", "Relative index (mean = 1)")) +
   tema_sint
 p15 <- (p15a | p15b) + plot_layout(widths = c(1.15, 1))
 salva_fig(p15, "S15_indices_cpue_padronizados.png", 30, 13.5)
@@ -6828,8 +7053,10 @@ cat("\n--- S16 séries finais de CPUE ---\n")
 cpf <- read.csv(file.path(DIR_CI, "cenarios_cpue_macarellus.csv"), check.names = FALSE)
 def_cf <- data.frame(
   padrao = paste0("^C", 1:6),
-  rot    = c("C1 · nominal 1989–2025", "C2 · nominal pré-alvo (≤ 2014)", "C3 · nominal pós-alvo (≥ 2015)",
-             "C4 · padronizada sem tática", "C5 · padronizada com tática", "C6 · nominal, esforço dirigido"),
+  rot    = L(c("C1 · nominal 1989–2025", "C2 · nominal pré-alvo (≤ 2014)", "C3 · nominal pós-alvo (≥ 2015)",
+               "C4 · padronizada sem tática", "C5 · padronizada com tática", "C6 · nominal, esforço dirigido"),
+             c("C1 · nominal 1989–2025", "C2 · nominal pre-switch (≤ 2014)", "C3 · nominal post-switch (≥ 2015)",
+               "C4 · standardized without tactic", "C5 · standardized with tactic", "C6 · nominal, directed effort")),
   cor    = c("#8A949C", "#D2602A", "#4BA3C3", "#8E7CC3", "#1F4E79", "#1B9E77"),
   stringsAsFactors = FALSE)
 i_cf <- vapply(cpf$cenario, function(nm) { i <- which(vapply(def_cf$padrao, grepl, logical(1), x = nm))
@@ -6850,14 +7077,14 @@ base16 <- function(d, quebra = c(1990, 2025, 5)) ggplot(d, aes(tempo, indice, co
   guides(colour = guide_legend(nrow = 2)) +
   scale_x_continuous(breaks = seq(quebra[1], quebra[2], quebra[3])) +
   scale_y_continuous(limits = c(0, NA), expand = expansion(mult = c(0, 0.05))) +
-  labs(x = NULL, y = "Índice relativo (média = 1)") + tema_sint
+  labs(x = NULL, y = L("Índice relativo (média = 1)", "Relative index (mean = 1)")) + tema_sint
 p16a <- base16(cpf) +
   geom_vline(xintercept = ANO_ALVO, colour = MUT, linetype = "dotted") +
-  annotate("text", x = ANO_ALVO + 0.4, y = max(cpf$indice, na.rm = TRUE), label = "mudança\nde alvo",
+  annotate("text", x = ANO_ALVO + 0.4, y = max(cpf$indice, na.rm = TRUE), label = L("mudança\nde alvo", "target\nswitch"),
            hjust = 0, vjust = 1, size = 3, colour = MUT, lineheight = 0.9) +
-  labs(title = "A. Série completa 1989–2025")
+  labs(title = L("A. Série completa 1989–2025", "A. Full series 1989–2025"))
 p16b <- base16(cpf[cpf$tempo > ANO_ALVO, ], c(2015, 2025, 2)) +
-  labs(title = "B. Período após a mudança de alvo (2015–2025)")
+  labs(title = L("B. Período após a mudança de alvo (2015–2025)", "B. Period after the target switch (2015–2025)"))
 p16 <- (p16a | p16b) + plot_layout(widths = c(1.5, 1), guides = "collect") &
   theme(legend.position = "bottom")
 salva_fig(p16, "S16_series_finais_cpue.png", 30, 12.5)
@@ -6883,7 +7110,7 @@ i_ix <- vapply(res_jb$indice, function(nm) { i <- which(vapply(def_cf$padrao, gr
   if (length(i)) i[1] else NA_integer_ }, integer(1))
 res_jb$rot_ix <- ifelse(is.na(i_ix), res_jb$indice, def_cf$rot[i_ix])
 n_cen_ix <- tapply(res_jb$cenario, res_jb$rot_ix, function(x) length(unique(x)))
-res_jb$rot_ix <- sprintf("%s (%d cenário%s)", res_jb$rot_ix, n_cen_ix[res_jb$rot_ix],
+res_jb$rot_ix <- sprintf(L("%s (%d cenário%s)", "%s (%d scenario%s)"), res_jb$rot_ix, n_cen_ix[res_jb$rot_ix],
                          ifelse(n_cen_ix[res_jb$rot_ix] > 1, "s", ""))
 res_jb$rot_ix <- factor(res_jb$rot_ix, sort(unique(res_jb$rot_ix)))
 med_res <- aggregate(residuo_log ~ rot_ix + ano, res_jb, median)
@@ -6899,9 +7126,10 @@ p17a <- ggplot(res_jb, aes(ano, residuo_log)) +
   scale_colour_manual(values = COR_FAM, guide = "none") +
   ## só anos inteiros no eixo (sem 2017,5)
   scale_x_continuous(breaks = function(l) { b <- pretty(l, 5); b[b == round(b)] }) +
-  labs(title = "A. Resíduos do ajuste ao índice (escala log)",
-       subtitle = "Linhas finas = cenários (cor = família); linha preta = mediana entre cenários.",
-       x = NULL, y = "Resíduo (log)") +
+  labs(title = L("A. Resíduos do ajuste ao índice (escala log)", "A. Residuals of the fit to the index (log scale)"),
+       subtitle = L("Linhas finas = cenários (cor = família); linha preta = mediana entre cenários.",
+                    "Thin lines = scenarios (colour = family); black line = median across scenarios."),
+       x = NULL, y = L("Resíduo (log)", "Residual (log)")) +
   tema_sint + theme(strip.text = element_text(size = 9.5), panel.spacing.x = unit(0.9, "cm"))
 
 aju_jb <- aju_jb[order(aju_jb$RMSE), ]
@@ -6909,14 +7137,14 @@ aju_jb$rot <- factor(rot_jb(aju_jb$cenario), rot_jb(aju_jb$cenario))
 p17b <- ggplot(aju_jb, aes(RMSE, rot, fill = familia)) +
   geom_col(width = 0.68) +
   geom_vline(xintercept = 30, colour = INK, linetype = "dashed", linewidth = 0.4) +
-  annotate("text", x = 31, y = nrow(aju_jb) + 0.45, label = "30% (referência de bom ajuste)",
+  annotate("text", x = 31, y = nrow(aju_jb) + 0.45, label = L("30% (referência de bom ajuste)", "30% (good-fit reference)"),
            hjust = 0, vjust = 0, size = 2.9, colour = MUT) +
   geom_text(aes(label = sprintf("%s%%  ·  SDNR %s", fmt_num(RMSE, 0), fmt_num(SDNR, 2))),
             hjust = -0.08, size = 2.8, colour = INK) +
   scale_fill_manual(values = COR_FAM, labels = ROT_FAM, drop = TRUE) +
   scale_x_continuous(limits = c(0, max(aju_jb$RMSE) * 1.32), expand = expansion(mult = c(0, 0))) +
   scale_y_discrete(expand = expansion(add = c(0.6, 1.2))) +
-  labs(title = "B. Erro de ajuste por cenário", x = "RMSE (%)", y = NULL) +
+  labs(title = L("B. Erro de ajuste por cenário", "B. Fit error by scenario"), x = "RMSE (%)", y = NULL) +
   tema_sint + theme(panel.grid.major.y = element_blank(), axis.text.y = element_text(size = 8.5))
 p17 <- (p17a / p17b) + plot_layout(heights = c(1.25, 1), guides = "collect") &
   theme(legend.position = "bottom")
@@ -6943,20 +7171,21 @@ tor_jb <- tor_jb[tor_jb$metrica == "B/Bmsy final", ]
 tor_cm$valor <- tor_cm$valor * 1000
 
 ## nomes curtos dos fatores e dos níveis (só para o gráfico)
-ROT_FATOR <- c("M (mortalidade natural)" = "M", "Bt/K (metodo de depleção)" = "Depleção final",
-               "Método de r (resiliência)" = "Priori de r", "Método Bt/K (depleção)" = "Depleção final",
-               "Forma da curva de producao" = "Forma da curva", "Indice usado" = "Índice usado",
-               "Prior de K" = "Priori de K", "Prior de r" = "Priori de r")
+## os NOMES são os fatores como estão nos CSV (não traduzir); os VALORES são o texto do gráfico
+ROT_FATOR <- c("M (mortalidade natural)" = "M", "Bt/K (metodo de depleção)" = L("Depleção final", "Final depletion"),
+               "Método de r (resiliência)" = L("Priori de r", "Prior on r"), "Método Bt/K (depleção)" = L("Depleção final", "Final depletion"),
+               "Forma da curva de producao" = L("Forma da curva", "Curve shape"), "Indice usado" = L("Índice usado", "Index used"),
+               "Prior de K" = L("Priori de K", "Prior on K"), "Prior de r" = L("Priori de r", "Prior on r"))
 rot_nivel <- function(x) {
   fixo <- c("M_Santos(2005-2018)" = "Santos", "M_Vieira(1988-2018)" = "Vieira",
             "M_Jardim(1981-1994)" = "Jardim", "NN_CMSY" = "NN", "zBRT" = "zBRT",
-            "Target_switch" = "Mud. alvo", "Uninformative_bk" = "Não inf.",
-            "lower resilience" = "r menor", "Higher resilience" = "r maior",
-            "Non-informative_r" = "r não inf.", "Euler-lotka methods" = "Euler-Lotka")
+            "Target_switch" = L("Mud. alvo", "Target sw."), "Uninformative_bk" = L("Não inf.", "Uninf."),
+            "lower resilience" = L("r menor", "lower r"), "Higher resilience" = L("r maior", "higher r"),
+            "Non-informative_r" = L("r não inf.", "uninf. r"), "Euler-lotka methods" = "Euler-Lotka")
   out <- unname(fixo[x])
   ## JABBA: "J6_BASE_Fox" -> "J6 Fox"; "J1_C1_ingenuo" -> "J1 C1"
   jb  <- is.na(out) & grepl("^J[0-9]+_", x)
-  out[jb] <- sub("^(J[0-9]+)_(BASE_)?([^_]+).*$", "\\1 \\3", x[jb])
+  out[jb] <- sub("^(J[0-9]+)_(BASE_)?([^_]+).*$", "\\1 \\3", TRJ(x[jb]))
   ifelse(is.na(out), x, out)
 }
 ## valor de referência = valor / (1 + delta/100) (o mesmo em todas as linhas)
@@ -6992,16 +7221,16 @@ graf_tornado <- function(d, titulo, subtitulo, cor) {
     scale_y_continuous(breaks = seq_along(niv), labels = niv, expand = expansion(add = 0.6)) +
     scale_x_continuous(expand = expansion(mult = 0.2),
                        labels = function(x) paste0(ifelse(x > 0, "+", ""), fmt_num(x, 0), "%")) +
-    labs(title = titulo, subtitle = subtitulo, x = "Variação em relação ao cenário de referência", y = NULL) +
+    labs(title = titulo, subtitle = subtitulo, x = L("Variação em relação ao cenário de referência", "Change relative to the reference scenario"), y = NULL) +
     tema_sint + theme(panel.grid.major.y = element_blank(), axis.text.y = element_text(colour = INK, size = 9.5),
                       plot.margin = margin(4, 14, 4, 4))
 }
-p18 <- graf_tornado(tor_db, "A. DB-SRA — MSY", sprintf("Referência: %s t", fmt_int(ref_tor(tor_db))),
+p18 <- graf_tornado(tor_db, "A. DB-SRA — MSY", sprintf(L("Referência: %s t", "Reference: %s t"), fmt_int(ref_tor(tor_db))),
                     COR_MODELO[["DB-SRA"]]) |
-  graf_tornado(tor_cm, "B. CMSY++ — MSY", sprintf("Referência: %s t", fmt_int(ref_tor(tor_cm))),
+  graf_tornado(tor_cm, "B. CMSY++ — MSY", sprintf(L("Referência: %s t", "Reference: %s t"), fmt_int(ref_tor(tor_cm))),
                COR_MODELO[["CMSY++"]]) |
-  graf_tornado(tor_jb, sprintf("C. JABBA — B/Bmsy em %d", ano_jb),
-               sprintf("Referência: %s (%s)", fmt_num(ref_tor(tor_jb), 2), rot_jb(tor_jb$base[1])),
+  graf_tornado(tor_jb, sprintf(L("C. JABBA — B/Bmsy em %d", "C. JABBA — B/Bmsy in %d"), ano_jb),
+               sprintf(L("Referência: %s (%s)", "Reference: %s (%s)"), fmt_num(ref_tor(tor_jb), 2), rot_jb(tor_jb$base[1])),
                COR_MODELO[["JABBA"]])
 p18 <- p18 + plot_layout(widths = c(1, 1, 1.35))
 salva_fig(p18, "S18_tornado_sensibilidade_3modelos.png", 34, 12.5)

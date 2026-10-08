@@ -13,6 +13,42 @@
 # limpando ambiente de trabalho...
 rm(list = ls())
 
+# ==============================================================================
+# IDIOMA DAS FIGURAS
+# ==============================================================================
+# Os rótulos dos gráficos (títulos, eixos, legendas e anotações) saem no
+# idioma escolhido aqui:
+#   "en" = inglês (figuras do artigo)
+#   "pt" = português (figuras do relatório)
+# Comentários, mensagens do console e nomes de colunas das tabelas continuam
+# em português. Os PNG têm o MESMO nome nos dois idiomas: trocar o idioma e
+# rodar de novo sobrescreve as figuras (guarde uma cópia se quiser as duas).
+IDIOMA <- "en"
+
+# L("texto em português", "text in English"): devolve o texto no idioma
+# escolhido. Funciona também com vetores (c(...)) nos dois argumentos.
+L <- function(pt, en) if (identical(IDIOMA, "en")) en else pt
+
+# TR(x): traduz rótulos que vêm dos PRÓPRIOS DADOS (nomes de métodos, de
+# fontes, de fatores do tornado...). Os dados continuam em português (os
+# CSV não mudam); só o que aparece no gráfico é traduzido. O que não estiver
+# no dicionário passa direto, sem alteração.
+DIC_EN <- c(
+  "Rede Neural CMSY++"                 = "CMSY++ neural network",
+  "Mudança de alvo"                    = "Target switch",
+  "Priori de depleção não informativa" = "Uninformative depletion prior",
+  "Informado pela Captura"             = "Catch-informed",
+  "Independente"                       = "Independent",
+  "M (mortalidade natural)"            = "M (natural mortality)",
+  "Bt/K (metodo de depleção)"          = "Bt/K (depletion method)",
+  "Método de r (resiliência)"          = "r method (resilience)",
+  "Método Bt/K (depleção)"             = "Bt/K method (depletion)")
+TR <- function(x) {
+  if (!identical(IDIOMA, "en")) return(x)
+  y <- unname(DIC_EN[as.character(x)])
+  ifelse(is.na(y), as.character(x), y)
+}
+
 #@pacotes..
 #install.packages("readxl")
 library(readxl)
@@ -152,8 +188,11 @@ print(ct)
 #    gráfico, sem precisar de um data.frame separado
 # ---------------------------------------------------------------------
 # (2014 e 2018 sao os dois anos corrigidos -- ver o bloco de correcoes acima)
-ct$Status <- ifelse(ct$Year %in% c(2014, 2018), "Corrigido (2014 e 2018)", "Observado")
-ct$Status <- factor(ct$Status, levels = c("Observado", "Corrigido (2014 e 2018)"))
+# rótulos da legenda no idioma escolhido (os níveis do fator SÃO o texto da legenda)
+NIV_OBS <- L("Observado", "Observed")
+NIV_COR <- L("Corrigido (2014 e 2018)", "Corrected (2014 and 2018)")
+ct$Status <- ifelse(ct$Year %in% c(2014, 2018), NIV_COR, NIV_OBS)
+ct$Status <- factor(ct$Status, levels = c(NIV_OBS, NIV_COR))
 
 # valor original de 2018, só para exibir na anotação do gráfico
 valor_original_2018 <- 2362
@@ -177,37 +216,38 @@ p_ct <- ggplot(ct, aes(x = Year, y = Catch)) +
   # pontos: azul = observado; laranja e maior = ano corrigido (2018)
   geom_point(aes(color = Status, size = Status), shape = 16) +
   scale_color_manual(
-    values = c("Observado" = "#2a78d6", "Corrigido (2014 e 2018)" = "#eb6834")) +
+    values = setNames(c("#2a78d6", "#eb6834"), c(NIV_OBS, NIV_COR))) +
   scale_size_manual(
-    values = c("Observado" = 1.8, "Corrigido (2014 e 2018)" = 3.4), guide = "none") +
+    values = setNames(c(1.8, 3.4), c(NIV_OBS, NIV_COR)), guide = "none") +
   
   # marca a possível quebra metodológica visível na série (queda abrupta
   # a partir de 2014) -- ajuste o ano ou remova se não fizer mais sentido
   geom_vline(xintercept = 2014, linetype = "dashed", linewidth = 0.6, color = "#c3c2b7") +
   annotate("text", x = 2014.3, y = max(ct$Catch, na.rm = TRUE) * 0.97,
-           label = "possível mudança\nde metodologia", hjust = 0,
+           label = L("possível mudança\nde metodologia", "possible change\nin methodology"), hjust = 0,
            size = 3.2, color = "#898781", lineheight = 0.9) +
   
   # anota a correção do outlier de 2018, mostrando o valor original
   # descartado ao lado do valor que entrou de fato na análise
   annotate("text", x = 2014, y = valor_corrigido_2018 + 600,
-           label = paste0("2018: ", valor_original_2018, " t (observado) →\n",
-                          round(valor_corrigido_2018), " t (média móvel 2015-17 e 2019-21)"),
+           label = paste0("2018: ", valor_original_2018, L(" t (observado) →\n", " t (observed) →\n"),
+                          round(valor_corrigido_2018), L(" t (média móvel 2015-17 e 2019-21)", " t (mean of 2015–17 and 2019–21)")),
            size = 3.1, color = "#eb6834", hjust = 0, lineheight = 0.9) +
 
   # anota a correcao de 2014 (total < cerco -> interpolado entre 2013 e 2015)
   annotate("text", x = 2013.7, y = valor_corrigido_2014 - 550,
-           label = paste0("2014: ", valor_original_2014, " t (total < cerco) →\n",
-                          round(valor_corrigido_2014), " t (interpolado 2013–2015)"),
+           label = paste0("2014: ", valor_original_2014, L(" t (total < cerco) →\n", " t (total < purse seine) →\n"),
+                          round(valor_corrigido_2014), L(" t (interpolado 2013–2015)", " t (interpolated 2013–2015)")),
            size = 3.1, color = "#eb6834", hjust = 1, lineheight = 0.9) +
   
   scale_x_continuous(breaks = seq(1990, 2023, 5)) +
   scale_y_continuous(labels = scales::comma) +
   
   labs(
-    title = "Capturas de Decapterus macarellus em Cabo Verde",
-    subtitle = "Série 1989–2023 (todas as artes) · 2014 interpolado e 2018 corrigido por média móvel",
-    x = "Ano", y = "Captura (t)", color = NULL) +
+    title = L("Capturas de Decapterus macarellus em Cabo Verde", "Catches of Decapterus macarellus in Cabo Verde"),
+    subtitle = L("Série 1989–2023 (todas as artes) · 2014 interpolado e 2018 corrigido por média móvel",
+               "1989–2023 series (all gears) · 2014 interpolated and 2018 replaced by a moving average"),
+    x = L("Ano", "Year"), y = L("Captura (t)", "Catch (t)"), color = NULL) +
   
   theme_minimal(base_size = 14) +
   theme(
@@ -1068,8 +1108,8 @@ write_xlsx( bk_macarellus,  path = "bk_macarellus.xlsx")
 
 
 # Plot de depleção B/K - Decapterus macarellus
-p_bk <- ggplot(bk_macarellus, aes(x = metodo, y = bk, ymin = bk_lo,
-  ymax = bk_hi, color = fonte,shape = hipotese, group = hipotese
+p_bk <- ggplot(bk_macarellus, aes(x = TR(metodo), y = bk, ymin = bk_lo,
+  ymax = bk_hi, color = TR(fonte),shape = hipotese, group = hipotese
 )) +
   geom_linerange( position = position_dodge(width = 0.6),
     linewidth = 1.2 ) +
@@ -1793,11 +1833,11 @@ plot_prior_post <- function(prior_dens_fun, post_values, xlim, xlab, col_post, m
   x <- seq(xlim[1], xlim[2], length.out = 500)
   pd <- prior_dens_fun(x)
   plot(x, pd / max(pd), type = "l", col = "grey45", lwd = 3, lty = 2,
-       xlab = xlab, ylab = "densidade (normalizada ao pico)", main = main,
+       xlab = xlab, ylab = L("densidade (normalizada ao pico)", "density (scaled to peak)"), main = main,
        ylim = c(0, 1.05),bty="l")
   pdens <- density(post_values, from = xlim[1], to = xlim[2])
   lines(pdens$x, pdens$y / max(pdens$y), col = col_post, lwd = 2.5)
-  legend("topright", c("Priori (especificada)", "Posteriori (aceitos, ll=1)"),
+  legend("topright", c(L("Priori (especificada)", "Prior (specified)"), L("Posteriori (aceitos, ll=1)", "Posterior (accepted, ll = 1)")),
          col = c("grey45", col_post), lty = c(2, 1), lwd = 2, bty = "n", cex = 0.8)
 }
 
@@ -2187,8 +2227,8 @@ op <- par(mfrow = c(1, 2), mar = c(4.5, 4.5, 3, 1), xpd = FALSE, bty="l",cex.mai
 
 # ---- painel 1: B/K (comparavel entre cenarios com K muito diferente) ----
 plot(NA, xlim = range(anos_traj), ylim = c(0, 1),
-     xlab = "Ano (biomassa no inicio do ano)", ylab = "Biomassa relativa (B/K)",
-     main = "Trajetorias de biomassa relativa -- B/K")
+     xlab = L("Ano (biomassa no inicio do ano)", "Year (biomass at the start of the year)"), ylab = L("Biomassa relativa (B/K)", "Relative biomass (B/K)"),
+     main = L("Trajetorias de biomassa relativa -- B/K", "Relative biomass trajectories – B/K"))
 abline(v = refyr, col = "grey60", lty = 3)   # ano de referencia do btk (onde o Bt/K e "ancorado")
 for (id in ordem_ids) {
   tr <- trajetorias[[id]]
@@ -2204,8 +2244,8 @@ legend("topright", legend = ordem_ids, col = cores, lwd = 3.2, bty = "n", cex = 
 # ---- painel 2: biomassa absoluta ----
 todas_max <- max(sapply(trajetorias, function(tr) max(tr$p97.5_B)))
 plot(NA, xlim = range(anos_traj), ylim = c(0, todas_max),
-     xlab = "Ano (biomassa no inicio do ano)", ylab = "Biomassa (t)",
-     main = "Trajetorias de biomassa absoluta -- (t)")
+     xlab = L("Ano (biomassa no inicio do ano)", "Year (biomass at the start of the year)"), ylab = L("Biomassa (t)", "Biomass (t)"),
+     main = L("Trajetorias de biomassa absoluta -- (t)", "Absolute biomass trajectories (t)"))
 for (id in ordem_ids) {
   tr <- trajetorias[[id]]
   polygon(c(anos_traj, rev(anos_traj)), c(tr$p2.5_B, rev(tr$p97.5_B)),
@@ -2320,8 +2360,8 @@ op <- par(mar = c(4.5, 5, 3, 1),bty="l",cex.main=0.7)
 
 # ---- eixo/moldura em branco primeiro, pra desenhar as faixas de MSY atrás da linha ----
 plot(NA, xlim = xlim_plot, ylim = c(0, ylim_max),
-     xlab = "Ano", ylab = "Captura (t)",
-     main = "Série de captura e posteriores de MSY por cenário")
+     xlab = L("Ano", "Year"), ylab = L("Captura (t)", "Catch (t)"),
+     main = L("Série de captura e posteriores de MSY por cenário", "Catch series and MSY posteriors by scenario"))
 
 # ---- faixas horizontais (IC95%) + linha (mediana) de MSY, por cenário ----
 x0 <- min(anos)
@@ -2341,8 +2381,8 @@ lines(anos, catches, type = "o", col = "grey25", pch = 16, cex = 0.8, lwd = 2)
 
 legend("topright", inset = c(0, 0), xpd = NA,
        legend = ordem_ids, col = cores, lwd = 2.4, bty = "n", cex = 0.8,
-       title = "MSY (mediana, faixa = IC 95%)", title.cex = 0.66)
-legend("topleft", legend = "Captura observada", col = "grey25", lwd = 2.4, pch = 16,
+       title = L("MSY (mediana, faixa = IC 95%)", "MSY (median; band = 95% CI)"), title.cex = 0.66)
+legend("topleft", legend = L("Captura observada", "Observed catch"), col = "grey25", lwd = 2.4, pch = 16,
        pt.cex = 0.8, bty = "n", cex = 0.8)
 
 par(op)
@@ -2416,10 +2456,10 @@ png("msy_densidade_conjunta_dbsra.png", width = 28, height = 20,
 op <- par(mar = c(4.5, 4.5, 3, 1),bty="l",cex.main=0.9)
 
 plot(x_msy, y_msy, type = "l", log = "x",
-     main = "Distribuição conjunta de MSY (todos os cenários combinados)",
-     xlab = "MSY (t)", ylab = "Densidade", col = "#1F4E79", lwd = 2.2,
+     main = L("Distribuição conjunta de MSY (todos os cenários combinados)", "Joint distribution of MSY (all scenarios combined)"),
+     xlab = "MSY (t)", ylab = L("Densidade", "Density"), col = "#1F4E79", lwd = 2.2,
      xaxt = "n")
-axis(1, at = 10^marcas_x, labels = format(round(10^marcas_x), big.mark = ".", decimal.mark = ",", scientific = FALSE))
+axis(1, at = 10^marcas_x, labels = format(round(10^marcas_x), big.mark = L(".", ","), decimal.mark = L(",", "."), scientific = FALSE))
 
 # sombreia a faixa de 95% (entre os quantis 2.5% e 97.5%) sob a curva
 faixa <- x_msy >= q["2.5%"] & x_msy <= q["97.5%"]
@@ -2440,12 +2480,12 @@ for (nm in names(q)) {
 
 # rótulos dos quantis, perto do eixo x
 y_lab <- max(y_msy) * 0.05
-text(q["2.5%"],  y_lab, sprintf("2,5%%\n%.0f", q["2.5%"]),  col = "#C00000", cex = 0.8, pos = 2, offset = 0.3)
-text(q["97.5%"], y_lab, sprintf("97,5%%\n%.0f", q["97.5%"]), col = "#C00000", cex = 0.8, pos = 4, offset = 0.3)
-text(q["50%"], max(y_msy) * 0.97, sprintf("mediana: %.0f t", q["50%"]),
+text(q["2.5%"],  y_lab, sprintf(L("2,5%%\n%.0f", "2.5%%\n%.0f"), q["2.5%"]),  col = "#C00000", cex = 0.8, pos = 2, offset = 0.3)
+text(q["97.5%"], y_lab, sprintf(L("97,5%%\n%.0f", "97.5%%\n%.0f"), q["97.5%"]), col = "#C00000", cex = 0.8, pos = 4, offset = 0.3)
+text(q["50%"], max(y_msy) * 0.97, sprintf(L("mediana: %.0f t", "median: %.0f t"), q["50%"]),
      col = "#1F4E79", cex = 0.8, pos = 4, offset = 0.3, font = 2)
 
-legend("topright", legend = c("Densidade conjunta do MSY", "Faixa de 95% (IC)", "Mediana"),
+legend("topright", legend = c(L("Densidade conjunta do MSY", "Joint density of MSY"), L("Faixa de 95% (IC)", "95% interval"), L("Mediana", "Median")),
        col = c("#1F4E79", adjustcolor("#1F4E79", alpha.f = 0.4), "#1F4E79"),
        lwd = c(2.2, 8, 1.8), lty = c(1, 1, 1), bty = "n", cex = 0.8)
 
@@ -2517,8 +2557,8 @@ png("btk_densidade_conjunta_dbsra.png", width = 28, height = 20,
 op <- par(mar = c(4.5, 4.5, 3, 1),bty="l",cex.main=0.9)
 
 plot(x_btk, y_btk, type = "l",
-     main = "Distribuição conjunta de Bt/K (todos os cenários combinados)",
-     xlab = "Bt/K (fração da capacidade de suporte)", ylab = "Densidade",
+     main = L("Distribuição conjunta de Bt/K (todos os cenários combinados)", "Joint distribution of Bt/K (all scenarios combined)"),
+     xlab = L("Bt/K (fração da capacidade de suporte)", "Bt/K (fraction of carrying capacity)"), ylab = L("Densidade", "Density"),
      col = "#1F4E79", lwd = 2.2, xlim = c(0, 1))
 
 # sombreia a faixa de 95% (entre os quantis 2.5% e 97.5%) sob a curva
@@ -2540,12 +2580,12 @@ for (nm in names(q)) {
 
 # rótulos dos quantis, perto do eixo x
 y_lab <- max(y_btk) * 0.05
-text(q["2.5%"],  y_lab, sprintf("2,5%%\n%.2f", q["2.5%"]),  col = "#C00000", cex = 0.8, pos = 2, offset = 0.3)
-text(q["97.5%"], y_lab, sprintf("97,5%%\n%.2f", q["97.5%"]), col = "#C00000", cex = 0.8, pos = 4, offset = 0.3)
-text(q["50%"], max(y_btk) * 0.97, sprintf("mediana: %.2f", q["50%"]),
+text(q["2.5%"],  y_lab, sprintf(L("2,5%%\n%.2f", "2.5%%\n%.2f"), q["2.5%"]),  col = "#C00000", cex = 0.8, pos = 2, offset = 0.3)
+text(q["97.5%"], y_lab, sprintf(L("97,5%%\n%.2f", "97.5%%\n%.2f"), q["97.5%"]), col = "#C00000", cex = 0.8, pos = 4, offset = 0.3)
+text(q["50%"], max(y_btk) * 0.97, sprintf(L("mediana: %.2f", "median: %.2f"), q["50%"]),
      col = "#1F4E79", cex = 0.8, pos = 4, offset = 0.3, font = 2)
 
-legend("topright", legend = c("Densidade conjunta do Bt/K", "Faixa de 95% (IC)", "Mediana"),
+legend("topright", legend = c(L("Densidade conjunta do Bt/K", "Joint density of Bt/K"), L("Faixa de 95% (IC)", "95% interval"), L("Mediana", "Median")),
        col = c("#1F4E79", adjustcolor("#1F4E79", alpha.f = 0.4), "#1F4E79"),
        lwd = c(2.2, 8, 1.8), lty = c(1, 1, 1), bty = "n", cex = 0.8)
 
@@ -2683,10 +2723,10 @@ png(sprintf("tornado_sensibilidade_%s_dbsra.png", tolower(metrica)),  width = 32
 op <- par(mar = c(4.5, 13, 4.5, 12), xpd = FALSE, bty="l",cex.main=0.6)
 
 plot(NA, xlim = xlim_plot, ylim = c(0.5, length(ordem_fatores) + 0.5),
-     yaxt = "n", ylab = "", xlab = sprintf("Variação da mediana de %s em relação ao cenário Base (%%)", metrica),
+     yaxt = "n", ylab = "", xlab = sprintf(L("Variação da mediana de %s em relação ao cenário Base (%%)", "Change in the median %s relative to the base scenario (%%)"), metrica),
      main = "")
-mtext(sprintf("Gráfico tornado — sensibilidade da mediana de %s", metrica), side = 3, line = 2.3, cex = 1.5, font = 2, adj = 0)
-mtext(sprintf("Referência (cenário BASE: %s): mediana de %s = %.1f", id_base, metrica, valor_base),
+mtext(sprintf(L("Gráfico tornado — sensibilidade da mediana de %s", "Tornado plot — sensitivity of the median %s"), metrica), side = 3, line = 2.3, cex = 1.5, font = 2, adj = 0)
+mtext(sprintf(L("Referência (cenário BASE: %s): mediana de %s = %.1f", "Reference (BASE scenario: %s): median %s = %.1f"), id_base, metrica, valor_base),
       side = 3, line = 0.8, cex = 1, adj = 0)
 
 abline(v = 0, col = "black", lwd = 1.4)
@@ -2699,11 +2739,11 @@ for (i in seq_len(nrow(tab_emp))) {
        col = cores[r$nivel], border = "white")
 }
 
-axis(2, at = seq_along(ordem_fatores), labels = rev(ordem_fatores), las = 1, tick = FALSE, cex.axis = 1)
+axis(2, at = seq_along(ordem_fatores), labels = rev(TR(ordem_fatores)), las = 1, tick = FALSE, cex.axis = 1)
 
 legend(x = xlim_plot[2] * 1.1, y = length(ordem_fatores) + 0.5, xpd = NA,
        legend = niveis_unicos, fill = cores[niveis_unicos], bty = "n", cex = 1,
-       title = "Nível testado", xjust = 0)
+       title = L("Nível testado", "Level tested"), xjust = 0)
 
 par(op)
 dev.off()
@@ -6295,7 +6335,7 @@ extrair <- function(id, var) {
 # (em vez de TRUE) deixa o texto "vazar" pra dentro desse oma. cex do
 # rotulo caiu de 0.8 pra 0.68 pra nao encostar no titulo do painel debaixo.
 
-vars <- c(postr = "r", postk = "k", postmsy = "MSY", postfinalbk = "Bt/K (ultimo ano)")
+vars <- c(postr = "r", postk = "k", postmsy = "MSY", postfinalbk = L("Bt/K (ultimo ano)", "Bt/K (final year)"))
 
 png("comparacao_cenarios_cmsy.png", width = 28, height = 22,
     res = 300, antialias = "cleartype", units = "cm")
@@ -6348,10 +6388,10 @@ plot_prior_post_emp <- function(prior_values, post_values, xlab, col_post, main)
   pdens <- density(post_values,  from = xlim[1], to = xlim[2], na.rm = TRUE)
   
   plot(pd$x, pd$y / max(pd$y), type = "l", col = "grey45", lwd = 3, lty = 2,
-       xlab = xlab, ylab = "densidade (normalizada ao pico)", main = main,
+       xlab = xlab, ylab = L("densidade (normalizada ao pico)", "density (scaled to peak)"), main = main,
        ylim = c(0, 1.05), bty = "l")
   lines(pdens$x, pdens$y / max(pdens$y), col = col_post, lwd = 2.5)
-  legend("topright", c("Priori (amostrada)", "Posteriori"),
+  legend("topright", c(L("Priori (amostrada)", "Prior (sampled)"), L("Posteriori", "Posterior")),
          col = c("grey45", col_post), lty = c(2, 1), lwd = 2, bty = "n", cex = 0.8)
 }
 
@@ -6375,8 +6415,8 @@ gerar_priori_posteriori_cmsy <- function(cenario_id) {
   plot_prior_post_emp(d$priormsy, d$postmsy, xlab = "MSY",
                       col_post = "#548235", main = paste("MSY -", cenario_id))
   
-  plot_prior_post_emp(d$priorfinalbk, d$postfinalbk, xlab = "Bt/K (ultimo ano)",
-                      col_post = "#7030A0", main = paste("Bt/K final -", cenario_id))
+  plot_prior_post_emp(d$priorfinalbk, d$postfinalbk, xlab = L("Bt/K (ultimo ano)", "Bt/K (final year)"),
+                      col_post = "#7030A0", main = paste(L("Bt/K final -", "Final Bt/K -"), cenario_id))
   
   par(op)
   dev.off()
@@ -6460,10 +6500,10 @@ png("msy_densidade_conjunta_cmsy.png", width = 25, height = 16,
 op <- par(mar = c(4.5, 5, 3, 1), bty = "l", cex.main = 0.9)
 
 plot(x_msy, y_msy, type = "l", log = "x",
-     main = "Distribuição conjunta de MSY -- todos os cenários (CMSY++)",
-     xlab = "MSY (t)", ylab = "Densidade", col = "#1F4E79", lwd = 2.4,
+     main = L("Distribuição conjunta de MSY -- todos os cenários (CMSY++)", "Joint distribution of MSY – all scenarios (CMSY++)"),
+     xlab = "MSY (t)", ylab = L("Densidade", "Density"), col = "#1F4E79", lwd = 2.4,
      xaxt = "n")
-axis(1, at = 10^marcas_x, labels = format(round(10^marcas_x), big.mark = ".", decimal.mark = ",", scientific = FALSE))
+axis(1, at = 10^marcas_x, labels = format(round(10^marcas_x), big.mark = L(".", ","), decimal.mark = L(",", "."), scientific = FALSE))
 
 faixa <- x_msy >= q["2.5%"] & x_msy <= q["97.5%"]
 polygon(c(x_msy[faixa], rev(x_msy[faixa])), c(y_msy[faixa], rep(0, sum(faixa))),
@@ -6480,12 +6520,12 @@ for (nm in names(q)) {
 }
 
 y_lab <- max(y_msy) * 0.05
-text(q["2.5%"],  y_lab, sprintf("2,5%%\n%.0f", q["2.5%"]),  col = "#C00000", cex = 0.68, pos = 2, offset = 0.3)
-text(q["97.5%"], y_lab, sprintf("97,5%%\n%.0f", q["97.5%"]), col = "#C00000", cex = 0.68, pos = 4, offset = 0.3)
-text(q["50%"], max(y_msy) * 0.97, sprintf("mediana: %.0f t", q["50%"]),
+text(q["2.5%"],  y_lab, sprintf(L("2,5%%\n%.0f", "2.5%%\n%.0f"), q["2.5%"]),  col = "#C00000", cex = 0.68, pos = 2, offset = 0.3)
+text(q["97.5%"], y_lab, sprintf(L("97,5%%\n%.0f", "97.5%%\n%.0f"), q["97.5%"]), col = "#C00000", cex = 0.68, pos = 4, offset = 0.3)
+text(q["50%"], max(y_msy) * 0.97, sprintf(L("mediana: %.0f t", "median: %.0f t"), q["50%"]),
      col = "#1F4E79", cex = 0.78, pos = 4, offset = 0.3, font = 2)
 
-legend("topright", legend = c("Densidade conjunta do MSY", "Faixa de 95% (IC)", "Mediana"),
+legend("topright", legend = c(L("Densidade conjunta do MSY", "Joint density of MSY"), L("Faixa de 95% (IC)", "95% interval"), L("Mediana", "Median")),
        col = c("#1F4E79", adjustcolor("#1F4E79", alpha.f = 0.4), "#1F4E79"),
        lwd = c(2.4, 8, 1.8), lty = c(1, 1, 1), bty = "n", cex = 0.75)
 
@@ -6559,8 +6599,8 @@ png("btk_densidade_conjunta_cmsy.png", width = 25, height = 16,
 op <- par(mar = c(4.5, 5, 3, 1), bty = "l", cex.main = 0.9)
 
 plot(x_btk, y_btk, type = "l",
-     main = "Distribuição conjunta de Bt/K final -- todos os cenários (CMSY++)",
-     xlab = "Bt/K no último ano (fração da capacidade de suporte)", ylab = "Densidade",
+     main = L("Distribuição conjunta de Bt/K final -- todos os cenários (CMSY++)", "Joint distribution of final Bt/K – all scenarios (CMSY++)"),
+     xlab = L("Bt/K no último ano (fração da capacidade de suporte)", "Bt/K in the final year (fraction of carrying capacity)"), ylab = L("Densidade", "Density"),
      col = "#1F4E79", lwd = 2.4, xlim = c(0, 1))
 
 # sombreia a faixa de 95% (entre os quantis 2.5% e 97.5%) sob a curva
@@ -6582,12 +6622,12 @@ for (nm in names(q)) {
 
 # rótulos dos quantis, perto do eixo x
 y_lab <- max(y_btk) * 0.05
-text(q["2.5%"],  y_lab, sprintf("2,5%%\n%.2f", q["2.5%"]),  col = "#C00000", cex = 0.8, pos = 2, offset = 0.3)
-text(q["97.5%"], y_lab, sprintf("97,5%%\n%.2f", q["97.5%"]), col = "#C00000", cex = 0.8, pos = 4, offset = 0.3)
-text(q["50%"], max(y_btk) * 0.97, sprintf("mediana: %.2f", q["50%"]),
+text(q["2.5%"],  y_lab, sprintf(L("2,5%%\n%.2f", "2.5%%\n%.2f"), q["2.5%"]),  col = "#C00000", cex = 0.8, pos = 2, offset = 0.3)
+text(q["97.5%"], y_lab, sprintf(L("97,5%%\n%.2f", "97.5%%\n%.2f"), q["97.5%"]), col = "#C00000", cex = 0.8, pos = 4, offset = 0.3)
+text(q["50%"], max(y_btk) * 0.97, sprintf(L("mediana: %.2f", "median: %.2f"), q["50%"]),
      col = "#1F4E79", cex = 0.8, pos = 4, offset = 0.3, font = 2)
 
-legend("topright", legend = c("Densidade conjunta do Bt/K final", "Faixa de 95% (IC)", "Mediana"),
+legend("topright", legend = c(L("Densidade conjunta do Bt/K final", "Joint density of final Bt/K"), L("Faixa de 95% (IC)", "95% interval"), L("Mediana", "Median")),
        col = c("#1F4E79", adjustcolor("#1F4E79", alpha.f = 0.4), "#1F4E79"),
        lwd = c(2.4, 8, 1.8), lty = c(1, 1, 1), bty = "n", cex = 0.8)
 
@@ -6649,8 +6689,8 @@ png("msy_posteriores_serie_captura_cmsy.png",  width = 25, height = 16,
 op <- par(mar = c(4.5, 5, 3, 1),bty="l",cex.main=0.7)
 
 plot(NA, xlim = xlim_plot, ylim = c(0, ylim_max),
-     xlab = "Ano", ylab = "Captura (t)",
-     main = "Série de captura e posteriores de MSY por cenário (CMSY++)")
+     xlab = L("Ano", "Year"), ylab = L("Captura (t)", "Catch (t)"),
+     main = L("Série de captura e posteriores de MSY por cenário (CMSY++)", "Catch series and MSY posteriors by scenario (CMSY++)"))
 
 x0 <- min(anos); x1 <- max(anos)
 for (id in ordem_ids) {
@@ -6665,8 +6705,8 @@ lines(anos, catches, type = "o", col = "grey25", pch = 16, cex = 0.8, lwd = 2)
 
 legend("topright", inset = c(0, 0), xpd = NA,
        legend = ordem_ids, col = cores, lwd = 2.4, bty = "n", cex = 0.8,
-       title = "MSY (mediana, faixa = IC 95%)", title.cex = 0.66)
-legend("topleft", legend = "Captura observada", col = "grey25", lwd = 2.4, pch = 16,
+       title = L("MSY (mediana, faixa = IC 95%)", "MSY (median; band = 95% CI)"), title.cex = 0.66)
+legend("topleft", legend = L("Captura observada", "Observed catch"), col = "grey25", lwd = 2.4, pch = 16,
        pt.cex = 0.8, bty = "n", cex = 0.8)
 par(op)
 dev.off()
@@ -6718,8 +6758,8 @@ op <- par(mfrow = c(1, 2), mar = c(4.5, 4.5, 3, 1), xpd = FALSE, bty = "l", cex.
 # ---- painel 1: B/Bmsy ----
 ylim1 <- c(0, max(bio_out$ucl.B.Bmsy, na.rm = TRUE) * 1.05)
 plot(NA, xlim = range(anos), ylim = ylim1,
-     xlab = "Ano", ylab = "Biomassa relativa (B/Bmsy)",
-     main = "Trajetorias de biomassa relativa -- B/Bmsy")
+     xlab = L("Ano", "Year"), ylab = L("Biomassa relativa (B/Bmsy)", "Relative biomass (B/Bmsy)"),
+     main = L("Trajetorias de biomassa relativa -- B/Bmsy", "Relative biomass trajectories – B/Bmsy"))
 for (id in ordem_ids) {
   d <- bio_out[bio_out$scenario == id, ]
   d <- d[order(d$yr), ]
@@ -6745,8 +6785,8 @@ names(biomassa_abs) <- ordem_ids
 
 todas_max <- max(sapply(biomassa_abs, function(d) max(d$ucl)))
 plot(NA, xlim = range(anos), ylim = c(0, todas_max * 1.05),
-     xlab = "Ano", ylab = "Biomassa (1000 t)",
-     main = "Trajetorias de biomassa absoluta -- (t)")
+     xlab = L("Ano", "Year"), ylab = L("Biomassa (1000 t)", "Biomass (1000 t)"),
+     main = L("Trajetorias de biomassa absoluta -- (t)", "Absolute biomass trajectories (t)"))
 for (id in ordem_ids) {
   d <- biomassa_abs[[id]]
   polygon(c(d$yr, rev(d$yr)), c(d$lcl, rev(d$ucl)),
@@ -6888,10 +6928,10 @@ png(sprintf("tornado_sensibilidade_%s_cmsy.png", tolower(metrica_nome)),  width 
 op <- par(mar = c(4.5, 13, 4.5, 12), xpd = FALSE, bty="l",cex.main=0.6)
 
 plot(NA, xlim = xlim_plot, ylim = c(0.5, length(ordem_fatores) + 0.5),
-     yaxt = "n", ylab = "", xlab = sprintf("Variação da mediana de %s em relação ao cenário Base (%%)", metrica_nome),
+     yaxt = "n", ylab = "", xlab = sprintf(L("Variação da mediana de %s em relação ao cenário Base (%%)", "Change in the median %s relative to the base scenario (%%)"), metrica_nome),
      main = "")
-mtext(sprintf("Gráfico tornado — sensibilidade da mediana de %s (CMSY++)", metrica_nome), side = 3, line = 2.3, cex = 1.15, font = 2, adj = 0)
-mtext(sprintf("Referência (cenário BASE: %s): mediana de %s = %.1f", id_base, metrica_nome, valor_base),
+mtext(sprintf(L("Gráfico tornado — sensibilidade da mediana de %s (CMSY++)", "Tornado plot — sensitivity of the median %s (CMSY++)"), metrica_nome), side = 3, line = 2.3, cex = 1.15, font = 2, adj = 0)
+mtext(sprintf(L("Referência (cenário BASE: %s): mediana de %s = %.1f", "Reference (BASE scenario: %s): median %s = %.1f"), id_base, metrica_nome, valor_base),
       side = 3, line = 0.8, cex = 0.85, adj = 0)
 
 abline(v = 0, col = "black", lwd = 1.4)
@@ -6904,11 +6944,11 @@ for (i in seq_len(nrow(tab_emp))) {
        col = cores[r$nivel], border = "white")
 }
 
-axis(2, at = seq_along(ordem_fatores), labels = rev(ordem_fatores), las = 1, tick = FALSE, cex.axis = 0.85)
+axis(2, at = seq_along(ordem_fatores), labels = rev(TR(ordem_fatores)), las = 1, tick = FALSE, cex.axis = 0.85)
 
 legend(x = xlim_plot[2] * 1.1, y = length(ordem_fatores) + 0.5, xpd = NA,
        legend = niveis_unicos, fill = cores[niveis_unicos], bty = "n", cex = 0.95,
-       title = "Nível testado", xjust = 0)
+       title = L("Nível testado", "Level tested"), xjust = 0)
 
 par(op)
 dev.off()
